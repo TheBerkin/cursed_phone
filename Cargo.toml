@@ -1,0 +1,21 @@
+[package]
+name = "cursed_phone"
+version = "0.1.0"
+authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+rpi = ["rppal"]
+
+[dependencies]
+rodio = "0.11.0"
+globwalk = "0.8.0"
+enum-iterator = "0.6.0"
+rppal = { version = "0.11.3", optional = true }
+
+[dependencies.mlua]
+version = "0.3.2"
+default-features = false
+features = ["luajit", "vendored"]
