@@ -9,6 +9,9 @@ use enum_iterator::IntoEnumIterator;
 use rodio;
 use rodio::source::{Source, Buffered};
 use globwalk;
+use globset;
+use rand;
+use rand::Rng;
 
 /// Represents a playback channel for sounds.
 #[derive(IntoEnumIterator, Copy, Clone, Debug)]
@@ -49,11 +52,12 @@ const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, P
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
 
-pub struct SoundEngine {
+pub struct SoundEngine<'a> {
     root_path: PathBuf,
     device: rodio::Device,
     channels: RefCell<Vec<SoundChannel>>,
     sounds: HashMap<String, Sound>,
+    sound_glob_cache: RefCell<HashMap<String, Vec<&'a Sound>>>,
     master_volume: f32
 }
 
@@ -80,24 +84,25 @@ impl Sound {
     }
 }
 
-impl SoundEngine {
-    pub fn new(root_path: impl Into<String>) -> SoundEngine {
+impl<'a> SoundEngine<'a> {
+    pub fn new(root_path: impl Into<String>) -> Self {
         // Load output device
-        let device = rodio::default_output_device().expect("No default output device found!");
-
+        let device = rodio::default_output_device().expect("No default output device found!");        
         let channels = RefCell::from(Vec::<SoundChannel>::new());
 
-        let mut engine = SoundEngine {
+        let mut engine = Self {
             root_path: Path::new(root_path.into().as_str()).canonicalize().unwrap(),
             sounds: HashMap::new(),
+            sound_glob_cache: Default::default(),
             device,
             channels,
             master_volume: 1.0
         };
 
         // Create channels
-        for _ in Channel::into_enum_iter() {
-            engine.create_channel();
+        for ch in Channel::into_enum_iter() {
+            let channel = SoundChannel::new(&engine, ch);
+            engine.channels.borrow_mut().push(channel);
         }
 
         engine.load_sounds();
@@ -106,9 +111,9 @@ impl SoundEngine {
     }
 
     fn load_sounds(&mut self) {
+        self.sounds.clear();
         let search_path = self.root_path.join("**").join("*.{wav,ogg}");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound resources");
-        println!("{}", search_path_str);
         for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound resources") {
             if let Ok(path) = entry {   
                 let sound_path = path.path().canonicalize().expect("Unable to expand path");
@@ -124,32 +129,85 @@ impl SoundEngine {
     }
 }
 
-impl SoundEngine {
-    fn create_channel(&self) {
-        let channel = SoundChannel::new(self, Channel::from(self.channels.borrow().len()));
-        self.channels.borrow_mut().push(channel);
-    }
-
-    pub fn play(&self, key: &String, channel: Channel) {
-        let sound = self.sounds.get(key);
+impl<'a> SoundEngine<'a> {
+    pub fn play(&'a self, key: &str, channel: Channel) {
+        let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
                 println!("Playing sound '{}' on channel {:?}", key, channel);
-                let channel = &self.channels.borrow_mut()[channel.as_index()];
-                channel.play(sound)
+                self.stop(channel);
+                let ch = &self.channels.borrow_mut()[channel.as_index()];
+                ch.queue(sound);
             },
             None => println!("WARNING: Tried to play nonexistent sound '{}'", key)
         }
     }
 
+    pub fn play_wait(&'a self, key: &str, channel: Channel) {
+        let sound = self.find_sound(key);
+        match sound {
+            Some(sound) => {
+                println!("Playing sound '{}' on channel {:?}", key, channel);
+                self.stop(channel);
+                let ch = &self.channels.borrow_mut()[channel.as_index()];
+                ch.queue(sound);
+                ch.sink.sleep_until_end();
+            },
+            None => println!("WARNING: Tried to play nonexistent sound '{}'", key)
+        }
+    }
+
+    fn find_sound(&'a self, key: &str) -> Option<&'a Sound> {
+        // Check for exact match
+        let sound = self.sounds.get(key);
+        match sound {
+            // If it exists, just return it right away
+            Some(_) => return sound,
+            // If not, try a glob match
+            None => {
+                // First, check if there's a glob match list pre-cached
+                let mut glob_cache = self.sound_glob_cache.borrow_mut();
+                let glob_list = glob_cache.get(key);
+                if let Some(glob_list) = glob_list {
+                    let index = rand::thread_rng().gen_range(0, glob_list.len());
+                    return Some(glob_list[index]);
+                }
+                // If not, run the search manually and cache the results
+                let glob = globset::Glob::new(key);
+                if let Ok(glob) = glob {
+                    let matcher = glob.compile_matcher();
+                    let mut glob_list = Vec::<&'a Sound>::new();
+                    let sound_iter = self.sounds.iter();
+                    for (k, v) in sound_iter {
+                        if matcher.is_match(k) {
+                            glob_list.push(v);
+                        }
+                    }                    
+                    // Cache and pick only if there were results
+                    if glob_list.len() > 0 {
+                        let index = rand::thread_rng().gen_range(0, glob_list.len());
+                        let snd = Some(glob_list[index]);
+                        glob_cache.insert(key.to_string(), glob_list);
+                        return snd;
+                    }
+                }
+                return None;
+            }
+        }
+    }
+
     pub fn stop_all(&self) {
         for ch in Channel::into_enum_iter() {
-            self.stop(ch);
+            self.stop(ch);            
         }
     }
 
     pub fn stop(&self, channel: Channel) {
-        self.channels.borrow()[channel.as_index()].stop();
+        let mut ch = &mut self.channels.borrow_mut()[channel.as_index()];
+        if !ch.sink.empty() {
+            ch.sink.stop();
+            ch.sink = rodio::Sink::new(&self.device);
+        }
     }
 
     pub fn set_volume(&mut self, channel: Channel, volume: f32) {
@@ -169,21 +227,21 @@ impl SoundEngine {
     }
 
     pub fn play_annoying_sine(&self, channel: Channel, f: u32) {
-        let ch = &self.channels.borrow()[channel.as_index()];
-        ch.sink.stop();
+        let sink = &self.channels.borrow()[channel.as_index()].sink;
         let src = rodio::source::SineWave::new(f);
-        ch.sink.append(src);
+        sink.append(src);
     }
 }
 
 impl SoundChannel {
     fn new(engine: &SoundEngine, id: Channel) -> Self {
+        let sink = rodio::Sink::new(&engine.device);        
         let mut ch = Self {
-            sink: rodio::Sink::new(&engine.device),
+            sink,
             id,
             channel_volume: 1.0
         };
-        ch.update_sink_volume(engine.master_volume);
+        //ch.update_sink_volume(engine.master_volume);
         ch
     }
 }
@@ -205,18 +263,11 @@ impl SoundChannel {
         self
     }
 
-    fn stop(&self) {
+    fn kill(&self) {
         self.sink.stop();
     }
 
-    fn play(&self, snd: &Sound) {
-        self.sink.stop();
+    fn queue(&self, snd: &Sound) {
         self.sink.append(snd.src.clone());
-        self.sink.play();
-    }
-
-    fn play_next(&self, snd: &Sound) {
-        self.sink.append(snd.src.clone());
-        self.sink.play();
     }
 }
