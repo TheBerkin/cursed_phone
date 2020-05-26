@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
 use enum_iterator::IntoEnumIterator;
+use indexmap::map::IndexMap;
 use rodio;
 use rodio::source::{Source, Buffered};
 use globwalk;
@@ -52,12 +53,12 @@ const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, P
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
 
-pub struct SoundEngine<'a> {
+pub struct SoundEngine {
     root_path: PathBuf,
     device: rodio::Device,
     channels: RefCell<Vec<SoundChannel>>,
-    sounds: HashMap<String, Sound>,
-    sound_glob_cache: RefCell<HashMap<String, Vec<&'a Sound>>>,
+    sounds: IndexMap<String, Sound>,
+    sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
     master_volume: f32
 }
 
@@ -84,7 +85,7 @@ impl Sound {
     }
 }
 
-impl<'a> SoundEngine<'a> {
+impl SoundEngine {
     pub fn new(root_path: impl Into<String>) -> Self {
         // Load output device
         let device = rodio::default_output_device().expect("No default output device found!");        
@@ -92,7 +93,7 @@ impl<'a> SoundEngine<'a> {
 
         let mut engine = Self {
             root_path: Path::new(root_path.into().as_str()).canonicalize().unwrap(),
-            sounds: HashMap::new(),
+            sounds: IndexMap::new(),
             sound_glob_cache: Default::default(),
             device,
             channels,
@@ -112,6 +113,7 @@ impl<'a> SoundEngine<'a> {
 
     fn load_sounds(&mut self) {
         self.sounds.clear();
+        self.sound_glob_cache.borrow_mut().clear();
         let search_path = self.root_path.join("**").join("*.{wav,ogg}");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound resources");
         for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound resources") {
@@ -129,13 +131,16 @@ impl<'a> SoundEngine<'a> {
     }
 }
 
-impl<'a> SoundEngine<'a> {
-    pub fn play(&'a self, key: &str, channel: Channel, wait: bool, looping: bool) {
+impl SoundEngine {
+    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool) {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
-                println!("Playing sound '{}' on channel {:?}", key, channel);
-                self.stop(channel);
+                //println!("Playing sound '{}' on channel {:?}", key, channel);
+                if interrupt {
+                    self.stop(channel);
+                }
+
                 let ch = &self.channels.borrow_mut()[channel.as_index()];
 
                 // Queue sound in sink
@@ -154,12 +159,17 @@ impl<'a> SoundEngine<'a> {
         }
     }
 
-    fn channel_busy(&self, channel: Channel) -> bool {
+    pub fn channel_busy(&self, channel: Channel) -> bool {
         let ch = &self.channels.borrow()[channel.as_index()];
         ch.busy()
     }
 
-    fn find_sound(&'a self, key: &str) -> Option<&'a Sound> {
+    pub fn wait(&self, channel: Channel) {
+        let ch = &self.channels.borrow()[channel.as_index()];
+        ch.sink.sleep_until_end();
+    }
+
+    fn find_sound(&self, key: &str) -> Option<&Sound> {
         // Check for exact match
         let sound = self.sounds.get(key);
         match sound {
@@ -172,23 +182,23 @@ impl<'a> SoundEngine<'a> {
                 let glob_list = glob_cache.get(key);
                 if let Some(glob_list) = glob_list {
                     let index = rand::thread_rng().gen_range(0, glob_list.len());
-                    return Some(glob_list[index]);
+                    return Some(&self.sounds.get_index(glob_list[index]).unwrap().1);
                 }
                 // If not, run the search manually and cache the results
                 let glob = globset::GlobBuilder::new(key).literal_separator(true).build();
                 if let Ok(glob) = glob {
                     let matcher = glob.compile_matcher();
-                    let mut glob_list = Vec::<&'a Sound>::new();
+                    let mut glob_list = Vec::<usize>::new();
                     let sound_iter = self.sounds.iter();
-                    for (k, v) in sound_iter {
+                    for (k, _) in sound_iter {
                         if matcher.is_match(k) {
-                            glob_list.push(v);
+                            glob_list.push(self.sounds.get_full(k).unwrap().0);
                         }
                     }                    
                     // Cache and pick only if there were results
                     if glob_list.len() > 0 {
                         let index = rand::thread_rng().gen_range(0, glob_list.len());
-                        let snd = Some(glob_list[index]);
+                        let snd = Some(self.sounds.get_index(glob_list[index]).unwrap().1);
                         glob_cache.insert(key.to_string(), glob_list);
                         return snd;
                     }

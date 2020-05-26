@@ -1,3 +1,13 @@
+--[[
+=================================
+===== CURSED PHONE API FILE =====
+=================================
+
+This script is required by all phone services in order to function properly.
+Unless you are making changes to the engine, do not make changes this file.
+
+]]
+
 -- ========================
 -- SOUND CHANNEL CONSTANTS
 -- ========================
@@ -85,11 +95,12 @@ SERVICE_ACCEPT_CALL = 1
 --- Indicates that a service is hanging up.
 SERVICE_END_CALL = 2
 
--- ========================
--- SOUND API
--- ========================
 
 if _STUB == true then
+
+    -- ====================================================
+    -- ==================== SOUND API =====================
+    -- ====================================================
     
     sound = {
         --- Plays a sound on a specific channel.
@@ -98,11 +109,17 @@ if _STUB == true then
         --- @param looping boolean
         play = function(path, channel, looping) end,
 
-        --- Plays a sound on a specific channel and waits for it to finish.
+        --- Plays a sound immediately on a specific channel and waits for it to finish.
         --- @param path string
         --- @param channel integer
         --- @param looping boolean
         play_wait = function(path, channel, looping) end,
+
+        --- Plays a sound on a specific channel after all other sounds on the channel have stopped.
+        --- @param path string
+        --- @param channel integer
+        --- @param looping boolean
+        play_next = function(path, channel, looping) end,
 
         --- Returns a boolean indicating whether the specified channel is playing something.
         --- @param channel integer
@@ -126,12 +143,12 @@ if _STUB == true then
         set_master_volume = function(volume) end
     }
 
-    -- ========================
-    -- PHONE API
-    -- ========================
+    -- ====================================================
+    -- ==================== PHONE API =====================
+    -- ====================================================
 
     --- @class Phone
-    phone = phone or {
+    phone = {
         get_state = function() end,
         read_digit = function() end,
         register_callee = function(phone_number) end,
@@ -139,27 +156,45 @@ if _STUB == true then
         vibrate = function(power, time_ms) end
     }
 
-    --- Pauses execution for the specified number of milliseconds.
-    --- @param ms integer
-    sleep = sleep or function(ms) end
-
-    --- Vibrates.
-    --- @param power number|"1"
-    --- @param time_ms integer|"1000"
-    vibrate = vibrate or function(power, time_ms) end
-
-    --- Subscribes a function to an event type.
-    --- @param event_name string @The name of the event.
-    --- @param handler function @The function called when the event occurs.
-    add_event_listener = add_event_listener or function(event_name, handler) end
-
-    --- Unsubscribes a function from an event type.
-    --- @param event_name string @The name of the event.
-    --- @param handler function @The function called when the event occurs.
-    remove_event_listener = remove_event_listener or function(event_name, handler) end
-
 
 end
+
+--- Pauses execution for the specified number of milliseconds.
+--- @param ms integer
+--- @type function
+sleep = sleep or function(ms) end
+
+--- Generates a random number between an inclusive minimum and exclusive maximum.
+--- @param min integer
+--- @param max integer
+--- @type function
+random_int = random_int or function(min, max) end
+
+--- Vibrates.
+--- @param power number|"1"
+--- @param time_ms integer|"1000"
+--- @type function
+vibrate_once = vibrate_once or function(power, time_ms) end
+
+--- Vibrates and pauses execution until finished.
+--- @param power number|"1"
+--- @param time_ms integer|"1000"
+--- @type function
+vibrate_wait = vibrate_wait or function(power, time_ms) end
+
+--- Immediately stops any current vibration output.
+--- @type function
+vibrate_stop = vibrate_stop or function() end
+
+--- Subscribes a function to an event type.
+--- @param event_name string @The name of the event.
+--- @param handler function @The function called when the event occurs.
+add_event_listener = add_event_listener or function(event_name, handler) end
+
+--- Unsubscribes a function from an event type.
+--- @param event_name string @The name of the event.
+--- @param handler function @The function called when the event occurs.
+remove_event_listener = remove_event_listener or function(event_name, handler) end
 
 --- Returns an empty phone service module.
 --- @param name string @The display name of the phone service
@@ -168,13 +203,9 @@ end
 function PHONE_SERVICE(name, phone_number)
     --- @class PhoneServiceModule
     local module = {
-        _name = name,
-        _phone_number = phone_number
+        name = name,
+        phone_number = phone_number
     }
 
     return module
 end
-
--- ========================
--- INTERNAL FUNCTIONS
--- ========================

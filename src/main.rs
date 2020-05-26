@@ -1,17 +1,21 @@
-mod phone;
 mod lua;
+mod phone;
 mod sound;
 
-use std::fs::File;
-use std::io::BufReader;
+use crate::lua::LuaEngine;
+use crate::sound::SoundEngine;
 use serde::Deserialize;
 use serde_json;
+use std::boxed::Box;
+use std::fs::File;
+use std::io::BufReader;
+use std::sync::Mutex;
 use std::{thread, time};
-use crate::sound::{SoundEngine, Channel};
-use crate::lua::LuaEngine;
 
+const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./res/cursed_config.json";
 const SOUNDS_PATH: &str = "./res/sounds";
+const TICK_RATE_MS: u64 = 100;
 
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct GpioPinsConfig {
@@ -20,7 +24,7 @@ pub struct GpioPinsConfig {
     in_hook: i32,
     in_motion: i32,
     out_ringer: i32,
-    out_vibrate: i32
+    out_vibrate: i32,
 }
 
 #[derive(Deserialize, Copy, Clone, Debug)]
@@ -28,28 +32,46 @@ pub struct CursedConfig {
     pdd: f32,
     volume: f32,
     off_hook_delay: f32,
-    gpio_pins: GpioPinsConfig
+    gpio_pins: GpioPinsConfig,
 }
 
-fn main() {
+fn main() -> Result<(), String> {
     let config = load_config();
     println!("Config loaded: {:#?}", config);
-    let sound_engine = SoundEngine::new(SOUNDS_PATH);
-    let mut lua_engine = LuaEngine::new(&mut &sound_engine);
-    lua_engine.create_phone_api();
-
-    lua_engine.test();
+    let sound_engine = create_sound_engine();
+    let lua_engine = create_lua_engine(sound_engine);
+    lua_engine.load_cursed_api()?;
+    lua_engine.load_services();
 
     loop {
         lua_engine.tick();
-        sleep(1000);
+        sleep(TICK_RATE_MS);
     }
+
+    cleanup_sound_engine(sound_engine);
+}
+
+fn create_lua_engine(sound_engine: &'static mut SoundEngine) -> &'static mut LuaEngine {
+    let lua_engine = Box::new(LuaEngine::new(SCRIPTS_PATH, sound_engine));
+    let lua_engine: &'static mut LuaEngine = Box::leak(lua_engine);
+    lua_engine
+}
+
+fn create_sound_engine() -> &'static mut SoundEngine {
+    let sound_engine = Box::new(SoundEngine::new(SOUNDS_PATH));
+    let sound_engine: &'static mut SoundEngine = Box::leak(sound_engine);
+    sound_engine
+}
+
+fn cleanup_sound_engine(sound_engine: &'static mut SoundEngine) {
+    unsafe { Box::from_raw(sound_engine) };
 }
 
 fn load_config() -> CursedConfig {
     let file = File::open(CONFIG_PATH).expect("Unable to open config file");
     let reader = BufReader::new(file);
-    let config: CursedConfig = serde_json::from_reader(reader).expect("Unable to parse config file");
+    let config: CursedConfig =
+        serde_json::from_reader(reader).expect("Unable to parse config file");
     config
 }
 
