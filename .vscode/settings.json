@@ -1,0 +1,15 @@
+{
+    "Lua.diagnostics.disable": [
+        "unused-local",
+        "lowercase-global"
+    ],
+    "Lua.diagnostics.globals": [
+        "phone",
+        "sound",
+        "sleep",
+        "vibrate"
+    ],
+    "rust-analyzer.cargo.features": [
+        "rpi"
+    ]
+}

@@ -1,0 +1,13 @@
+{
+	"pdd": 4.0,
+	"volume": 0.5,
+	"off_hook_delay": 60.0,
+	"gpio_pins": {
+		"in_dial_pulse": 2,
+		"in_dial_switch": 4,
+		"in_hook": 5,
+		"in_motion": 16,
+		"out_ringer": 17,
+		"out_vibrate": 27
+	}
+}

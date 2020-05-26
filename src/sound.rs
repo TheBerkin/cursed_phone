@@ -130,31 +130,33 @@ impl<'a> SoundEngine<'a> {
 }
 
 impl<'a> SoundEngine<'a> {
-    pub fn play(&'a self, key: &str, channel: Channel) {
+    pub fn play(&'a self, key: &str, channel: Channel, wait: bool, looping: bool) {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
                 println!("Playing sound '{}' on channel {:?}", key, channel);
                 self.stop(channel);
                 let ch = &self.channels.borrow_mut()[channel.as_index()];
-                ch.queue(sound);
+
+                // Queue sound in sink
+                if looping {
+                    ch.queue_looping(sound);
+                } else {
+                    ch.queue(sound);
+                }
+                
+                // Optionally wait
+                if wait {
+                    ch.sink.sleep_until_end();
+                }
             },
-            None => println!("WARNING: Tried to play nonexistent sound '{}'", key)
+            None => println!("WARNING: Tried to play nonexistent sound or soundglob '{}'", key)
         }
     }
 
-    pub fn play_wait(&'a self, key: &str, channel: Channel) {
-        let sound = self.find_sound(key);
-        match sound {
-            Some(sound) => {
-                println!("Playing sound '{}' on channel {:?}", key, channel);
-                self.stop(channel);
-                let ch = &self.channels.borrow_mut()[channel.as_index()];
-                ch.queue(sound);
-                ch.sink.sleep_until_end();
-            },
-            None => println!("WARNING: Tried to play nonexistent sound '{}'", key)
-        }
+    fn channel_busy(&self, channel: Channel) -> bool {
+        let ch = &self.channels.borrow()[channel.as_index()];
+        ch.busy()
     }
 
     fn find_sound(&'a self, key: &str) -> Option<&'a Sound> {
@@ -173,7 +175,7 @@ impl<'a> SoundEngine<'a> {
                     return Some(glob_list[index]);
                 }
                 // If not, run the search manually and cache the results
-                let glob = globset::Glob::new(key);
+                let glob = globset::GlobBuilder::new(key).literal_separator(true).build();
                 if let Ok(glob) = glob {
                     let matcher = glob.compile_matcher();
                     let mut glob_list = Vec::<&'a Sound>::new();
@@ -236,7 +238,7 @@ impl<'a> SoundEngine<'a> {
 impl SoundChannel {
     fn new(engine: &SoundEngine, id: Channel) -> Self {
         let sink = rodio::Sink::new(&engine.device);        
-        let mut ch = Self {
+        let ch = Self {
             sink,
             id,
             channel_volume: 1.0
@@ -250,7 +252,7 @@ impl SoundChannel {
     fn update_sink_volume(&mut self, master_volume: f32) -> &mut Self {
         let mixed_vol = master_volume * self.channel_volume;
         self.sink.set_volume(mixed_vol);
-        println!("Sink volume for Channel {:?} is now {}", self.id, self.sink.volume());
+        //println!("Sink volume for Channel {:?} is now {}", self.id, self.sink.volume());
         self
     }
 
@@ -263,11 +265,19 @@ impl SoundChannel {
         self
     }
 
+    fn busy(&self) -> bool {
+        !self.sink.empty()
+    }
+
     fn kill(&self) {
         self.sink.stop();
     }
 
     fn queue(&self, snd: &Sound) {
         self.sink.append(snd.src.clone());
+    }
+
+    fn queue_looping(&self, snd: &Sound) {
+        self.sink.append(snd.src.clone().repeat_infinite());
     }
 }
