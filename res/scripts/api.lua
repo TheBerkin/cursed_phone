@@ -4,7 +4,7 @@
 =================================
 
 This script is required by all phone services in order to function properly.
-Unless you are making changes to the engine, do not make changes this file.
+Unless you are making changes to the engine, do not modify this file.
 
 ]]
 
