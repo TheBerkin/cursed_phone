@@ -18,7 +18,7 @@ pub struct Phone {
 }
 
 impl Phone {
-    /// Constructor for Phone on Raspberry Pi.
+    /// Constructor for Phone on Raspberry Pi platforms.
     #[cfg(feature = "rpi")]
     pub fn new(config: &CursedConfig) -> Self {
         let mut gpio = GpioInterface {

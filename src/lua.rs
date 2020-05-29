@@ -21,13 +21,68 @@ pub struct LuaEngine<'lua> {
     sound_engine: Rc<RefCell<SoundEngine>>
 }
 
+#[derive(Clone, Debug)]
+enum PhoneServiceStatus {
+    Idle,
+    AcceptCall,
+    EndCall,
+    CallUser,
+    Waiting,
+    RequestDigit,
+    Forward(String),
+    FinishedState(PhoneServiceState)
+}
+
+impl PhoneServiceStatus {
+    fn from_lua(status_code: i32, status_data: LuaValue) -> PhoneServiceStatus {
+        match status_code {
+            0 => PhoneServiceStatus::Idle,
+            1 => PhoneServiceStatus::AcceptCall,
+            2 => PhoneServiceStatus::EndCall,
+            3 => PhoneServiceStatus::CallUser,
+            4 => PhoneServiceStatus::Waiting,
+            5 => PhoneServiceStatus::RequestDigit,
+            6 => match status_data {
+                LuaValue::String(s) => PhoneServiceStatus::Forward(String::from(s.to_str().unwrap())),
+                _ => PhoneServiceStatus::Forward(String::from("A"))
+            },
+            7 => match status_data {
+                LuaValue::Integer(n) => PhoneServiceStatus::FinishedState(PhoneServiceState::from(n as usize)),
+                _ => PhoneServiceStatus::Idle
+            },
+            _ => PhoneServiceStatus::Idle
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum PhoneServiceState {
+    Idle = 0,
+    OutgoingCall = 1,
+    IncomingCall = 2,
+    Call = 3
+}
+
+const ALL_SERVICE_STATES: &[PhoneServiceState] = { use PhoneServiceState::*; &[Idle, OutgoingCall, IncomingCall, Call] };
+
+impl From<usize> for PhoneServiceState {
+    fn from(value: usize) -> PhoneServiceState {
+        ALL_SERVICE_STATES[value]
+    }
+}
+
+impl PhoneServiceState {
+    fn as_index(self) -> usize {
+        self as usize
+    }
+}
+
 struct PhoneServiceModule<'lua> {
     name: String,
     phone_number: Option<String>,
     tbl_module: LuaTable<'lua>,
     func_load: Option<LuaFunction<'lua>>,
-    func_unload: Option<LuaFunction<'lua>>,
-    func_idle_tick: Option<LuaFunction<'lua>>
+    func_unload: Option<LuaFunction<'lua>>
 }
 
 impl<'lua> PhoneServiceModule<'lua> {
@@ -41,7 +96,9 @@ impl<'lua> PhoneServiceModule<'lua> {
                 let phone_number = table.raw_get("_phone_number").unwrap();
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
-                let func_idle_tick = table.raw_get("idle_tick").unwrap();  
+
+                // Start state machine
+                table.call_method::<&str, _, ()>("start", ()).expect(format!("Unable to start state machine for {}", name).as_str());
 
                 // Call load() if available
                 if let Some(func_load) = &func_load {
@@ -57,19 +114,39 @@ impl<'lua> PhoneServiceModule<'lua> {
                     name,
                     phone_number,
                     func_load,
-                    func_unload, // TODO: Call this in destructor
-                    func_idle_tick 
+                    func_unload // TODO: Call this in destructor
                 })
             },
             Err(err) => Err(format!("Unable to load service module: {:#?}", err))
         }
     }
 
+    #[inline]
     fn tick(&self) -> LuaResult<()> {
-        // TODO: Use call_tick() when appropriate
-        if let Some(func_idle_tick) = &self.func_idle_tick {
-            func_idle_tick.call::<_, ()>(())?;
+        let (status_code, status_data) = self.tbl_module.call_method("tick", ())?;
+        let status = PhoneServiceStatus::from_lua(status_code, status_data);
+        use PhoneServiceStatus::*;
+        match status {   
+            Idle|Waiting => {},
+            // TODO
+            CallUser => {},
+            // TODO
+            EndCall => {},
+            // TODO
+            AcceptCall => {},
+            // TODO
+            RequestDigit => {},
+            // TODO
+            Forward(number) => {}
+            FinishedState(next_state) => {
+                self.set_state(next_state)?;
+            }
         }
+        Ok(())
+    }
+
+    fn set_state(&self, state: PhoneServiceState) -> LuaResult<()> {
+        self.tbl_module.call_method("set_state", state.as_index())?;
         Ok(())
     }
 }
@@ -130,21 +207,26 @@ impl<'lua> LuaEngine<'lua> {
 
         let tbl_sound = lua.create_table().unwrap();    
 
-        // sound.play(path, channel, looping)
-        tbl_sound.set("play", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), false, looping.unwrap_or(false), true);
-            Ok(())
-        }).unwrap());
-
-        // sound.play_wait(path, channel, looping)
-        tbl_sound.set("play_wait", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), true);
-            Ok(())
-        }).unwrap());
-
-        // sound.play_next(path, channel, looping)
-        tbl_sound.set("play_next", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), false);
+        // sound.play(path, channel, opts)
+        tbl_sound.set("play", lua.create_function(move |_, (path, channel, opts): (String, usize, Option<LuaTable>)| {
+            let mut speed: Option<f32> = None;
+            let mut interrupt: Option<bool> = None;
+            let mut looping: Option<bool> = None;
+            match opts {
+                Some(opts_table) => {
+                    speed = opts_table.get::<&str, f32>("speed").ok();
+                    interrupt = opts_table.get::<&str, bool>("interrupt").ok();
+                    looping = opts_table.get::<&str, bool>("looping").ok();
+                },
+                None => {}
+            }
+            self.sound_engine.borrow().play(
+                path.as_str(), 
+                Channel::from(channel), 
+                false, 
+                looping.unwrap_or(false), 
+                interrupt.unwrap_or(true), 
+                speed.unwrap_or(1.0));
             Ok(())
         }).unwrap());
 

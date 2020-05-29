@@ -11,7 +11,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::sync::Mutex;
 use std::{thread, time};
 
 const SCRIPTS_PATH: &str = "./res/scripts";

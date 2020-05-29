@@ -132,7 +132,7 @@ impl SoundEngine {
 }
 
 impl SoundEngine {
-    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool) {
+    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool, speed: f32) {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
@@ -144,11 +144,7 @@ impl SoundEngine {
                 let ch = &self.channels.borrow_mut()[channel.as_index()];
 
                 // Queue sound in sink
-                if looping {
-                    ch.queue_looping(sound);
-                } else {
-                    ch.queue(sound);
-                }
+                ch.queue(sound, looping, speed);
                 
                 // Optionally wait
                 if wait {
@@ -283,11 +279,21 @@ impl SoundChannel {
         self.sink.stop();
     }
 
-    fn queue(&self, snd: &Sound) {
-        self.sink.append(snd.src.clone());
-    }
-
-    fn queue_looping(&self, snd: &Sound) {
-        self.sink.append(snd.src.clone().repeat_infinite());
+    fn queue(&self, snd: &Sound, looping: bool, speed: f32) {
+        let src = snd.src.clone();
+        let speed_mod = speed != 1.0;
+        if looping {
+            if speed_mod {
+                self.sink.append(src.speed(speed).repeat_infinite());
+            } else {
+                self.sink.append(src.repeat_infinite());
+            }
+        } else {
+            if speed_mod {
+                self.sink.append(src.speed(speed));
+            } else {
+                self.sink.append(src);
+            }
+        }
     }
 }

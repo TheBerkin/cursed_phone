@@ -113,17 +113,20 @@ SERVICE_STATUS_ACCEPT_CALL = 1
 --- Service is hanging up.
 SERVICE_STATUS_END_CALL = 2
 --- @type ServiceStatusCode
+--- Service is calling the user.
+SERVICE_STATUS_CALL_USER = 3
+--- @type ServiceStatusCode
 --- Service is waiting for an operation to complete.
-SERVICE_STATUS_WAITING = 3
+SERVICE_STATUS_WAITING = 4
 --- @type ServiceStatusCode
 --- Service is waiting for the user to dial a digit.
-SERVICE_STATUS_REQUEST_DIGIT = 4
+SERVICE_STATUS_REQUEST_DIGIT = 5
 --- @type ServiceStatusCode
 --- Service is forwarding the call.
-SERVICE_STATUS_FORWARD = 5
+SERVICE_STATUS_FORWARD = 6
 --- @type ServiceStatusCode
 --- Service is finished with its current state and needs to transition to the next state.
-SERVICE_STATUS_FINISHED_STATE = 6
+SERVICE_STATUS_FINISHED_STATE = 7
 
 -- ========================
 -- SERVICE DATA CODE CONSTANTS
@@ -147,7 +150,7 @@ local SERVICE_DATA_DIGIT = 1
 SERVICE_ROLE_NORMAL = 0
 --- @type ServiceRole
 --- An intercept service.
-SERVICE_ROLE_INTERCEPT = 1 
+SERVICE_ROLE_INTERCEPT = 1
 
 
 if _STUB == true then
@@ -158,22 +161,15 @@ if _STUB == true then
     
     sound = {
         --- Plays a sound on a specific channel.
+        ---
+        --- Available options:
+        --- * `looping: boolean` Make the sound loop (Default: `false`)
+        --- * `interrupt: boolean` Stop other sounds on the channel before playing (Default: `true`)
+        --- * `speed: number` Multiply the playback speed (Default: `1.0`)
         --- @param path string
         --- @param channel integer
-        --- @param looping boolean
-        play = function(path, channel, looping) end,
-
-        --- Plays a sound immediately on a specific channel and waits for it to finish.
-        --- @param path string
-        --- @param channel integer
-        --- @param looping boolean
-        play_wait = function(path, channel, looping) end,
-
-        --- Plays a sound on a specific channel after all other sounds on the channel have stopped.
-        --- @param path string
-        --- @param channel integer
-        --- @param looping boolean
-        play_next = function(path, channel, looping) end,
+        --- @param opts table
+        play = function(path, channel, opts) end,
 
         --- Returns a boolean indicating whether the specified channel is playing something.
         --- @param channel integer
@@ -313,6 +309,25 @@ vibrate_wait = vibrate_wait or function(power, time_ms) end
 --- @type function
 vibrate_stop = vibrate_stop or function() end
 
+local _PhoneServiceModule = {
+    tick = function(self)
+        local status, state = tick_service_state(self)
+        return status, state
+    end,
+    set_state = function(self, state)
+        start_service_state(self, state)
+    end,
+    start = function(self)
+        start_service_state(self, SERVICE_STATE_IDLE)
+    end
+}
+
+local M_PhoneServiceModule = {
+    __index = function(self, index)
+        return _PhoneServiceModule[index]
+    end
+}
+
 --- Returns an empty phone service module.
 --- @param name string @The display name of the phone service
 --- @param phone_number string | nil @The number associated with the phone service
@@ -320,13 +335,13 @@ vibrate_stop = vibrate_stop or function() end
 --- @return PhoneServiceModule
 function SERVICE_MODULE(name, phone_number, role)
     --- @class PhoneServiceModule
-    local module = {
+    local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
         _role = role or SERVICE_ROLE_NORMAL,
         _state_machine = nil,
         _state = SERVICE_STATE_IDLE
-    }
+    }, M_PhoneServiceModule)
     return module
 end
 
@@ -399,7 +414,7 @@ function tick_service_state(service)
 
     if coroutine.status(sm) ~= "dead" then
         local success, status, status_data = coroutine.resume(sm)
-
+        
         -- If the coroutine is somehow dead/broken, transition the state
         if not success then
             return SERVICE_STATUS_FINISHED_STATE, nil
