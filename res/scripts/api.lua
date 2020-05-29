@@ -81,19 +81,73 @@ PHONE_OFF_HOOK_WARN = 7
 PHONE_OFF_HOOK_SIGNAL = 8
 
 -- ========================
--- SERVICE CODE CONSTANTS
+-- SERVICE STATE CODE CONSTANTS
 -- ========================
---- @alias ServiceResponseCode integer
+--- @alias ServiceStateCode integer
 
---- @type ServiceResponseCode
---- Indicates that a service performed no action.
-SERVICE_IDLE = 0
---- @type ServiceResponseCode
---- Indicates that a service is accepting an incoming call.
-SERVICE_ACCEPT_CALL = 1
---- @type ServiceResponseCode
---- Indicates that a service is hanging up.
-SERVICE_END_CALL = 2
+--- @type ServiceStateCode
+--- Service is idle and not in a call.
+SERVICE_STATE_IDLE = 0
+--- @type ServiceStateCode
+--- Service is calling out.
+SERVICE_STATE_CALL_OUT = 1
+--- @type ServiceStateCode
+--- Service is being called.
+SERVICE_STATE_CALL_IN = 2
+--- @type ServiceStateCode
+--- Service is in a call.
+SERVICE_STATE_CALL = 3
+
+-- ========================
+-- SERVICE STATUS CODE CONSTANTS
+-- ========================
+--- @alias ServiceStatusCode integer
+
+--- @type ServiceStatusCode
+--- Service performed no action.
+SERVICE_STATUS_IDLE = 0
+--- @type ServiceStatusCode
+--- Service is accepting an incoming call.
+SERVICE_STATUS_ACCEPT_CALL = 1
+--- @type ServiceStatusCode
+--- Service is hanging up.
+SERVICE_STATUS_END_CALL = 2
+--- @type ServiceStatusCode
+--- Service is sleeping.
+SERVICE_STATUS_SLEEPING = 3
+--- @type ServiceStatusCode
+--- Service is waiting for the user to dial a digit.
+SERVICE_STATUS_REQUEST_DIGIT = 4
+--- @type ServiceStatusCode
+--- Service is forwarding the call.
+SERVICE_STATUS_FORWARD = 5
+--- @type ServiceStatusCode
+--- Service is finished with its current state and needs to transition to the next state.
+SERVICE_STATUS_FINISHED_STATE = 6
+
+-- ========================
+-- SERVICE DATA CODE CONSTANTS
+-- ========================
+--- @alias ServiceDataCode integer
+
+--- @type ServiceDataCode
+--- Indicates no data was received.
+local SERVICE_DATA_NONE = 0
+--- Indicates that the user dialed a digit.
+--- @type ServiceDataCode
+local SERVICE_DATA_DIGIT = 1
+
+-- ========================
+-- SERVICE ROLE CONSTANTS
+-- ========================
+--- @alias ServiceRole integer
+
+--- @type ServiceRole
+--- A normal phone service.
+SERVICE_ROLE_NORMAL = 0
+--- @type ServiceRole
+--- An intercept service.
+SERVICE_ROLE_INTERCEPT = 1 
 
 
 if _STUB == true then
@@ -149,26 +203,99 @@ if _STUB == true then
 
     --- @class Phone
     phone = {
+        --- Gets the current state code of the phone.
+        --- @return PhoneStateCode
         get_state = function() end,
-        read_digit = function() end,
-        register_callee = function(phone_number) end,
-        --- VVVVVVVVVVV
-        vibrate = function(power, time_ms) end
+        --- Gets the number that the user has dialed. If the phone is idle, this will return nil.
+        --- @return string|nil
+        get_dialed_number = function() end
     }
 
+    --- Gets the number of seconds elapsed since the engine was initialized.
+    --- @return number
+    function get_run_time() end
 
+    --- Pauses execution for the specified number of milliseconds.
+    --- @param ms integer
+    --- @type function
+    function sleep(ms) end
+
+    --- Generates a random number between an inclusive minimum and exclusive maximum.
+    --- @param min integer
+    --- @param max integer
+    --- @type function
+    function random_int(min, max) end
+
+    --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
+    --- @param min number
+    --- @param max number
+    --- @type function
+    function random_float(min, max) end
+
+    --- @class CronJob
+    local _Cron = {
+        --- If the job is ready to run, returns true. Will not return true again until the next time on the schedule.
+        --- @return boolean
+        ready = function(self) end
+    }
+
+    --- Creates a cron schedule from the specified string. Returns nil if the syntax is invalid.
+    --- @param schedule string
+    --- @return CronJob|nil
+    --- @type function
+    function cron(schedule) end
 end
 
---- Pauses execution for the specified number of milliseconds.
---- @param ms integer
---- @type function
-sleep = sleep or function(ms) end
+--- Wrapper around coroutine.yield() specifically for passing service status to the host.
+--- @param status ServiceStatusCode
+--- @param status_data any
+--- @return ServiceDataCode, any
+function service_status(status, status_data)
+    local data_code, response_data = coroutine.yield(status, status_data)
+    return data_code or SERVICE_DATA_NONE, response_data
+end
 
---- Generates a random number between an inclusive minimum and exclusive maximum.
---- @param min integer
---- @param max integer
---- @type function
-random_int = random_int or function(min, max) end
+--- Asynchronously waits the specified number of seconds.
+--- @param seconds number
+function service_wait(seconds)
+    local start_time = get_run_time()
+    while get_run_time() - start_time < seconds do
+        service_status(SERVICE_STATUS_SLEEPING)
+    end
+end
+
+--- Forwards the call to the specified number.
+--- @param number string
+function service_forward_call(number)
+    service_status(SERVICE_STATUS_FORWARD, number)
+end
+
+--- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
+--- If a timeout is specified, and no digit is entered within that time, this function returns nil.
+--- @param max_seconds number|nil
+--- @return string|nil
+function service_get_digit(max_seconds)
+    local timed = type(max_seconds) == "number" and max_seconds > 0
+    if timed then
+        while true do
+            local data_code, data = service_status(SERVICE_STATUS_REQUEST_DIGIT)
+            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
+                return data
+            end
+        end
+    else
+        local start_time = get_run_time()
+        while get_run_time() - start_time < max_seconds do
+            local data_code, data = service_status(SERVICE_STATUS_REQUEST_DIGIT)
+            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
+                return data
+            end
+        end
+        return nil
+    end
+end
+
+
 
 --- Vibrates.
 --- @param power number|"1"
@@ -186,26 +313,116 @@ vibrate_wait = vibrate_wait or function(power, time_ms) end
 --- @type function
 vibrate_stop = vibrate_stop or function() end
 
---- Subscribes a function to an event type.
---- @param event_name string @The name of the event.
---- @param handler function @The function called when the event occurs.
-add_event_listener = add_event_listener or function(event_name, handler) end
-
---- Unsubscribes a function from an event type.
---- @param event_name string @The name of the event.
---- @param handler function @The function called when the event occurs.
-remove_event_listener = remove_event_listener or function(event_name, handler) end
-
 --- Returns an empty phone service module.
 --- @param name string @The display name of the phone service
 --- @param phone_number string | nil @The number associated with the phone service
+--- @param role ServiceRole|nil
 --- @return PhoneServiceModule
-function PHONE_SERVICE(name, phone_number)
+function SERVICE_MODULE(name, phone_number, role)
     --- @class PhoneServiceModule
     local module = {
-        name = name,
-        phone_number = phone_number
+        _name = name,
+        _phone_number = phone_number,
+        _role = role or SERVICE_ROLE_NORMAL,
+        _state_machine = nil,
+        _state = SERVICE_STATE_IDLE
     }
-
     return module
 end
+
+local function empty_func() end
+
+--- Generates a "one-shot" service coroutine.
+--- @param service_function function
+--- @param next_state ServiceStateCode
+local function gen_state_machine_once(service_function, next_state)
+    local sm = coroutine.create(function()
+        local fn = service_function or empty_func
+        local ns = next_state
+        fn()
+        return SERVICE_STATUS_FINISHED_STATE, ns
+    end)
+    return sm
+end
+
+--- Generates a "continuous" (looping) service coroutine.
+--- @param service_function function
+local function gen_state_machine_continuous(service_function)
+    local sm = coroutine.create(function()
+        local fn = service_function or empty_func
+        while true do
+            fn()
+            service_status(SERVICE_STATUS_IDLE)
+        end
+    end)
+    return sm
+end
+
+local service_state_machine_generators = {
+    [SERVICE_STATE_IDLE] = function(service)
+        return gen_state_machine_continuous(service.idle_tick)
+    end,
+    [SERVICE_STATE_CALL] = function(service)
+        return gen_state_machine_continuous(service.call_tick)
+    end,
+    [SERVICE_STATE_CALL_IN] = function(service)
+        return gen_state_machine_once(service.incoming_call_tick)
+    end,
+    [SERVICE_STATE_CALL_OUT] = function(service)
+        return gen_state_machine_once(service.outgoing_call_tick)
+    end
+}
+
+--- Starts the specified state machine on a service.
+--- Returns true if a state machine was created; otherwise, returns false.
+--- @param service PhoneServiceModule
+--- @param state ServiceStateCode
+--- @return boolean
+function start_service_state(service, state)
+    service._state = state
+    local generator = service_state_machine_generators[state]
+    if generator then
+        local state_machine = generator(service)
+        service._state_machine = state_machine
+        return true
+    else
+        service._state_machine = nil
+        return false
+    end
+end
+
+--- @param service PhoneServiceModule
+--- @return ServiceStatusCode, any
+function tick_service_state(service)
+    local sm = service._state_machine
+    if not sm then return SERVICE_STATUS_IDLE, nil end
+
+    if coroutine.status(sm) ~= "dead" then
+        local status, status_data = coroutine.resume(sm)
+
+        -- Check if the state finished, and if so, transition it
+        if status == SERVICE_STATUS_FINISHED_STATE and status_data then
+            local new_service_state = status_data
+            local sm = start_service_state(service, new_service_state)
+            service._state_machine = sm
+        end
+
+        -- Return latest status and any associated data
+        return status or SERVICE_STATUS_IDLE, status_data
+    else
+        return SERVICE_STATUS_FINISHED_STATE, nil
+    end
+end
+
+--- Gets the current state of a service.
+--- @param service PhoneServiceModule
+--- @return ServiceStateCode
+function get_service_state(service)
+    return service._state or SERVICE_STATE_IDLE
+end
+
+local function print_info()
+    print("Cursed API loaded (" .. _VERSION .. ")")
+end
+
+print_info()

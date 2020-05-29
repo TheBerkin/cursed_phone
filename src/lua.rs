@@ -1,23 +1,24 @@
 #![allow(dead_code)]
 
 use crate::sound::*;
-use std::sync::Arc;
+use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use rand::Rng;
 use indexmap::IndexMap;
 use mlua::prelude::*;
-use ref_portals::sync::RwAnchor;
 
 const API_SCRIPT_NAME: &str = "api";
 
 pub struct LuaEngine<'lua> {
     lua: Lua,
     scripts_root: PathBuf,
+    start_time: Instant,
     service_modules: RefCell<IndexMap<String, PhoneServiceModule<'lua>>>,
-    sound_engine: RwAnchor<'static, SoundEngine>
+    sound_engine: Rc<RefCell<SoundEngine>>
 }
 
 struct PhoneServiceModule<'lua> {
@@ -36,8 +37,8 @@ impl<'lua> PhoneServiceModule<'lua> {
         let module = module_chunk.eval::<LuaTable>();
         match module {
             Ok(table) => {
-                let name = table.raw_get("name").expect("Module requires a name");
-                let phone_number = table.raw_get("phone_number").unwrap();
+                let name = table.raw_get("_name").expect("Module requires a name");
+                let phone_number = table.raw_get("_phone_number").unwrap();
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
                 let func_idle_tick = table.raw_get("idle_tick").unwrap();  
@@ -75,12 +76,13 @@ impl<'lua> PhoneServiceModule<'lua> {
 
 #[allow(unused_must_use)]
 impl<'lua> LuaEngine<'lua> {
-    pub fn new(scripts_root: impl Into<String>, sound_engine: &'static mut SoundEngine) -> Self {
+    pub fn new(scripts_root: impl Into<String>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         Self {
             lua,
+            start_time: Instant::now(),
             scripts_root: Path::new(scripts_root.into().as_str()).canonicalize().unwrap(),
-            sound_engine: RwAnchor::new(sound_engine),
+            sound_engine: Rc::clone(sound_engine),
             service_modules: Default::default()
         }
     }
@@ -91,6 +93,16 @@ impl<'lua> LuaEngine<'lua> {
     }
 
     fn lua_random_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+        if min >= max {
+            return Ok(min);
+        }
+        Ok(rand::thread_rng().gen_range(min, max))
+    }
+
+    fn lua_random_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
+        if min >= max {
+            return Ok(min);
+        }
         Ok(rand::thread_rng().gen_range(min, max))
     }
 
@@ -108,7 +120,7 @@ impl<'lua> LuaEngine<'lua> {
         self.scripts_root.join(name).with_extension("lua")
     }
 
-    pub fn load_cursed_api(&self) -> Result<(), String> {
+    pub fn load_cursed_api(&'static self) -> Result<(), String> {
         let lua = &self.lua;
         let globals = &lua.globals();
 
@@ -119,71 +131,77 @@ impl<'lua> LuaEngine<'lua> {
         let tbl_sound = lua.create_table().unwrap();    
 
         // sound.play(path, channel, looping)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("play", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            let sound_engine = sound_portal.read();
-            sound_engine.play(path.as_str(), Channel::from(channel), false, looping.unwrap_or(false), true);
+            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), false, looping.unwrap_or(false), true);
             Ok(())
         }).unwrap());
 
         // sound.play_wait(path, channel, looping)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("play_wait", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            let sound_engine = sound_portal.read();
-            sound_engine.play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), true);
+            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), true);
             Ok(())
         }).unwrap());
 
         // sound.play_next(path, channel, looping)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("play_next", lua.create_function(move |_, (path, channel, looping): (String, usize, Option<bool>)| {
-            let sound_engine = sound_portal.read();
-            sound_engine.play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), false);
+            self.sound_engine.borrow().play(path.as_str(), Channel::from(channel), true, looping.unwrap_or(false), false);
             Ok(())
         }).unwrap());
 
         // sound.is_busy(channel)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("is_busy", lua.create_function(move |_, channel: usize| {
-            let sound_engine = sound_portal.read();
-            let busy = sound_engine.channel_busy(Channel::from(channel));
+            let busy = self.sound_engine.borrow().channel_busy(Channel::from(channel));
             Ok(busy)
         }).unwrap());
 
         // sound.stop(channel)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("stop", lua.create_function(move |_, channel: usize| {
-            let sound_engine = sound_portal.read();
-            sound_engine.stop(Channel::from(channel));
+            self.sound_engine.borrow().stop(Channel::from(channel));
             Ok(())
         }).unwrap());
 
         // sound.stop_all(channel)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("stop_all", lua.create_function(move |_, ()| {
-            let sound_engine = sound_portal.read();
-            sound_engine.stop_all();
+            self.sound_engine.borrow().stop_all();
             Ok(())
         }).unwrap());
 
         // sound.wait(channel)
-        let sound_portal = self.sound_engine.portal();
         tbl_sound.set("wait", lua.create_function(move |_, channel: usize| {
-            let sound_engine = sound_portal.read();
-            sound_engine.wait(Channel::from(channel));
+            self.sound_engine.borrow().wait(Channel::from(channel));
+            Ok(())
+        }).unwrap());
+
+        // sound.get_channel_volume(channel)
+        tbl_sound.set("get_channel_volume", lua.create_function(move |_, channel: usize| {
+            let vol = self.sound_engine.borrow().volume(Channel::from(channel));
+            Ok(vol)
+        }).unwrap());
+
+        // sound.set_channel_volume(channel, volume)
+        tbl_sound.set("set_channel_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
+            self.sound_engine.borrow_mut().set_volume(Channel::from(channel), volume);
             Ok(())
         }).unwrap());
 
         globals.set("sound", tbl_sound);
 
         // ====================================================
-        // ================ MISC API FUNCTIONS ================
+        // ============ MISC NATIVE API FUNCTIONS =============
         // ====================================================
 
         // sleep()
         globals.set("sleep", lua.create_function(LuaEngine::lua_sleep).unwrap());
         // random_int()
         globals.set("random_int", lua.create_function(LuaEngine::lua_random_int).unwrap());
+        // random_float()
+        globals.set("random_float", lua.create_function(LuaEngine::lua_random_float).unwrap());
+
+        // get_run_time()
+        globals.set("get_run_time", lua.create_function(move |_, ()| {
+            let run_time = self.start_time.elapsed().as_secs_f64();
+            Ok(run_time)
+        }).unwrap());
 
         // Load/run API script
         self.run_script(API_SCRIPT_NAME)?;
