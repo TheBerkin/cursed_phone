@@ -113,8 +113,8 @@ SERVICE_STATUS_ACCEPT_CALL = 1
 --- Service is hanging up.
 SERVICE_STATUS_END_CALL = 2
 --- @type ServiceStatusCode
---- Service is sleeping.
-SERVICE_STATUS_SLEEPING = 3
+--- Service is waiting for an operation to complete.
+SERVICE_STATUS_WAITING = 3
 --- @type ServiceStatusCode
 --- Service is waiting for the user to dial a digit.
 SERVICE_STATUS_REQUEST_DIGIT = 4
@@ -260,7 +260,7 @@ end
 function service_wait(seconds)
     local start_time = get_run_time()
     while get_run_time() - start_time < seconds do
-        service_status(SERVICE_STATUS_SLEEPING)
+        service_status(SERVICE_STATUS_WAITING)
     end
 end
 
@@ -398,7 +398,12 @@ function tick_service_state(service)
     if not sm then return SERVICE_STATUS_IDLE, nil end
 
     if coroutine.status(sm) ~= "dead" then
-        local status, status_data = coroutine.resume(sm)
+        local success, status, status_data = coroutine.resume(sm)
+
+        -- If the coroutine is somehow dead/broken, transition the state
+        if not success then
+            return SERVICE_STATUS_FINISHED_STATE, nil
+        end
 
         -- Check if the state finished, and if so, transition it
         if status == SERVICE_STATUS_FINISHED_STATE and status_data then
