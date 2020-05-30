@@ -132,7 +132,7 @@ impl SoundEngine {
 }
 
 impl SoundEngine {
-    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool, speed: f32) {
+    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool, speed: f32, volume: f32) {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
@@ -144,7 +144,7 @@ impl SoundEngine {
                 let ch = &self.channels.borrow_mut()[channel.as_index()];
 
                 // Queue sound in sink
-                ch.queue(sound, looping, speed);
+                ch.queue(sound, looping, speed, volume);
                 
                 // Optionally wait
                 if wait {
@@ -279,8 +279,8 @@ impl SoundChannel {
         self.sink.stop();
     }
 
-    fn queue(&self, snd: &Sound, looping: bool, speed: f32) {
-        let src = snd.src.clone();
+    fn queue(&self, snd: &Sound, looping: bool, speed: f32, volume: f32) {
+        let src = snd.src.clone().amplify(volume);
         let speed_mod = speed != 1.0;
         if looping {
             if speed_mod {

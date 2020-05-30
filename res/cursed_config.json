@@ -1,6 +1,7 @@
 {
+	"phone_type": "rotary",
 	"pdd": 4.0,
-	"volume": 0.5,
+	"volume": 1.0,
 	"off_hook_delay": 60.0,
 	"gpio_pins": {
 		"in_dial_pulse": 2,

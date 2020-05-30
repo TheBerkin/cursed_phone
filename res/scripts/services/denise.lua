@@ -6,25 +6,20 @@ end
 
 S:state(SERVICE_STATE_IDLE, {
     enter = function(self)
-        sound.set_channel_volume(CHAN_BG1, 0.6)
-        sound.play("ambient/static", CHAN_BG1, { looping = true })
+        sound.play("ambient/static", CHAN_BG1, { looping = true, volume = 0.6 })
+        service.wait(random_float(0, 1))
+        sound.play_wait("denise/seeing/hi", CHAN_SOUL1)
     end,
 
     tick = function(self)
-        sound.play("denise/thinking/*", CHAN_SOUL1, {
-            interrupt = false
-        })
-        while sound.is_busy(CHAN_SOUL1) do
-            service_status(SERVICE_STATUS_IDLE)
-        end
-        service_wait(random_float(1, 10))
+        service.wait(random_float(2, 12))
+        sound.play_wait("denise/thinking/*", CHAN_SOUL1, { interrupt = false })
     end,
 
     exit = function(self)
 
     end
 })
-
 
 function S.unload(args)
 end

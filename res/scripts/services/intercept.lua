@@ -7,9 +7,9 @@ S:state(SERVICE_STATE_CALL, {
     tick = function(self)
         sound.play("intercept/intercept_message_01", CHAN_PHONE1)
         while sound.is_busy(CHAN_PHONE1) do
-            service_status(SERVICE_STATUS_WAITING)
+            service.status(SERVICE_STATUS_WAITING)
         end
-        service_end_call()
+        service.end_call()
     end,
     exit = function(self)
         print("Intercept: ending call")
@@ -19,7 +19,7 @@ S:state(SERVICE_STATE_CALL, {
 
 S:state(SERVICE_STATE_CALL_IN, {
     enter = function(self)
-        service_accept_call()
+        service.accept_call()
     end
 })
 

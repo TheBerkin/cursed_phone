@@ -11,7 +11,8 @@ use rand::Rng;
 use indexmap::IndexMap;
 use mlua::prelude::*;
 
-const API_SCRIPT_NAME: &str = "api";
+const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
+const API_PATH: &str = "api/*";
 
 pub struct LuaEngine<'lua> {
     lua: Lua,
@@ -191,10 +192,27 @@ impl<'lua> LuaEngine<'lua> {
     fn run_script(&self, name: &str) -> Result<(), String> {
         let path = self.resolve_script_path(name);
         match fs::read_to_string(&path) {
-            Ok(lua_src) => self.lua.load(&lua_src).set_name("api").unwrap().exec(),
+            Ok(lua_src) => self.lua.load(&lua_src).set_name(name).unwrap().exec(),
             Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", path.to_str().unwrap(), err))
         };
 
+        Ok(())
+    }
+
+    fn run_scripts_in_glob(&self, glob: &str) -> Result<(), String> {
+        let search_path = self.resolve_script_path(glob);
+        let search_path_str = search_path.to_str().expect("Failed to create search pattern from glob");
+        for entry in globwalk::glob(search_path_str).expect("Unable to read script search pattern") {
+            if let Ok(dir) = entry {
+                let script_path = dir.path().canonicalize().expect("Unable to expand service module path");
+                let script_path_str = script_path.to_str().unwrap();
+                println!("Loading API: {}", script_path_str);
+                match fs::read_to_string(&script_path) {
+                    Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec(),
+                    Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", script_path_str, err))
+                };
+            }
+        }
         Ok(())
     }
 
@@ -203,6 +221,10 @@ impl<'lua> LuaEngine<'lua> {
     }
 
     pub fn load_cursed_api(&'static self) -> Result<(), String> {
+        // Run bootstrapper script
+        println!("Bootstrapping Lua...");
+        self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
+
         let lua = &self.lua;
         let globals = &lua.globals();
 
@@ -217,11 +239,13 @@ impl<'lua> LuaEngine<'lua> {
             let mut speed: Option<f32> = None;
             let mut interrupt: Option<bool> = None;
             let mut looping: Option<bool> = None;
+            let mut volume: Option<f32> = None;
             match opts {
                 Some(opts_table) => {
                     speed = opts_table.get::<&str, f32>("speed").ok();
                     interrupt = opts_table.get::<&str, bool>("interrupt").ok();
                     looping = opts_table.get::<&str, bool>("looping").ok();
+                    volume = opts_table.get::<&str, f32>("volume").ok();
                 },
                 None => {}
             }
@@ -231,7 +255,9 @@ impl<'lua> LuaEngine<'lua> {
                 false, 
                 looping.unwrap_or(false), 
                 interrupt.unwrap_or(true), 
-                speed.unwrap_or(1.0));
+                speed.unwrap_or(1.0),
+                volume.unwrap_or(1.0)
+            );
             Ok(())
         }).unwrap());
 
@@ -250,12 +276,6 @@ impl<'lua> LuaEngine<'lua> {
         // sound.stop_all(channel)
         tbl_sound.set("stop_all", lua.create_function(move |_, ()| {
             self.sound_engine.borrow().stop_all();
-            Ok(())
-        }).unwrap());
-
-        // sound.wait(channel)
-        tbl_sound.set("wait", lua.create_function(move |_, channel: usize| {
-            self.sound_engine.borrow().wait(Channel::from(channel));
             Ok(())
         }).unwrap());
 
@@ -290,8 +310,8 @@ impl<'lua> LuaEngine<'lua> {
             Ok(run_time)
         }).unwrap());
 
-        // Load/run API script
-        self.run_script(API_SCRIPT_NAME)?;
+        // Run API scripts
+        self.run_scripts_in_glob(API_PATH)?;
 
         Ok(())
     }
@@ -301,8 +321,8 @@ impl<'lua> LuaEngine<'lua> {
         let search_path = self.scripts_root.join("services").join("**").join("*.lua");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for service modules");
         for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for service modules") {
-            if let Ok(path) = entry {
-                let module_path = path.path().canonicalize().expect("Unable to expand service module path");
+            if let Ok(dir) = entry {
+                let module_path = dir.path().canonicalize().expect("Unable to expand service module path");
                 let service_module = PhoneServiceModule::from_file(&self.lua, &module_path);
                 match service_module {
                     Ok(service_module) => {

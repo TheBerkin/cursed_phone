@@ -6,8 +6,7 @@
     "Lua.diagnostics.globals": [
         "phone",
         "sound",
-        "sleep",
-        "vibrate"
+        "service"
     ],
     "rust-analyzer.cargo.features": [
         "rpi"
