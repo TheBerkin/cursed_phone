@@ -121,6 +121,11 @@ impl<'lua> PhoneServiceModule<'lua> {
         }
     }
 
+    fn state(&self) -> LuaResult<PhoneServiceState> {
+        let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
+        Ok(PhoneServiceState::from(raw_state))
+    }
+
     #[inline]
     fn tick(&self) -> LuaResult<()> {
         let (status_code, status_data) = self.tbl_module.call_method("tick", ())?;

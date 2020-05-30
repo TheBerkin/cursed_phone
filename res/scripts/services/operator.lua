@@ -1,47 +1,30 @@
 local S = SERVICE_MODULE("Operator", "0")
 
---[[
-    
-args:
-{
-    path (string)
-}
 
---]]
 function S.load(args)
 end
 
---- Updates the service while not in a call.
---- @return ServiceStatusCode
-function S.idle_tick()
-end
+S:state(SERVICE_STATE_CALL, {
+    enter = function(self)
+        print("Operator: call started")
+    end,
+    tick = function(self)
+        -- TODO
+    end,
+    exit = function(self)
+        print("Operator: ending call")
+    end
+})
 
---- Updates the service while in a call.
---- @return ServiceStatusCode
-function S.call_tick()
-end
 
---- Runs when the user calls the service and the call is pending.
---- Return SERVICE_ACCEPT_CALL to accept the call. Return nil or SERVICE_IDLE to ignore.
---- @return ServiceStatusCode
-function S.incoming_call_tick()
-end
-
---- Runs when the service is calling the user and the call is pending.
---- @return ServiceStatusCode
-function S.outgoing_call_tick()
-end
-
-function S.on_call_connected()
-
-end
-
-function S.on_call_ended()
-
-end
+S:state(SERVICE_STATE_CALL_IN, {
+    tick = function(self)
+        service_wait(random_float(1.0, 5.0))
+        service_accept_call()
+    end
+})
 
 function S.unload(args)
-
 end
 
 return S

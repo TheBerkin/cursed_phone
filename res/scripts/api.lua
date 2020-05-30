@@ -139,6 +139,8 @@ local SERVICE_DATA_NONE = 0
 --- Indicates that the user dialed a digit.
 --- @type ServiceDataCode
 local SERVICE_DATA_DIGIT = 1
+--- Indicates that the user line is busy.
+local SERVICE_DATA_USER_BUSY = 2
 
 -- ========================
 -- SERVICE ROLE CONSTANTS
@@ -266,6 +268,23 @@ function service_forward_call(number)
     service_status(SERVICE_STATUS_FORWARD, number)
 end
 
+--- Starts a call with the user.
+--- @return boolean
+function service_start_call()
+    local data_code = service_status(SERVICE_STATUS_CALL_USER)
+    return data_code ~= SERVICE_DATA_USER_BUSY
+end
+
+--- Accepts a pending call.
+function service_accept_call()
+    service_status(SERVICE_STATUS_ACCEPT_CALL)
+end
+
+--- Ends the call.
+function service_end_call()
+    coroutine.yield(SERVICE_STATUS_END_CALL)
+end
+
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
 --- @param max_seconds number|nil
@@ -292,33 +311,26 @@ function service_get_digit(max_seconds)
 end
 
 
-
---- Vibrates.
---- @param power number|"1"
---- @param time_ms integer|"1000"
---- @type function
-vibrate_once = vibrate_once or function(power, time_ms) end
-
---- Vibrates and pauses execution until finished.
---- @param power number|"1"
---- @param time_ms integer|"1000"
---- @type function
-vibrate_wait = vibrate_wait or function(power, time_ms) end
-
---- Immediately stops any current vibration output.
---- @type function
-vibrate_stop = vibrate_stop or function() end
-
+--- @class PhoneServiceModule
 local _PhoneServiceModule = {
-    tick = function(self)
+    tick = function(self)        
         local status, state = tick_service_state(self)
         return status, state
     end,
-    set_state = function(self, state)
-        start_service_state(self, state)
+    transition = function(self, state)
+        if state == self._state then return end
+        transition_service_state(self, state)
     end,
+    get_state = function(self) return self._state end,
     start = function(self)
-        start_service_state(self, SERVICE_STATE_IDLE)
+        transition_service_state(self, SERVICE_STATE_IDLE)
+    end,
+    --- Adds a function table for the specified state code.
+    --- @param self PhoneServiceModule
+    --- @param state ServiceStateCode
+    --- @param func_table table
+    state = function(self, state, func_table)
+        self._state_func_tables[state] = func_table
     end
 }
 
@@ -333,98 +345,79 @@ local M_PhoneServiceModule = {
 --- @param phone_number string | nil @The number associated with the phone service
 --- @param role ServiceRole|nil
 --- @return PhoneServiceModule
-function SERVICE_MODULE(name, phone_number, role)
-    --- @class PhoneServiceModule
+function SERVICE_MODULE(name, phone_number, role)    
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
         _role = role or SERVICE_ROLE_NORMAL,
-        _state_machine = nil,
-        _state = SERVICE_STATE_IDLE
+        _state_coroutine = nil,
+        _state = SERVICE_STATE_IDLE,
+        _state_func_tables = {}
     }, M_PhoneServiceModule)
     return module
 end
 
 local function empty_func() end
 
---- Generates a "one-shot" service coroutine.
---- @param service_function function
---- @param next_state ServiceStateCode
-local function gen_state_machine_once(service_function, next_state)
-    local sm = coroutine.create(function()
-        local fn = service_function or empty_func
-        local ns = next_state
-        fn()
-        return SERVICE_STATUS_FINISHED_STATE, ns
-    end)
-    return sm
-end
+--- Generates a service state machine coroutine.
+--- @param service PhoneServiceModule
+--- @param new_state ServiceStateCode
+--- @param old_state PhoneStateCode
+--- @return thread
+local function gen_state_coroutine(service, new_state, old_state)
+    local state_coroutine = coroutine.create(function()
+        local old_func_table = service._state_func_tables[old_state]
+        local new_func_table = service._state_func_tables[new_state]
 
---- Generates a "continuous" (looping) service coroutine.
---- @param service_function function
-local function gen_state_machine_continuous(service_function)
-    local sm = coroutine.create(function()
-        local fn = service_function or empty_func
+        local on_enter = new_func_table.enter or empty_func
+        local on_tick = new_func_table.tick or empty_func
+        -- local exit = new_func_table.exit or empty_func
+        local prev_on_exit = old_func_table and old_func_table.exit or empty_func
+
+        prev_on_exit(service)
+        on_enter(service)
         while true do
-            fn()
+            on_tick(service)
             service_status(SERVICE_STATUS_IDLE)
         end
+        -- exit(service)
     end)
-    return sm
+    return state_coroutine
 end
 
-local service_state_machine_generators = {
-    [SERVICE_STATE_IDLE] = function(service)
-        return gen_state_machine_continuous(service.idle_tick)
-    end,
-    [SERVICE_STATE_CALL] = function(service)
-        return gen_state_machine_continuous(service.call_tick)
-    end,
-    [SERVICE_STATE_CALL_IN] = function(service)
-        return gen_state_machine_once(service.incoming_call_tick)
-    end,
-    [SERVICE_STATE_CALL_OUT] = function(service)
-        return gen_state_machine_once(service.outgoing_call_tick)
-    end
-}
-
---- Starts the specified state machine on a service.
---- Returns true if a state machine was created; otherwise, returns false.
+--- Transitions to the specified state on a service.
+--- Returns true if the transition was successful; otherwise, returns false.
 --- @param service PhoneServiceModule
 --- @param state ServiceStateCode
 --- @return boolean
-function start_service_state(service, state)
+function transition_service_state(service, state)
+    local prev_state = service._state
+    local state_coroutine = gen_state_coroutine(service, state, prev_state)
+    
     service._state = state
-    local generator = service_state_machine_generators[state]
-    if generator then
-        local state_machine = generator(service)
-        service._state_machine = state_machine
-        return true
-    else
-        service._state_machine = nil
-        return false
-    end
+    service._state_coroutine = state_coroutine
+    return state_coroutine ~= nil
 end
 
 --- @param service PhoneServiceModule
 --- @return ServiceStatusCode, any
 function tick_service_state(service)
-    local sm = service._state_machine
-    if not sm then return SERVICE_STATUS_IDLE, nil end
-
-    if coroutine.status(sm) ~= "dead" then
-        local success, status, status_data = coroutine.resume(sm)
-        
+    local state_coroutine = service._state_coroutine
+    if state_coroutine == nil then     
+        return SERVICE_STATUS_IDLE, nil 
+    end
+    
+    if coroutine.status(state_coroutine) ~= "dead" then
+        local success, status, status_data = coroutine.resume(state_coroutine)
         -- If the coroutine is somehow dead/broken, transition the state
         if not success then
             return SERVICE_STATUS_FINISHED_STATE, nil
         end
-
+        
         -- Check if the state finished, and if so, transition it
         if status == SERVICE_STATUS_FINISHED_STATE and status_data then
             local new_service_state = status_data
-            local sm = start_service_state(service, new_service_state)
-            service._state_machine = sm
+            transition_service_state(service, new_service_state)
         end
 
         -- Return latest status and any associated data

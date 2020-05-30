@@ -4,6 +4,7 @@ mod sound;
 
 use crate::lua::LuaEngine;
 use crate::sound::SoundEngine;
+use crate::phone::PhoneEngine;
 use serde::Deserialize;
 use serde_json;
 use std::boxed::Box;
@@ -46,13 +47,12 @@ fn main() -> Result<(), String> {
 
     loop {
         lua_engine.tick();
-        sleep(TICK_RATE_MS);
+        thread::sleep(time::Duration::from_millis(TICK_RATE_MS));
     }
-
-    cleanup_sound_engine(sound_engine);
+    Ok(())
 }
 
-fn create_lua_engine(sound_engine: &'static Rc<RefCell<SoundEngine>>) -> &'static mut LuaEngine {
+fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut LuaEngine {
     let lua_engine = Box::new(LuaEngine::new(SCRIPTS_PATH, sound_engine));
     let lua_engine: &'static mut LuaEngine = Box::leak(lua_engine);
     lua_engine
@@ -64,8 +64,10 @@ fn create_sound_engine() -> &'static mut Rc<RefCell<SoundEngine>> {
     sound_engine
 }
 
-fn cleanup_sound_engine(sound_engine: &'static mut Rc<RefCell<SoundEngine>>) {
-    unsafe { Box::from_raw(sound_engine) };
+fn create_phone_engine(config: &CursedConfig) -> &'static mut Rc<RefCell<PhoneEngine>> {
+    let phone_engine = Box::new(Rc::new(RefCell::new(PhoneEngine::new(config))));
+    let phone_engine: &'static mut Rc<RefCell<PhoneEngine>> = Box::leak(phone_engine);
+    phone_engine
 }
 
 fn load_config() -> CursedConfig {
@@ -74,8 +76,4 @@ fn load_config() -> CursedConfig {
     let config: CursedConfig =
         serde_json::from_reader(reader).expect("Unable to parse config file");
     config
-}
-
-fn sleep(ms: u64) {
-    thread::sleep(time::Duration::from_millis(ms));
 }

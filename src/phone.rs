@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::{CursedConfig, GpioPinsConfig};
 
 #[cfg(feature = "rpi")]
@@ -5,7 +6,7 @@ struct GpioInterface {
     config: GpioPinsConfig
 }
 
-pub struct Phone {
+pub struct PhoneEngine {
     on_hook: bool,
     dial_resting: bool,
     dial_pulse: bool,
@@ -17,7 +18,7 @@ pub struct Phone {
     gpio: GpioInterface
 }
 
-impl Phone {
+impl PhoneEngine {
     /// Constructor for Phone on Raspberry Pi platforms.
     #[cfg(feature = "rpi")]
     pub fn new(config: &CursedConfig) -> Self {
@@ -40,7 +41,7 @@ impl Phone {
     /// Constructor for Phone on non-Pi platforms.
     #[cfg(not(feature = "rpi"))]
     pub fn new(config: &CursedConfig) -> Self {
-        Phone {
+        PhoneEngine {
             on_hook: true,
             dial_resting: true,
             dial_pulse: false,
