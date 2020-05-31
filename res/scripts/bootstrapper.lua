@@ -10,7 +10,12 @@
 ]]
 
 function print_info()
-    print("Running " .. _VERSION)
+    local is_luajit = type(jit) == 'table'
+    if is_luajit then
+        print("Running " .. _VERSION .. ", " .. jit.version)
+    else
+        print("Running " .. _VERSION .. "")
+    end
 end
 
 --- Stub function to represent a table of native functions without initializing it.
@@ -22,3 +27,5 @@ function NATIVE_API(api_defs)
 end
 
 function empty_func() end
+
+print_info()

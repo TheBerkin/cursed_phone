@@ -3,6 +3,9 @@
 	"pdd": 4.0,
 	"volume": 1.0,
 	"off_hook_delay": 60.0,
+	"enable_motion_sensor": true,
+	"enable_vibration": true,
+	"enable_ringer": true,
 	"gpio_pins": {
 		"in_dial_pulse": 2,
 		"in_dial_switch": 4,

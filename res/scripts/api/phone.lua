@@ -58,7 +58,8 @@ NATIVE_API(function()
     function phone.get_dialed_number() end
 
     function phone.vibrate(power, time) end
-    
-    function phone.stop_vibrating() end
 
+    function phone.vibrate_set(power) end
+    
+    function phone.vibrate_stop() end
 end)

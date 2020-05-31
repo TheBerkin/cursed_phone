@@ -10,5 +10,8 @@
     ],
     "rust-analyzer.cargo.features": [
         "rpi"
+    ],
+    "rust.features": [
+        "rpi"
     ]
 }

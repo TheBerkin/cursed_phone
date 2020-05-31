@@ -21,26 +21,31 @@ const TICK_RATE_MS: u64 = 30;
 
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct GpioPinsConfig {
-    in_dial_pulse: i32,
-    in_dial_switch: i32,
-    in_hook: i32,
-    in_motion: i32,
-    out_ringer: i32,
-    out_vibrate: i32,
+    in_dial_pulse: u8,
+    in_dial_switch: u8,
+    in_hook: u8,
+    in_motion: u8,
+    out_ringer: u8,
+    out_vibrate: u8,
 }
 
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct CursedConfig {
+    phone_type: String,
     pdd: f32,
     volume: f32,
     off_hook_delay: f32,
     gpio_pins: GpioPinsConfig,
+    enable_ringer: bool,
+    enable_vibration: bool,
+    enable_motion_sensor: bool
 }
 
 fn main() -> Result<(), String> {
     let config = load_config();
     println!("Config loaded: {:#?}", config);
-    let sound_engine = create_sound_engine();
+    let sound_engine = create_sound_engine(&config);
+    let phone_engine = create_phone_engine(&config);
     let lua_engine = create_lua_engine(sound_engine);
     lua_engine.load_cursed_api()?;
     lua_engine.load_services();
@@ -58,8 +63,8 @@ fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut Lu
     lua_engine
 }
 
-fn create_sound_engine() -> &'static mut Rc<RefCell<SoundEngine>> {
-    let sound_engine = Box::new(Rc::new(RefCell::new(SoundEngine::new(SOUNDS_PATH))));
+fn create_sound_engine(config: &CursedConfig) -> &'static mut Rc<RefCell<SoundEngine>> {
+    let sound_engine = Box::new(Rc::new(RefCell::new(SoundEngine::new(SOUNDS_PATH, config.volume))));
     let sound_engine: &'static mut Rc<RefCell<SoundEngine>> = Box::leak(sound_engine);
     sound_engine
 }

@@ -86,7 +86,7 @@ impl Sound {
 }
 
 impl SoundEngine {
-    pub fn new(root_path: impl Into<String>) -> Self {
+    pub fn new(root_path: impl Into<String>, master_volume: f32) -> Self {
         // Load output device
         let device = rodio::default_output_device().expect("No default output device found!");        
         let channels = RefCell::from(Vec::<SoundChannel>::new());
@@ -97,7 +97,7 @@ impl SoundEngine {
             sound_glob_cache: Default::default(),
             device,
             channels,
-            master_volume: 1.0
+            master_volume
         };
 
         // Create channels
@@ -107,6 +107,7 @@ impl SoundEngine {
         }
 
         engine.load_sounds();
+        engine.set_master_volume(master_volume);
 
         engine
     }
