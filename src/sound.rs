@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
+use std::time::Duration;
 use enum_iterator::IntoEnumIterator;
 use indexmap::map::IndexMap;
 use rodio;
@@ -52,6 +53,10 @@ const ALL_CHANNELS: &[Channel] = { use Channel::*; &[Tone, Phone1, Phone2, Phone
 const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8] };
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
+
+const DTMF_COLUMN_FREQUENCIES: &[u32] = &[1209, 1336, 1477, 1633];
+const DTMF_ROW_FREQUENCIES: &[u32] = &[697, 770, 852, 941];
+const DTMF_DIGITS: &[char] = &['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'];
 
 pub struct SoundEngine {
     root_path: PathBuf,
@@ -235,10 +240,34 @@ impl SoundEngine {
         self.master_volume = master_volume;
     }
 
-    pub fn play_annoying_sine(&self, channel: Channel, f: u32) {
-        let sink = &self.channels.borrow()[channel.as_index()].sink;
-        let src = rodio::source::SineWave::new(f);
-        sink.append(src);
+    pub fn play_dtmf(&self, key: char, duration: f32, volume: f32) -> bool {
+        let index = DTMF_DIGITS.iter().position(|&c| c == key);
+        let f_row = match index {
+            Some(index) => DTMF_ROW_FREQUENCIES[index / 4],
+            None => return false
+        };
+        let f_col = match index {
+            Some(index) => DTMF_COLUMN_FREQUENCIES[index % 4],
+            None => return false
+        };
+        self.channels.borrow()[Channel::Tone.as_index()].queue_dtmf(f_row, f_col, duration, volume);
+        true
+    }
+
+    pub fn play_ringback_tone(&self, volume: f32) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_ringback_tone(volume);
+    }
+
+    pub fn play_dial_tone(&self, volume: f32) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_dial_tone(volume);
+    }
+
+    pub fn play_busy_tone(&self, volume: f32) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(volume);
+    }
+
+    pub fn play_off_hook_tone(&self, volume: f32) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_off_hook_tone(volume);
     }
 }
 
@@ -296,5 +325,77 @@ impl SoundChannel {
                 self.sink.append(src);
             }
         }
+    }
+
+    fn queue_dtmf(&self, f1: u32, f2: u32, duration: f32, volume: f32) {
+        let half_volume = volume * 0.5;
+        let sine1 = rodio::source::SineWave::new(f1);
+        let sine2 = rodio::source::SineWave::new(f2);
+        let dtmf_tone = sine1.mix(sine2)
+        .take_duration(Duration::from_secs_f32(duration))
+        .amplify(half_volume);
+        self.sink.append(dtmf_tone);
+    }
+
+    fn queue_ringback_tone(&self, volume: f32) {
+        const FREQ_RINGBACK_A: u32 = 440;
+        const FREQ_RINGBACK_B: u32 = 480;
+        let half_volume = volume * 0.5;
+        let sine1 = rodio::source::SineWave::new(FREQ_RINGBACK_A);
+        let sine2 = rodio::source::SineWave::new(FREQ_RINGBACK_B);
+        let ringback_start = 
+            sine1.mix(sine2)
+            .take_duration(Duration::from_secs(2))
+            .amplify(half_volume);
+        let ringback_loop = 
+            ringback_start.clone()
+            .delay(Duration::from_secs(4))
+            .repeat_infinite();
+        self.sink.append(ringback_start);
+        self.sink.append(ringback_loop);
+    }
+
+    fn queue_dial_tone(&self, volume: f32) {
+        const FREQ_DIAL_A: u32 = 350;
+        const FREQ_DIAL_B: u32 = 440;
+        let half_volume = volume * 0.5;
+        let sine1 = rodio::source::SineWave::new(FREQ_DIAL_A);
+        let sine2 = rodio::source::SineWave::new(FREQ_DIAL_B);
+        let dial_tone = sine1.mix(sine2).amplify(half_volume).repeat_infinite();
+        self.sink.append(dial_tone);
+    }
+
+    fn queue_busy_tone(&self, volume: f32) {
+        const FREQ_BUSY_A: u32 = 480;
+        const FREQ_BUSY_B: u32 = 620;
+        let half_volume = volume * 0.5;
+        let sine1 = rodio::source::SineWave::new(FREQ_BUSY_A);
+        let sine2 = rodio::source::SineWave::new(FREQ_BUSY_B);
+        let cadence = Duration::from_millis(500);
+        let busy_start = sine1.mix(sine2).take_duration(cadence).amplify(half_volume);
+        let busy_loop = busy_start.clone().delay(cadence).repeat_infinite();
+        self.sink.append(busy_start);
+        self.sink.append(busy_loop);
+    }
+
+    fn queue_off_hook_tone(&self, volume: f32) {
+        const FREQ_OFF_HOOK_A: u32 = 1400;
+        const FREQ_OFF_HOOK_B: u32 = 2060;
+        const FREQ_OFF_HOOK_C: u32 = 2450;
+        const FREQ_OFF_HOOK_D: u32 = 2600;
+        let quarter_volume = volume * 0.25;
+        let sine1 = rodio::source::SineWave::new(FREQ_OFF_HOOK_A);
+        let sine2 = rodio::source::SineWave::new(FREQ_OFF_HOOK_B);
+        let sine3 = rodio::source::SineWave::new(FREQ_OFF_HOOK_C);
+        let sine4 = rodio::source::SineWave::new(FREQ_OFF_HOOK_D);
+        let cadence = Duration::from_millis(100);
+        let off_hook_start = 
+            sine1.mix(sine2).mix(sine3).mix(sine4)
+            .take_duration(cadence)
+            .amplify(quarter_volume)
+            .buffered();
+        let off_hook_loop = off_hook_start.clone().delay(cadence).repeat_infinite();
+        self.sink.append(off_hook_start);
+        self.sink.append(off_hook_loop);
     }
 }

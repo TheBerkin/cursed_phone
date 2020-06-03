@@ -53,8 +53,8 @@ impl GpioInterface {
         }
     }
 
-    fn bind(&self) {
-
+    fn bind(&self, phone: &mut PhoneEngine) {
+        
     }
 }
 

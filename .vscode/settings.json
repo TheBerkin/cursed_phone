@@ -8,10 +8,5 @@
         "sound",
         "service"
     ],
-    "rust-analyzer.cargo.features": [
-        "rpi"
-    ],
-    "rust.features": [
-        "rpi"
-    ]
+    "rust.rust-analyzer.releaseTag": "stable"
 }

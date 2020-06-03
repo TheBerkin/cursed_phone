@@ -1,4 +1,6 @@
-local S = SERVICE_MODULE("Denise", "123")
+local S = SERVICE_MODULE("Denise", "*123")
+
+S:set_idle_tick_during(PHONE_IDLE, PHONE_DIAL_TONE)
 
 -- args.path: path to this script file
 function S.load(args)    

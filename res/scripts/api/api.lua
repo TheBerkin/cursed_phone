@@ -9,6 +9,10 @@
     
 ]]
 
+--------------------
+---- Native API ----
+--------------------
+
 NATIVE_API(function()
     --- Gets the number of seconds elapsed since the engine was initialized.
     --- @return number
@@ -31,3 +35,11 @@ NATIVE_API(function()
     --- @type function
     function random_float(min, max) end
 end)
+
+--- Removes all keys from table `t`.
+--- @param t table
+function table.clear(t)
+    for k in pairs(t) do
+        rawset(t, k, nil)
+    end
+end

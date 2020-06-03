@@ -86,7 +86,7 @@ SERVICE_ROLE_NORMAL = 0
 SERVICE_ROLE_INTERCEPT = 1
 
 --- @class PhoneServiceModule
-local _PhoneServiceModule = {
+local _PhoneServiceModule_MEMBERS = {
     tick = function(self)        
         local status, state = tick_service_state(self)
         return status, state
@@ -96,6 +96,15 @@ local _PhoneServiceModule = {
         transition_service_state(self, state)
     end,
     get_state = function(self) return self._state end,
+    --- Sets the phone states during whick the idle tick will be executed.
+    ---
+    --- If this function is not called on a service module, idle ticks will be allowed during all phone states.
+    --- @vararg PhoneStateCode
+    set_idle_tick_during = function(self, ...)
+        local states = {...}
+        -- (Is it even really worth doing any sanity checks here?)
+        self._idle_tick_phone_states = states
+    end,
     start = function(self)
         transition_service_state(self, SERVICE_STATE_IDLE)
     end,
@@ -110,7 +119,7 @@ local _PhoneServiceModule = {
 
 local M_PhoneServiceModule = {
     __index = function(self, index)
-        return _PhoneServiceModule[index]
+        return _PhoneServiceModule_MEMBERS[index]
     end
 }
 
@@ -126,7 +135,8 @@ function SERVICE_MODULE(name, phone_number, role)
         _role = role or SERVICE_ROLE_NORMAL,
         _state_coroutine = nil,
         _state = SERVICE_STATE_IDLE,
-        _state_func_tables = {}
+        _state_func_tables = {},
+        _idle_tick_phone_states = {}
     }, M_PhoneServiceModule)
     return module
 end

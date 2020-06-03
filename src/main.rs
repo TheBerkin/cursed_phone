@@ -50,6 +50,8 @@ fn main() -> Result<(), String> {
     lua_engine.load_cursed_api()?;
     lua_engine.load_services();
 
+    sound_engine.borrow().play_off_hook_tone(0.25);
+
     loop {
         lua_engine.tick();
         thread::sleep(time::Duration::from_millis(TICK_RATE_MS));

@@ -81,6 +81,18 @@ NATIVE_API(function()
 
     function sound.get_channel_volume(channel) end
     function sound.set_channel_volume(channel, volume) end
+
+    --- Loads the sound bank `bank_name` into memory, making it available for use.
+    --- @return boolean
+    function sound.load_bank(bank_name) end
+
+    --- Unloads the sound bank `bank_name` from memory.
+    --- @return boolean
+    function sound.unload_bank(bank_name) end
+
+    --- Returns a boolean value indicating whether the sound bank `bank_name` is currently loaded.
+    --- @return boolean
+    function sound.is_bank_loaded(bank_name) end
     
     --- Gets the master volume.
     --- @return number

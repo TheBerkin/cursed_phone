@@ -1,5 +1,6 @@
 local S = SERVICE_MODULE("Operator", "0")
 
+S:set_idle_tick_during(PHONE_IDLE)
 
 function S.load(args)
 end
