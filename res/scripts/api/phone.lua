@@ -13,6 +13,22 @@
 -- ==================== PHONE API =====================
 -- ====================================================
 
+DIGIT_1 = 49
+DIGIT_2 = 50
+DIGIT_3 = 51
+DIGIT_A = 65
+DIGIT_4 = 52
+DIGIT_5 = 53
+DIGIT_6 = 54
+DIGIT_B = 66
+DIGIT_7 = 55
+DIGIT_8 = 56
+DIGIT_9 = 57
+DIGIT_C = 67
+DIGIT_STAR = 42
+DIGIT_0 = 48
+DIGIT_POUND = 35
+
 -- ========================
 -- PHONE STATE CONSTANTS
 -- ========================

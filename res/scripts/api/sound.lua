@@ -117,6 +117,9 @@ NATIVE_API(function()
 
     --- Plays the dial tone on `CHAN_TONE`.
     function sound.play_dial_tone() end
+
+    --- Plays the specified DTMF digit.
+    function sound.play_dtmf_digit(digit, duration, volume) end
 end)
 
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
@@ -133,6 +136,19 @@ end)
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
+        service.status(SERVICE_STATUS_WAITING)
+    end
+end
+
+function sound.wait(channel)
+    while sound.is_busy(channel) do
+        service.status(SERVICE_STATUS_WAITING)
+    end
+end
+
+function sound.wait_min(channel, duration)
+    local start_time = get_run_time();
+    while sound.is_busy(channel) and get_run_time() - start_time < duration do
         service.status(SERVICE_STATUS_WAITING)
     end
 end

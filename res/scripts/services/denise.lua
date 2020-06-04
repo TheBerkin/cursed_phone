@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("Denise", "*123")
+local S = SERVICE_MODULE("Denise", "*666")
 
 S:set_idle_tick_during(PHONE_IDLE, PHONE_DIAL_TONE)
 

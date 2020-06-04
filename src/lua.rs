@@ -337,6 +337,12 @@ impl<'lua> LuaEngine<'lua> {
             Ok(())
         }).unwrap());
 
+        // sound.play_dtmf_digit(digit, duration, volume)
+        tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
+            self.sound_engine.borrow().play_dtmf(digit as char, duration, volume);
+            Ok(())
+        }).unwrap());
+
         globals.set("sound", tbl_sound);
 
         // ====================================================

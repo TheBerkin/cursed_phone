@@ -64,6 +64,7 @@ pub struct CursedConfig {
 pub struct SoundConfig {
     /// Initial master volume.
     pub master_volume: f32,
+    pub dtmf_volume: f32,
     pub dial_tone_gain: f32,
     pub ringback_tone_gain: f32,
     pub busy_tone_gain: f32,

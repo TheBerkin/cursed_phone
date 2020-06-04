@@ -43,3 +43,7 @@ function table.clear(t)
         rawset(t, k, nil)
     end
 end
+
+function table.random_choice(t)
+    return t[random_int(1, #t + 1)]
+end
