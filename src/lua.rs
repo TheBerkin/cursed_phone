@@ -374,7 +374,11 @@ impl<'lua> LuaEngine<'lua> {
         let service_iter = service_modules.iter();
         for (_, service) in service_iter {
             if let Err(err) = service.tick() {
-                println!("LUA ERROR: {:#?}", err);
+                self.sound_engine.borrow().play_panic_tone(0.25);
+                match err {
+                    LuaError::RuntimeError(msg) => println!("LUA ERROR: {}", msg),
+                    _ => println!("LUA ERROR: {:?}", err)
+                }
             }
         }
     }

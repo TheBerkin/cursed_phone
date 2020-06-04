@@ -269,6 +269,10 @@ impl SoundEngine {
     pub fn play_off_hook_tone(&self, volume: f32) {
         self.channels.borrow()[Channel::Tone.as_index()].queue_off_hook_tone(volume);
     }
+
+    pub fn play_panic_tone(&self, volume: f32) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_panic_tone(volume);
+    }
 }
 
 impl SoundChannel {
@@ -397,5 +401,18 @@ impl SoundChannel {
         let off_hook_loop = off_hook_start.clone().delay(cadence).repeat_infinite();
         self.sink.append(off_hook_start);
         self.sink.append(off_hook_loop);
+    }
+
+    fn queue_panic_tone(&self, volume: f32) {
+        const FREQ_PANIC_A: u32 = 720;
+        const FREQ_PANIC_B: u32 = 900;
+        let half_volume = volume * 0.5;
+        let sine1 = rodio::source::SineWave::new(FREQ_PANIC_A);
+        let sine2 = rodio::source::SineWave::new(FREQ_PANIC_B);
+        let cadence = Duration::from_millis(375);
+        let busy_start = sine1.mix(sine2).take_duration(cadence).amplify(half_volume);
+        let busy_loop = busy_start.clone().delay(cadence).repeat_infinite();
+        self.sink.append(busy_start);
+        self.sink.append(busy_loop);
     }
 }

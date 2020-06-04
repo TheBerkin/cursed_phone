@@ -35,7 +35,7 @@ pub struct CursedConfig {
     pdd: f32,
     volume: f32,
     off_hook_delay: f32,
-    gpio_pins: GpioPinsConfig,
+    gpio: GpioPinsConfig,
     enable_ringer: bool,
     enable_vibration: bool,
     enable_motion_sensor: bool
@@ -49,8 +49,6 @@ fn main() -> Result<(), String> {
     let lua_engine = create_lua_engine(sound_engine);
     lua_engine.load_cursed_api()?;
     lua_engine.load_services();
-
-    sound_engine.borrow().play_off_hook_tone(0.25);
 
     loop {
         lua_engine.tick();

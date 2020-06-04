@@ -257,6 +257,7 @@ function tick_service_state(s)
         local success, status, status_data = coroutine.resume(state_coroutine)
         -- If the coroutine is somehow dead/broken, transition the state
         if not success then
+            error(status)
             return SERVICE_STATUS_FINISHED_STATE, nil
         end
         
