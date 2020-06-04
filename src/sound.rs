@@ -59,6 +59,11 @@ const DTMF_COLUMN_FREQUENCIES: &[u32] = &[1209, 1336, 1477, 1633];
 const DTMF_ROW_FREQUENCIES: &[u32] = &[697, 770, 852, 941];
 const DTMF_DIGITS: &[char] = &['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'];
 
+/// Converts decibels to amplitude (assuming a normalized signal).
+fn db_to_amp(db: f32) -> f32 {
+    10.0f32.powf(db / 20.0)
+}
+
 pub struct SoundEngine {
     root_path: PathBuf,
     device: rodio::Device,
@@ -258,24 +263,24 @@ impl SoundEngine {
         true
     }
 
-    pub fn play_ringback_tone(&self, volume: f32) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_ringback_tone(volume);
+    pub fn play_ringback_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_ringback_tone(db_to_amp(self.config.ringback_tone_gain));
     }
 
-    pub fn play_dial_tone(&self, volume: f32) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_dial_tone(volume);
+    pub fn play_dial_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_dial_tone(db_to_amp(self.config.dial_tone_gain));
     }
 
-    pub fn play_busy_tone(&self, volume: f32) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(volume);
+    pub fn play_busy_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain));
     }
 
-    pub fn play_off_hook_tone(&self, volume: f32) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_off_hook_tone(volume);
+    pub fn play_off_hook_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_off_hook_tone(db_to_amp(self.config.off_hook_tone_gain));
     }
 
-    pub fn play_panic_tone(&self, volume: f32) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_panic_tone(volume);
+    pub fn play_panic_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_panic_tone(1.0);
     }
 }
 
