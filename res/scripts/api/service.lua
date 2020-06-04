@@ -217,8 +217,8 @@ local function gen_state_coroutine(s, new_state, old_state)
         local old_func_table = s._state_func_tables[old_state]
         local new_func_table = s._state_func_tables[new_state]
 
-        local on_enter = new_func_table.enter or empty_func
-        local on_tick = new_func_table.tick or empty_func
+        local on_enter = new_func_table and new_func_table.enter or empty_func
+        local on_tick = new_func_table and new_func_table.tick or empty_func
         local prev_on_exit = old_func_table and old_func_table.exit or empty_func
 
         prev_on_exit(s)

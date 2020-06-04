@@ -5,6 +5,7 @@ use toml;
 #[allow(non_camel_case_types)]
 type ms = u64;
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
 pub struct CursedConfig {
     /// Phone type. Mainly affects which inputs control dialing.
@@ -58,12 +59,14 @@ pub struct CursedConfig {
     pub debug: Option<DebugConfig>
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct SoundConfig {
     /// Initial master volume.
     pub master_volume: f32,
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct GpioConfig {
     /// Input configuration.
@@ -72,6 +75,7 @@ pub struct GpioConfig {
     pub outputs: GpioOutputsConfig
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct GpioInputsConfig {
     /// BCM pin number of switch hook input.
@@ -96,6 +100,7 @@ pub struct GpioInputsConfig {
     pub pins_keypad_rows_bounce_ms: Option<ms>
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct GpioOutputsConfig {
     /// BCM pin number of ringer output.
@@ -106,6 +111,7 @@ pub struct GpioOutputsConfig {
     pub pins_keypad_cols: Option<[u8; 3]>,
 }
 
+#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Copy, Clone, Debug)]
 pub struct DebugConfig {
     /// Plays the panic tone when a Lua script encounters an error.
