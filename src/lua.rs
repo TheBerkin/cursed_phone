@@ -319,6 +319,24 @@ impl<'lua> LuaEngine<'lua> {
             Ok(())
         }).unwrap());
 
+        // sound.play_dial_tone()
+        tbl_sound.set("play_dial_tone", lua.create_function(move |_, ()| {
+            self.sound_engine.borrow().play_dial_tone();
+            Ok(())
+        }).unwrap());
+
+        // sound.play_busy_tone()
+        tbl_sound.set("play_busy_tone", lua.create_function(move |_, ()| {
+            self.sound_engine.borrow().play_busy_tone();
+            Ok(())
+        }).unwrap());
+
+        // sound.play_ringback_tone()
+        tbl_sound.set("play_ringback_tone", lua.create_function(move |_, ()| {
+            self.sound_engine.borrow().play_ringback_tone();
+            Ok(())
+        }).unwrap());
+
         globals.set("sound", tbl_sound);
 
         // ====================================================

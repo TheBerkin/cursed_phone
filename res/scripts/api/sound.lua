@@ -79,7 +79,14 @@ NATIVE_API(function()
     --- Stops playback on all channels.
     function sound.stop_all() end
 
+    --- Gets the volume of the specified channel.
+    --- @param channel integer
+    --- @return number
     function sound.get_channel_volume(channel) end
+
+    --- Sets the volume of the specified channel.
+    --- @param channel integer
+    --- @param volume number
     function sound.set_channel_volume(channel, volume) end
 
     --- Loads the sound bank `bank_name` into memory, making it available for use.
@@ -101,6 +108,15 @@ NATIVE_API(function()
     --- Sets the master volume.
     --- @param volume number
     function sound.set_master_volume(volume) end
+
+    --- Plays the busy tone on `CHAN_TONE`.
+    function sound.play_busy_tone() end
+
+    --- Plays the ringback tone on `CHAN_TONE`.
+    function sound.play_ringback_tone() end
+
+    --- Plays the dial tone on `CHAN_TONE`.
+    function sound.play_dial_tone() end
 end)
 
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
