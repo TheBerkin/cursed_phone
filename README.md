@@ -40,7 +40,7 @@ If you plan on cross-compiling, you'll need to install the appropriate build tar
 * For ARMv7/8 (Raspberry Pi 2 / 3 / 4), use `armv7-unknown-linux-gnueabihf`.
 
 Make sure you have an appropriate linker installed and that Cargo can find it.
-You can do this by filling out and adding the the following to your `.cargo/config` file:
+You can do this by filling out and adding the following to your `.cargo/config` file:
 ```toml
 [target.<your target triple here>]
 linker = "<your linker path here>"

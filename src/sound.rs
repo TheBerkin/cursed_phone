@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::config::SoundConfig;
 use std::path::{Path, PathBuf};
 use std::cell::RefCell;
 use std::fs::File;
@@ -62,6 +63,7 @@ pub struct SoundEngine {
     root_path: PathBuf,
     device: rodio::Device,
     channels: RefCell<Vec<SoundChannel>>,
+    config: SoundConfig,
     sounds: IndexMap<String, Sound>,
     sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
     master_volume: f32
@@ -91,10 +93,11 @@ impl Sound {
 }
 
 impl SoundEngine {
-    pub fn new(root_path: impl Into<String>, master_volume: f32) -> Self {
+    pub fn new(root_path: impl Into<String>, config: SoundConfig) -> Self {
         // Load output device
         let device = rodio::default_output_device().expect("No default output device found!");        
         let channels = RefCell::from(Vec::<SoundChannel>::new());
+        let master_volume = config.master_volume;
 
         let mut engine = Self {
             root_path: Path::new(root_path.into().as_str()).canonicalize().unwrap(),
@@ -102,6 +105,7 @@ impl SoundEngine {
             sound_glob_cache: Default::default(),
             device,
             channels,
+            config,
             master_volume
         };
 
