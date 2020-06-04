@@ -6,31 +6,41 @@ use crate::{CursedConfig, GpioPinsConfig};
 #[cfg(feature = "rpi")]
 use rppal::gpio::*;
 
+#[cfg(feature = "rpi")]
 trait Debounce<T> where T: Debounced {
     fn debounce(self, time: Duration) -> T;
 }
 
+#[cfg(feature = "rpi")]
 trait Debounced {
-    fn on_changed_async<C>(&mut self, callback: C) -> Result<()> 
+    fn on_changed<C>(&mut self, callback: C) -> Result<()> 
         where C: FnMut(bool) + Send + 'static;
+
+    fn is_high(&self) -> bool;
+
+    fn is_low(&self) -> bool;
+
+    fn set_bounce_time(&mut self, time: Duration);
 }
 
 #[cfg(feature = "rpi")]
 struct SoftInputPin {
     pin: InputPin,
-    debounce_time: Arc<Mutex<Duration>>,
+    bounce_time: Arc<Mutex<Duration>>,
     last_changed: Arc<Mutex<Instant>>,
     last_state: Arc<Mutex<bool>>
 }
 
+#[cfg(feature = "rpi")]
 impl SoftInputPin {
-    fn new(pin: InputPin, debounce_time: Duration) -> Self {
+    fn new(mut pin: InputPin, bounce_time: Duration) -> Self {
         let last_changed = Arc::new(Mutex::new(Instant::now()));
-        let debounce_time = Arc::new(Mutex::new(debounce_time));
+        let bounce_time = Arc::new(Mutex::new(bounce_time));
         let last_state = Arc::new(Mutex::new(pin.is_high()));
+        pin.set_interrupt(Trigger::Both).unwrap();
         Self {
             pin,
-            debounce_time,
+            bounce_time,
             last_changed,
             last_state
         }
@@ -44,23 +54,47 @@ impl Debounce<SoftInputPin> for InputPin {
     }
 }
 
+#[cfg(feature = "rpi")]
 impl Debounced for SoftInputPin {
-    fn on_changed_async<C>(&mut self, mut callback: C) -> Result<()> 
+    fn on_changed<C>(&mut self, mut callback: C) -> Result<()> 
     where C: FnMut(bool) + Send + 'static {
         let last_changed = self.last_changed.clone();
-        let debounce_time = self.debounce_time.clone();
+        let bounce_time = self.bounce_time.clone();
         let last_state = self.last_state.clone();
         self.pin.set_async_interrupt(Trigger::Both, move |level| {
             let new_state = level == Level::High;
-            let debounce_time = debounce_time.lock().unwrap();
+            let bounce_time = bounce_time.lock().unwrap();
             let mut last_changed = last_changed.lock().unwrap();
             let mut last_state = last_state.lock().unwrap();
-            if last_changed.elapsed() > *debounce_time && new_state != *last_state {
+            if last_changed.elapsed() > *bounce_time && new_state != *last_state {
                 *last_changed = Instant::now();
                 *last_state = new_state;
                 callback(new_state);
             }
         })
+    }
+
+    fn is_high(&self) -> bool {
+        let mut last_changed = self.last_changed.lock().unwrap();
+        let mut last_state = self.last_state.lock().unwrap();
+        let bounce_time = self.bounce_time.lock().unwrap();
+        if last_changed.elapsed() < *bounce_time {
+            return *last_state;
+        }
+        let new_state = self.pin.is_high();
+        *last_state = new_state;
+        *last_changed = Instant::now();
+        new_state
+    }
+
+    #[inline]
+    fn is_low(&self) -> bool {
+        !self.is_high()
+    }
+
+    fn set_bounce_time(&mut self, time: Duration) {
+        let mut bounce_time = self.bounce_time.lock().unwrap();
+        *bounce_time = time;
     }
 }
 
@@ -131,7 +165,7 @@ impl GpioInterface {
         
         // On/Off-hook GPIO events
         let sender = tx.clone();
-        self.in_hook.on_changed_async(move |state| {
+        self.in_hook.on_changed(move |state| {
             sender.send(HookState(state)).unwrap();
         })?;
 
