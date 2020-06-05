@@ -1,10 +1,10 @@
 mod config;
-mod lua;
+mod services;
 mod phone;
 mod sound;
 mod gpio;
 
-use crate::lua::LuaEngine;
+use crate::services::LuaEngine;
 use crate::sound::SoundEngine;
 use crate::phone::PhoneEngine;
 use crate::config::*;

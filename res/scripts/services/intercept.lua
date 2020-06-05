@@ -1,5 +1,7 @@
 local S = SERVICE_MODULE("intercept", "A", SERVICE_ROLE_INTERCEPT)
 
+S:set_ringback_enabled(false)
+
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)
         print("Intercept: call started")

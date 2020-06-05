@@ -112,6 +112,9 @@ NATIVE_API(function()
     --- Plays a busy tone on `CHAN_TONE`.
     function sound.play_busy_tone() end
 
+    --- Plays a fast busy tone on `CHAN_TONE`.
+    function sound.play_fast_busy_tone() end
+
     --- Plays a ringback tone on `CHAN_TONE`.
     function sound.play_ringback_tone() end
 

@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
+mod props;
+mod api;
+
 use crate::sound::*;
+use self::props::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
@@ -11,6 +15,8 @@ use rand::Rng;
 use indexmap::IndexMap;
 use mlua::prelude::*;
 
+pub use self::api::*;
+
 const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
 const API_GLOB: &str = "api/*";
 
@@ -20,80 +26,6 @@ pub struct LuaEngine<'lua> {
     start_time: Instant,
     service_modules: RefCell<IndexMap<String, ServiceModule<'lua>>>,
     sound_engine: Rc<RefCell<SoundEngine>>
-}
-
-#[derive(Clone, Debug)]
-enum ServiceIntent {
-    Idle,
-    AcceptCall,
-    EndCall,
-    CallUser,
-    Waiting,
-    RequestDigit,
-    Forward(String),
-    FinishedState(ServiceState)
-}
-
-impl ServiceIntent {
-    fn from_lua_value(status_code: i32, status_data: LuaValue) -> ServiceIntent {
-        match status_code {
-            0 => ServiceIntent::Idle,
-            1 => ServiceIntent::AcceptCall,
-            2 => ServiceIntent::EndCall,
-            3 => ServiceIntent::CallUser,
-            4 => ServiceIntent::Waiting,
-            5 => ServiceIntent::RequestDigit,
-            6 => match status_data {
-                LuaValue::String(s) => ServiceIntent::Forward(String::from(s.to_str().unwrap())),
-                _ => ServiceIntent::Forward(String::from("A"))
-            },
-            7 => match status_data {
-                LuaValue::Integer(n) => ServiceIntent::FinishedState(ServiceState::from(n as usize)),
-                _ => ServiceIntent::Idle
-            },
-            _ => ServiceIntent::Idle
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-enum ServiceState {
-    /// Service is currently idle.
-    Idle = 0,
-    /// Service is placing a call.
-    OutgoingCall = 1,
-    /// Service is receiving a call.
-    IncomingCall = 2,
-    /// Service is in a call.
-    Call = 3
-}
-
-const ALL_SERVICE_STATES: &[ServiceState] = { use ServiceState::*; &[Idle, OutgoingCall, IncomingCall, Call] };
-
-impl From<usize> for ServiceState {
-    fn from(value: usize) -> ServiceState {
-        ALL_SERVICE_STATES[value]
-    }
-}
-
-impl ServiceState {
-    fn as_index(self) -> usize {
-        self as usize
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-enum ServiceRole {
-    Normal = 0,
-    Intercept = 1
-}
-
-const ALL_SERVICE_ROLES: &[ServiceRole] = { use ServiceRole::*; &[Normal, Intercept] };
-
-impl From<usize> for ServiceRole {
-    fn from(value: usize) -> ServiceRole {
-        ALL_SERVICE_ROLES[value]
-    }
 }
 
 struct ServiceModule<'lua> {
@@ -246,126 +178,6 @@ impl<'lua> LuaEngine<'lua> {
 
     fn resolve_script_path(&self, name: &str) -> PathBuf {
         self.scripts_root.join(name).with_extension("lua")
-    }
-
-    pub fn load_cursed_api(&'static self) -> Result<(), String> {
-        // Run bootstrapper script
-        println!("Bootstrapping Lua...");
-        self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
-
-        let lua = &self.lua;
-        let globals = &lua.globals();
-
-        // ====================================================
-        // ==================== SOUND API =====================
-        // ====================================================
-
-        let tbl_sound = lua.create_table().unwrap();    
-
-        // sound.play(path, channel, opts)
-        tbl_sound.set("play", lua.create_function(move |_, (path, channel, opts): (String, usize, Option<LuaTable>)| {
-            let mut speed: Option<f32> = None;
-            let mut interrupt: Option<bool> = None;
-            let mut looping: Option<bool> = None;
-            let mut volume: Option<f32> = None;
-            match opts {
-                Some(opts_table) => {
-                    speed = opts_table.get::<&str, f32>("speed").ok();
-                    interrupt = opts_table.get::<&str, bool>("interrupt").ok();
-                    looping = opts_table.get::<&str, bool>("looping").ok();
-                    volume = opts_table.get::<&str, f32>("volume").ok();
-                },
-                None => {}
-            }
-            self.sound_engine.borrow().play(
-                path.as_str(), 
-                Channel::from(channel), 
-                false, 
-                looping.unwrap_or(false), 
-                interrupt.unwrap_or(true), 
-                speed.unwrap_or(1.0),
-                volume.unwrap_or(1.0)
-            );
-            Ok(())
-        }).unwrap());
-
-        // sound.is_busy(channel)
-        tbl_sound.set("is_busy", lua.create_function(move |_, channel: usize| {
-            let busy = self.sound_engine.borrow().channel_busy(Channel::from(channel));
-            Ok(busy)
-        }).unwrap());
-
-        // sound.stop(channel)
-        tbl_sound.set("stop", lua.create_function(move |_, channel: usize| {
-            self.sound_engine.borrow().stop(Channel::from(channel));
-            Ok(())
-        }).unwrap());
-
-        // sound.stop_all(channel)
-        tbl_sound.set("stop_all", lua.create_function(move |_, ()| {
-            self.sound_engine.borrow().stop_all();
-            Ok(())
-        }).unwrap());
-
-        // sound.get_channel_volume(channel)
-        tbl_sound.set("get_channel_volume", lua.create_function(move |_, channel: usize| {
-            let vol = self.sound_engine.borrow().volume(Channel::from(channel));
-            Ok(vol)
-        }).unwrap());
-
-        // sound.set_channel_volume(channel, volume)
-        tbl_sound.set("set_channel_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
-            self.sound_engine.borrow_mut().set_volume(Channel::from(channel), volume);
-            Ok(())
-        }).unwrap());
-
-        // sound.play_dial_tone()
-        tbl_sound.set("play_dial_tone", lua.create_function(move |_, ()| {
-            self.sound_engine.borrow().play_dial_tone();
-            Ok(())
-        }).unwrap());
-
-        // sound.play_busy_tone()
-        tbl_sound.set("play_busy_tone", lua.create_function(move |_, ()| {
-            self.sound_engine.borrow().play_busy_tone();
-            Ok(())
-        }).unwrap());
-
-        // sound.play_ringback_tone()
-        tbl_sound.set("play_ringback_tone", lua.create_function(move |_, ()| {
-            self.sound_engine.borrow().play_ringback_tone();
-            Ok(())
-        }).unwrap());
-
-        // sound.play_dtmf_digit(digit, duration, volume)
-        tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
-            self.sound_engine.borrow().play_dtmf(digit as char, duration, volume);
-            Ok(())
-        }).unwrap());
-
-        globals.set("sound", tbl_sound);
-
-        // ====================================================
-        // ============ MISC NATIVE API FUNCTIONS =============
-        // ====================================================
-
-        // sleep()
-        globals.set("sleep", lua.create_function(LuaEngine::lua_sleep).unwrap());
-        // random_int()
-        globals.set("random_int", lua.create_function(LuaEngine::lua_random_int).unwrap());
-        // random_float()
-        globals.set("random_float", lua.create_function(LuaEngine::lua_random_float).unwrap());
-
-        // get_run_time()
-        globals.set("get_run_time", lua.create_function(move |_, ()| {
-            let run_time = self.start_time.elapsed().as_secs_f64();
-            Ok(run_time)
-        }).unwrap());
-
-        // Run API scripts
-        self.run_scripts_in_glob(API_GLOB)?;
-
-        Ok(())
     }
 
     pub fn load_services(&'lua self) {

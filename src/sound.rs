@@ -272,7 +272,11 @@ impl SoundEngine {
     }
 
     pub fn play_busy_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain));
+        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), false);
+    }
+
+    pub fn play_fast_busy_tone(&self) {
+        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), true);
     }
 
     pub fn play_off_hook_tone(&self) {
@@ -378,13 +382,13 @@ impl SoundChannel {
         self.sink.append(dial_tone);
     }
 
-    fn queue_busy_tone(&self, volume: f32) {
+    fn queue_busy_tone(&self, volume: f32, is_fast: bool) {
         const FREQ_BUSY_A: u32 = 480;
         const FREQ_BUSY_B: u32 = 620;
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(FREQ_BUSY_A);
         let sine2 = rodio::source::SineWave::new(FREQ_BUSY_B);
-        let cadence = Duration::from_millis(500);
+        let cadence = Duration::from_millis(if is_fast { 250 } else { 500 });
         let busy_start = sine1.mix(sine2).take_duration(cadence).amplify(half_volume);
         let busy_loop = busy_start.clone().delay(cadence).repeat_infinite();
         self.sink.append(busy_start);

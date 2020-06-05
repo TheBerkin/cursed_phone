@@ -105,6 +105,11 @@ local _PhoneServiceModule_MEMBERS = {
         -- (Is it even really worth doing any sanity checks here?)
         self._idle_tick_phone_states = states
     end,
+    --- Enables or disables the ringback tone when calling the service.
+    --- @param enabled boolean
+    set_ringback_enabled = function(self, enabled)
+        self._ringback_enabled = (not not enabled)
+    end,
     start = function(self)
         transition_service_state(self, SERVICE_STATE_IDLE)
     end,
@@ -136,7 +141,8 @@ function SERVICE_MODULE(name, phone_number, role)
         _state_coroutine = nil,
         _state = SERVICE_STATE_IDLE,
         _state_func_tables = {},
-        _idle_tick_phone_states = {}
+        _idle_tick_phone_states = {},
+        _ringback_enabled = true
     }, M_PhoneServiceModule)
     return module
 end
