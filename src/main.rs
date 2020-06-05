@@ -16,11 +16,11 @@ use std::{thread, time};
 const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
 const SOUNDS_PATH: &str = "./res/sounds";
-const TICK_RATE_MS: u64 = 30;
 
 fn main() -> Result<(), String> {
     let config = config::load_config(CONFIG_PATH);
     println!("Config loaded: {:#?}", config);
+    let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
     let phone_engine = create_phone_engine(&config);
     let lua_engine = create_lua_engine(sound_engine);
@@ -29,7 +29,7 @@ fn main() -> Result<(), String> {
 
     loop {
         lua_engine.tick();
-        thread::sleep(time::Duration::from_millis(TICK_RATE_MS));
+        thread::sleep(tick_interval);
     }
     Ok(())
 }

@@ -18,6 +18,10 @@ pub struct CursedConfig {
     /// |`"unknown"`  |Unknown/other phone type |
     pub phone_type: String,
 
+    /// Number of times per second to update the phone state.
+    /// Higher is better, but will also consume more CPU cycles.
+    pub tick_rate: f64,
+
     /// **Post Dial Delay (PDD)**
     /// 
     /// Delay (in seconds) to wait after the last digit is dialed, 

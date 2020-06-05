@@ -8,6 +8,7 @@
         "sound",
         "service"
     ],
+    "Lua.runtime.version": "LuaJIT",
     "rust.features": [
         "rpi"
     ],

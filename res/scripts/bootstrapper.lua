@@ -12,7 +12,7 @@
 function print_info()
     local is_luajit = type(jit) == 'table'
     if is_luajit then
-        print("Running " .. _VERSION .. ", " .. jit.version)
+        print("Running " .. _VERSION .. ", " .. jit.version .. "(" .. jit.arch .. ")")
     else
         print("Running " .. _VERSION .. "")
     end
