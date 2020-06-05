@@ -13,20 +13,52 @@
 -- ==================== PHONE API =====================
 -- ====================================================
 
+--- @alias PhoneDigit integer
+
+--- @type PhoneDigit
+--- The digit '1'.
 DIGIT_1 = 49
+--- @type PhoneDigit
+--- The digit '2'.
 DIGIT_2 = 50
+--- @type PhoneDigit
+--- The digit '3'.
 DIGIT_3 = 51
+--- @type PhoneDigit
+--- The digit 'A'.
 DIGIT_A = 65
+--- @type PhoneDigit
+--- The digit '4'.
 DIGIT_4 = 52
+--- @type PhoneDigit
+--- The digit '5'.
 DIGIT_5 = 53
+--- @type PhoneDigit
+--- The digit '6'.
 DIGIT_6 = 54
+--- @type PhoneDigit
+--- The digit 'B'.
 DIGIT_B = 66
+--- @type PhoneDigit
+--- The digit '7'.
 DIGIT_7 = 55
+--- @type PhoneDigit
+--- The digit '8'.
 DIGIT_8 = 56
+--- @type PhoneDigit
+--- The digit '9'.
 DIGIT_9 = 57
+--- @type PhoneDigit
+--- The digit 'C'.
 DIGIT_C = 67
+--- @type PhoneDigit
+--- The digit '*'.
 DIGIT_STAR = 42
+--- @type PhoneDigit
+--- The digit '0'.
 DIGIT_0 = 48
+--- @type PhoneDigit
+--- The digit '#'.
 DIGIT_POUND = 35
 
 -- ========================

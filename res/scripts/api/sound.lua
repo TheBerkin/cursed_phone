@@ -109,21 +109,25 @@ NATIVE_API(function()
     --- @param volume number
     function sound.set_master_volume(volume) end
 
-    --- Plays the busy tone on `CHAN_TONE`.
+    --- Plays a busy tone on `CHAN_TONE`.
     function sound.play_busy_tone() end
 
-    --- Plays the ringback tone on `CHAN_TONE`.
+    --- Plays a ringback tone on `CHAN_TONE`.
     function sound.play_ringback_tone() end
 
-    --- Plays the dial tone on `CHAN_TONE`.
+    --- Plays a dial tone on `CHAN_TONE`.
     function sound.play_dial_tone() end
 
     --- Plays the specified DTMF digit.
+    --- @param digit PhoneDigit
+    --- @param duration number
+    --- @param volume number
     function sound.play_dtmf_digit(digit, duration, volume) end
 end)
 
+--- *(Service use only)*
+---
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
---- Only works inside of state machines.
 ---
 --- Available options:
 --- * `looping: boolean` Make the sound loop (Default: `false`)
@@ -140,12 +144,20 @@ function sound.play_wait(path, channel, opts)
     end
 end
 
+--- *(Service use only)*
+---
+--- Waits for the specified sound channel to finish playing.
 function sound.wait(channel)
     while sound.is_busy(channel) do
         service.status(SERVICE_STATUS_WAITING)
     end
 end
 
+--- *(Service use only)*
+---
+--- Waits at least `duration` seconds for the specified sound channel to finish playing.
+---
+--- Keeps waiting even if `duration` lasts longer than the sound.
 function sound.wait_min(channel, duration)
     local start_time = get_run_time();
     while sound.is_busy(channel) and get_run_time() - start_time < duration do

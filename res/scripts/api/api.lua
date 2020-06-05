@@ -44,6 +44,7 @@ function table.clear(t)
     end
 end
 
+--- Returns a random element from `t`.
 function table.random_choice(t)
     return t[random_int(1, #t + 1)]
 end
