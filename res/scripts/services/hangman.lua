@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("Hangman", "7308432")
+local S = SERVICE_MODULE("hangman", "7308432")
 
 
 function S.load(args)

@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("Intercept Service", "A", SERVICE_ROLE_INTERCEPT)
+local S = SERVICE_MODULE("intercept", "A", SERVICE_ROLE_INTERCEPT)
 
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)

@@ -1,6 +1,18 @@
-local S = SERVICE_MODULE("Denise", "*666")
+local S = SERVICE_MODULE("denise", "*666")
 
 S:set_idle_tick_during(PHONE_IDLE, PHONE_DIAL_TONE)
+
+local msg_handlers = {
+    ["mark_start"] = function(self, msg_data)
+        -- Mark call starts
+    end,
+    ["mark_talk"] = function(self, msg_data)
+        -- Mark says something
+    end,
+    ["mark_end"] = function(self, msg_data)
+        -- Mark call ends
+    end
+}
 
 -- args.path: path to this script file
 function S.load(args)    
@@ -16,6 +28,13 @@ S:state(SERVICE_STATE_IDLE, {
     tick = function(self)
         service.wait(random_float(2, 12))
         sound.play_wait("denise/thinking/*", CHAN_SOUL1, { interrupt = false })
+    end,
+
+    message = function(self, msg_type, msg_data)
+        local handler = msg_handlers[msg_type]
+        if type(handler) == 'function' then
+            handler(self, msg_data)
+        end
     end,
 
     exit = function(self)

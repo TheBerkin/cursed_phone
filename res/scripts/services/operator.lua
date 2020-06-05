@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("Operator", "0")
+local S = SERVICE_MODULE("operator", "0")
 
 S:set_idle_tick_during(PHONE_IDLE)
 
