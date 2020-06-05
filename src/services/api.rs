@@ -40,14 +40,11 @@ impl<'lua> LuaEngine<'lua> {
             let mut interrupt: Option<bool> = None;
             let mut looping: Option<bool> = None;
             let mut volume: Option<f32> = None;
-            match opts {
-                Some(opts_table) => {
-                    speed = opts_table.get::<&str, f32>("speed").ok();
-                    interrupt = opts_table.get::<&str, bool>("interrupt").ok();
-                    looping = opts_table.get::<&str, bool>("looping").ok();
-                    volume = opts_table.get::<&str, f32>("volume").ok();
-                },
-                None => {}
+            if let Some(opts_table) = opts {
+                speed = opts_table.get::<&str, f32>("speed").ok();
+                interrupt = opts_table.get::<&str, bool>("interrupt").ok();
+                looping = opts_table.get::<&str, bool>("looping").ok();
+                volume = opts_table.get::<&str, f32>("volume").ok();
             }
             self.sound_engine.borrow().play(
                 path.as_str(), 

@@ -3,19 +3,18 @@
 mod props;
 mod api;
 
-use crate::sound::*;
-use self::props::*;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::{thread, time};
-use std::fs;
+use std::{thread, time, fs};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use rand::Rng;
-use indexmap::IndexMap;
 use mlua::prelude::*;
+use indexmap::IndexMap;
+use crate::sound::*;
 
 pub use self::api::*;
+pub use self::props::*;
 
 const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
 const API_GLOB: &str = "api/*";
@@ -28,7 +27,7 @@ pub struct LuaEngine<'lua> {
     sound_engine: Rc<RefCell<SoundEngine>>
 }
 
-struct ServiceModule<'lua> {
+pub struct ServiceModule<'lua> {
     name: String,
     phone_number: Option<String>,
     tbl_module: LuaTable<'lua>,
@@ -72,7 +71,11 @@ impl<'lua> ServiceModule<'lua> {
         }
     }
 
-    fn state(&self) -> LuaResult<ServiceState> {
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn state(&self) -> LuaResult<ServiceState> {
         let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
         Ok(ServiceState::from(raw_state))
     }

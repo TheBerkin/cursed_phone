@@ -28,8 +28,10 @@ fn main() -> Result<(), String> {
     lua_engine.load_services();
 
     loop {
+        let tick_start = time::Instant::now();
         lua_engine.tick();
-        thread::sleep(tick_interval);
+        let tick_end = time::Instant::now();
+        thread::sleep(tick_interval - tick_end.saturating_duration_since(tick_start));
     }
     Ok(())
 }
