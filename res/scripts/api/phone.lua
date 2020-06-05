@@ -61,9 +61,16 @@ DIGIT_0 = 48
 --- The digit '#'.
 DIGIT_POUND = 35
 
--- ========================
--- PHONE STATE CONSTANTS
--- ========================
+--- @alias InterceptStateCode integer
+
+--- @type InterceptStateCode
+INTERCEPT_NONE = 0
+--- @type InterceptStateCode
+INTERCEPT_OFF_HOOK = 1
+--- @type InterceptStateCode
+INTERCEPT_NUMBER_DISCONNECTED = 2
+
+
 --- @alias PhoneStateCode integer
 
 --- @type PhoneStateCode

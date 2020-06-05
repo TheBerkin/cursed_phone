@@ -82,7 +82,7 @@ local SERVICE_DATA_USER_BUSY = 2
 --- A normal phone service.
 SERVICE_ROLE_NORMAL = 0
 --- @type ServiceRole
---- An intercept service.
+--- Designates a service as an intercept system.
 SERVICE_ROLE_INTERCEPT = 1
 
 --- @class PhoneServiceModule
