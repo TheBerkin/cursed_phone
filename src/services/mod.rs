@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time, fs};
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use std::time::Instant;
 use rand::Rng;
 use mlua::prelude::*;
@@ -16,22 +17,49 @@ use crate::sound::*;
 pub use self::api::*;
 pub use self::props::*;
 
+/// `Option<Rc<T>>`
+type Orc<T> = Option<Rc<T>>;
+
+/// `Rc<RefCell<T>>`
+type RcRefCell<T> = Rc<RefCell<T>>;
+
 const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
 const API_GLOB: &str = "api/*";
+
+type ServiceId = usize;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum PbxState {
+    Idle,
+    DialTone,
+    PDD,
+    CallingOut(ServiceId),
+    CallingHost(ServiceId),
+    Connected(ServiceId),
+    Busy
+}
 
 /// A Lua-powered telephone exchange that loads,
 /// manages, and runs scripted phone services.
 pub struct PbxEngine<'lua> {
+    /// The Lua context associated with the engine.
     lua: Lua,
+    /// The root directory from which Lua scripts are loaded.
     scripts_root: PathBuf,
+    /// The starting time of the engine.
     start_time: Instant,
-    services_numbered: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
-    services: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
-    sound_engine: Rc<RefCell<SoundEngine>>
+    /// The numbered services associated with the engine.
+    phone_book: RefCell<HashMap<String, ServiceId>>,
+    /// The services (both numbered and otherwise) associated with the engine.
+    services: RefCell<IndexMap<String, ServiceModule<'lua>>>,
+    /// The sound engine associated with the engine.
+    sound_engine: RcRefCell<SoundEngine>,
+    /// The current state of the engine.
+    state: RefCell<PbxState>
 }
 
 pub struct ServiceModule<'lua> {
-    id: usize,
+    id: ServiceId,
     name: String,
     phone_number: Option<String>,
     ringback_enabled: bool,
@@ -145,8 +173,23 @@ impl<'lua> PbxEngine<'lua> {
             start_time: Instant::now(),
             scripts_root: Path::new(scripts_root.into().as_str()).canonicalize().unwrap(),
             sound_engine: Rc::clone(sound_engine),
-            services_numbered: Default::default(),
-            services: Default::default()
+            phone_book: Default::default(),
+            services: Default::default(),
+            state: RefCell::new(PbxState::Idle)
+        }
+    }
+
+    fn set_state(&self, state: PbxState) {
+        if *self.state.borrow() == state {
+            return;
+        }
+
+        let prev_state = self.state.replace(state);
+        use PbxState::*;
+        match (prev_state, state) {
+            // TODO
+            (_, Idle) => {},
+            _ => {}
         }
     }
 
@@ -182,33 +225,30 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     pub fn load_services(&'lua self) {
-        self.services_numbered.borrow_mut().clear();
+        self.phone_book.borrow_mut().clear();
         let search_path = self.scripts_root.join("services").join("**").join("*.lua");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for service modules");
-        let mut next_id: usize = 0;
+        let mut services = self.services.borrow_mut();
+        let mut services_numbered = self.phone_book.borrow_mut();
         for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for service modules") {
             if let Ok(dir) = entry {
                 let module_path = dir.path().canonicalize().expect("Unable to expand service module path");
                 let service_module = ServiceModule::from_file(&self.lua, &module_path);
                 match service_module {
-                    Ok(mut service_module) => {
-                        // Apply and increment next ID
-                        service_module.set_id(next_id);
-                        next_id += 1;
+                    Ok(service_module) => {
+                        println!("Service loaded: {} (N = {:?}, ID = {})", service_module.name, service_module.phone_number, service_module.id);
 
-                        let service_module = Rc::new(service_module);
+                        // Register service
+                        let service_phone_number = service_module.phone_number.clone();
+                        let (service_id, _) = services.insert_full(service_module.name.clone(), service_module);
+                        services.get_index_mut(service_id).unwrap().1.set_id(service_id);
 
                         // Register service number
-                        if let Some(phone_number) = service_module.phone_number.clone() {
+                        if let Some(phone_number) = service_phone_number {
                             if !phone_number.is_empty() {
-                                self.services_numbered.borrow_mut().insert(phone_number, service_module.clone());
+                                services_numbered.insert(phone_number, service_id);
                             }
                         }
-
-                        // Register service name
-                        println!("Service loaded: {} (N = {:?}, ID = {})", service_module.name, service_module.phone_number, service_module.id);
-                        self.services.borrow_mut().insert(service_module.name.clone(), service_module);
-
                     },
                     Err(err) => {
                         println!("Failed to load service module '{:?}': {:#?}", module_path, err);
