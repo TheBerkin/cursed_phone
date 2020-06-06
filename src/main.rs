@@ -12,6 +12,7 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
+use std::{sync::mpsc, io::{stdin, Read}};
 
 const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
@@ -27,13 +28,33 @@ fn main() -> Result<(), String> {
     lua_engine.load_cursed_api()?;
     lua_engine.load_services();
 
+    let (mock_input_thread, mock_input_reader) = create_mock_input_thread();
+    let stdin_wait_time = time::Duration::from_millis(1);
     loop {
         let tick_start = time::Instant::now();
+        // if let Ok(cmd_type) = mock_input_reader.try_recv() {
+        //     println!("CHAR: {:?}", cmd_type);
+        // }
         lua_engine.tick();
         let tick_end = time::Instant::now();
-        thread::sleep(tick_interval - tick_end.saturating_duration_since(tick_start));
+        if let Some(delay) = tick_interval.checked_sub(tick_end.saturating_duration_since(tick_start)) {
+            thread::sleep(delay);
+        }
     }
     Ok(())
+}
+
+fn create_mock_input_thread() -> (thread::JoinHandle<()>, mpsc::Receiver<char>) {
+    let (tx, rx) = mpsc::channel();
+    let thread = thread::spawn(move || {
+        let input = stdin();
+        let mut reader = input.lock();
+        let mut cbuf = [0u8];
+        while let Ok(_) = reader.read_exact(&mut cbuf) {
+            tx.send(cbuf[0] as char).unwrap();
+        }
+    });
+    (thread, rx)
 }
 
 fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut LuaEngine {
