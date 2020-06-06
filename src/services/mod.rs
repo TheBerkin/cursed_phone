@@ -102,7 +102,7 @@ impl<'lua> ServiceModule<'lua> {
         let status = ServiceIntent::from_lua_value(status_code, status_data);
         use ServiceIntent::*;
         match status {   
-            Idle|Waiting => {},
+            Idle|Wait => {},
             // TODO
             CallUser => {},
             // TODO
@@ -112,8 +112,8 @@ impl<'lua> ServiceModule<'lua> {
             // TODO
             RequestDigit => {},
             // TODO
-            Forward(number) => {}
-            FinishedState(next_state) => {
+            ForwardCall(number) => {}
+            StateEnd(next_state) => {
                 self.set_state(next_state)?;
             }
         }
