@@ -222,7 +222,7 @@ impl GpioInterface {
 }
 
 impl GpioInterface {
-    fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>> {
+    pub fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>> {
         use PhoneInputSignal::*;
         let (tx, rx) = mpsc::channel();
         

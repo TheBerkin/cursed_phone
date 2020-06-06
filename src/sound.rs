@@ -127,6 +127,7 @@ impl SoundEngine {
     }
 
     fn load_sounds(&mut self) {
+        println!("Loading static sound assets...");
         self.sounds.clear();
         self.sound_glob_cache.borrow_mut().clear();
         let search_path = self.root_path.join("**").join("*.{wav,ogg}");
@@ -247,6 +248,9 @@ impl SoundEngine {
 
     pub fn set_master_volume(&mut self, master_volume: f32) {
         self.master_volume = master_volume;
+        for ch in Channel::into_enum_iter() {
+            self.channels.borrow_mut()[ch.as_index()].update_sink_volume(master_volume);
+        }
     }
 
     pub fn play_dtmf(&self, key: char, duration: f32, volume: f32) -> bool {
@@ -259,7 +263,7 @@ impl SoundEngine {
             Some(index) => DTMF_COLUMN_FREQUENCIES[index % 4],
             None => return false
         };
-        self.channels.borrow()[Channel::Tone.as_index()].queue_dtmf(f_row, f_col, duration, volume);
+        self.channels.borrow()[Channel::Tone.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.dtmf_volume);
         true
     }
 
