@@ -244,6 +244,8 @@ impl GpioInterface {
 
         // TODO
 
+        println!("GPIO peripherals initialized.");
+
         Ok(rx)
     }
 }

@@ -17,8 +17,10 @@
 -- SOUND CHANNEL CONSTANTS
 -- ========================
 
---- Channel for telephony signal tones
-CHAN_TONE = 0
+--- Channel for incoming telephony signal tones
+CHAN_SIGIN = 0
+--- Channel for outgoing telephony signal tones
+CHAN_SIGOUT = 1
 --- Phone channel 1
 CHAN_PHONE1 = 1
 --- Phone channel 2
@@ -109,19 +111,19 @@ NATIVE_API(function()
     --- @param volume number
     function sound.set_master_volume(volume) end
 
-    --- Plays a busy tone on `CHAN_TONE`.
+    --- Plays a busy tone on `CHAN_SIGIN`.
     function sound.play_busy_tone() end
 
-    --- Plays a fast busy tone on `CHAN_TONE`.
+    --- Plays a fast busy tone on `CHAN_SIGIN`.
     function sound.play_fast_busy_tone() end
 
-    --- Plays a ringback tone on `CHAN_TONE`.
+    --- Plays a ringback tone on `CHAN_SIGIN`.
     function sound.play_ringback_tone() end
 
-    --- Plays a dial tone on `CHAN_TONE`.
+    --- Plays a dial tone on `CHAN_SIGIN`.
     function sound.play_dial_tone() end
 
-    --- Plays the specified DTMF digit.
+    --- Plays the specified DTMF digit on `CHAN_SIGOUT`.
     --- @param digit PhoneDigit
     --- @param duration number
     --- @param volume number
@@ -143,7 +145,7 @@ end)
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
-        service.status(SERVICE_INTENT_WAIT)
+        service.intent(SERVICE_INTENT_WAIT)
     end
 end
 
@@ -152,7 +154,7 @@ end
 --- Waits for the specified sound channel to finish playing.
 function sound.wait(channel)
     while sound.is_busy(channel) do
-        service.status(SERVICE_INTENT_WAIT)
+        service.intent(SERVICE_INTENT_WAIT)
     end
 end
 
@@ -164,6 +166,6 @@ end
 function sound.wait_min(channel, duration)
     local start_time = get_run_time();
     while sound.is_busy(channel) and get_run_time() - start_time < duration do
-        service.status(SERVICE_INTENT_WAIT)
+        service.intent(SERVICE_INTENT_WAIT)
     end
 end

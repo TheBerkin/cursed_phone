@@ -19,7 +19,8 @@ use rand::Rng;
 /// Represents a playback channel for sounds.
 #[derive(IntoEnumIterator, Copy, Clone, Debug)]
 pub enum Channel {
-    Tone,
+    SignalIn,
+    SignalOut,
     Phone1,
     Phone2,
     Phone3,
@@ -50,7 +51,7 @@ impl From<usize> for Channel {
     }
 }
 
-const ALL_CHANNELS: &[Channel] = { use Channel::*; &[Tone, Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4] };
+const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4] };
 const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8] };
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
@@ -263,32 +264,32 @@ impl SoundEngine {
             Some(index) => DTMF_COLUMN_FREQUENCIES[index % 4],
             None => return false
         };
-        self.channels.borrow()[Channel::Tone.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.dtmf_volume);
+        self.channels.borrow()[Channel::SignalOut.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.dtmf_volume);
         true
     }
 
     pub fn play_ringback_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_ringback_tone(db_to_amp(self.config.ringback_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_ringback_tone(db_to_amp(self.config.ringback_tone_gain));
     }
 
     pub fn play_dial_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_dial_tone(db_to_amp(self.config.dial_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_dial_tone(db_to_amp(self.config.dial_tone_gain));
     }
 
     pub fn play_busy_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), false);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), false);
     }
 
     pub fn play_fast_busy_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), true);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), true);
     }
 
     pub fn play_off_hook_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_off_hook_tone(db_to_amp(self.config.off_hook_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_off_hook_tone(db_to_amp(self.config.off_hook_tone_gain));
     }
 
     pub fn play_panic_tone(&self) {
-        self.channels.borrow()[Channel::Tone.as_index()].queue_panic_tone(1.0);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_panic_tone(1.0);
     }
 }
 

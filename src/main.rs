@@ -22,16 +22,16 @@ fn main() -> Result<(), String> {
     println!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
-    let phone_engine = create_phone_engine(&config, sound_engine);
-    let lua_engine = create_lua_engine(sound_engine);
-    lua_engine.load_cursed_api()?;
-    lua_engine.load_services();
+    let phone = create_phone(&config, sound_engine);
+    let pbx = create_pbx(sound_engine);
+    pbx.load_cursed_api()?;
+    pbx.load_services();
 
     loop {
         // Update engine state
         let tick_start = time::Instant::now();
-        phone_engine.borrow().tick();
-        lua_engine.tick();
+        phone.borrow().tick();
+        pbx.tick();
         let tick_end = time::Instant::now();
 
         // Lock tickrate at configured value
@@ -42,10 +42,10 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine {
-    let lua_engine = Box::new(PbxEngine::new(SCRIPTS_PATH, sound_engine));
-    let lua_engine: &'static mut PbxEngine = Box::leak(lua_engine);
-    lua_engine
+fn create_pbx(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine {
+    let pbx = Box::new(PbxEngine::new(SCRIPTS_PATH, sound_engine));
+    let pbx: &'static mut PbxEngine = Box::leak(pbx);
+    pbx
 }
 
 fn create_sound_engine(config: &CursedConfig) -> &'static mut Rc<RefCell<SoundEngine>> {
@@ -55,7 +55,7 @@ fn create_sound_engine(config: &CursedConfig) -> &'static mut Rc<RefCell<SoundEn
     sound_engine
 }
 
-fn create_phone_engine(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut Rc<RefCell<PhoneEngine>> {
+fn create_phone(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut Rc<RefCell<PhoneEngine>> {
     println!("Loading phone engine... ");
     let phone_engine = Box::new(Rc::new(RefCell::new(PhoneEngine::new(config, sound_engine))));
     let phone_engine: &'static mut Rc<RefCell<PhoneEngine>> = Box::leak(phone_engine);

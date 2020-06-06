@@ -2,7 +2,7 @@
 use super::*;
 
 #[allow(unused_must_use)]
-impl<'lua> PbxEngine<'lua> {
+impl<'lua> PbxEngine<'lua> {    
     pub fn load_cursed_api(&'static self) -> Result<(), String> {
         // Run bootstrapper script
         println!("Bootstrapping Lua...");
@@ -10,6 +10,8 @@ impl<'lua> PbxEngine<'lua> {
     
         let lua = &self.lua;
         let globals = &lua.globals();
+        let tbl_sound = lua.create_table().unwrap();
+        let tbl_service = lua.create_table().unwrap();
 
         // ====================================================
         // ================ MISC API FUNCTIONS ================
@@ -31,8 +33,6 @@ impl<'lua> PbxEngine<'lua> {
         // ====================================================
         // ==================== SOUND API =====================
         // ====================================================
-    
-        let tbl_sound = lua.create_table().unwrap();    
     
         // sound.play(path, channel, opts)
         tbl_sound.set("play", lua.create_function(move |_, (path, channel, opts): (String, usize, Option<LuaTable>)| {
@@ -124,5 +124,24 @@ impl<'lua> PbxEngine<'lua> {
         self.run_scripts_in_glob(API_GLOB)?;
     
         Ok(())
+    }
+
+    fn lua_sleep(_: &Lua, ms: u64) -> LuaResult<()> {
+        thread::sleep(time::Duration::from_millis(ms));
+        Ok(())
+    }
+
+    fn lua_random_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+        if min >= max {
+            return Ok(min);
+        }
+        Ok(rand::thread_rng().gen_range(min, max))
+    }
+
+    fn lua_random_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
+        if min >= max {
+            return Ok(min);
+        }
+        Ok(rand::thread_rng().gen_range(min, max))
     }
 }

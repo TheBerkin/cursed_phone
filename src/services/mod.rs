@@ -114,14 +114,14 @@ impl<'lua> ServiceModule<'lua> {
             // TODO
             ForwardCall(number) => {}
             StateEnd(next_state) => {
-                self.set_state(next_state)?;
+                self.transition_state(next_state)?;
             }
         }
         Ok(())
     }
 
-    fn set_state(&self, state: ServiceState) -> LuaResult<()> {
-        self.tbl_module.call_method("set_state", state.as_index())?;
+    fn transition_state(&self, state: ServiceState) -> LuaResult<()> {
+        self.tbl_module.call_method("transition", state.as_index())?;
         Ok(())
     }
 }
@@ -148,25 +148,6 @@ impl<'lua> PbxEngine<'lua> {
             services_by_number: Default::default(),
             services_by_name: Default::default()
         }
-    }
-
-    fn lua_sleep(_: &Lua, ms: u64) -> LuaResult<()> {
-        thread::sleep(time::Duration::from_millis(ms));
-        Ok(())
-    }
-
-    fn lua_random_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
-        if min >= max {
-            return Ok(min);
-        }
-        Ok(rand::thread_rng().gen_range(min, max))
-    }
-
-    fn lua_random_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
-        if min >= max {
-            return Ok(min);
-        }
-        Ok(rand::thread_rng().gen_range(min, max))
     }
 
     fn run_script(&self, name: &str) -> Result<(), String> {

@@ -133,7 +133,7 @@ local M_PhoneServiceModule = {
 --- @param phone_number string | nil @The number associated with the phone service
 --- @param role ServiceRole|nil
 --- @return PhoneServiceModule
-function SERVICE_MODULE(name, phone_number, role)    
+function SERVICE_MODULE(name, phone_number, role)
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
@@ -147,13 +147,13 @@ function SERVICE_MODULE(name, phone_number, role)
     return module
 end
 
---- Wrapper around coroutine.yield() specifically for passing service status to the host.
---- @param status ServiceIntentCode
---- @param status_data any
+--- Wrapper around coroutine.yield() specifically for passing service intent to the host.
+--- @param intent ServiceIntentCode
+--- @param intent_data any
 --- @return ServiceDataCode, any
-function service.status(status, status_data)
-    local data_code, response_data = coroutine.yield(status, status_data)
-    return data_code or SERVICE_DATA_NONE, response_data
+function service.intent(intent, intent_data)
+    local data_code, response_data = coroutine.yield(intent, intent_data)
+    return (data_code or SERVICE_DATA_NONE), response_data
 end
 
 --- Asynchronously waits the specified number of seconds.
@@ -161,32 +161,45 @@ end
 function service.wait(seconds)
     local start_time = get_run_time()
     while get_run_time() - start_time < seconds do
-        service.status(SERVICE_INTENT_WAIT)
+        service.intent(SERVICE_INTENT_WAIT)
     end
 end
 
 --- Forwards the call to the specified number.
 --- @param number string
 function service.forward_call(number)
-    service.status(SERVICE_INTENT_FORWARD_CALL, number)
+    service.intent(SERVICE_INTENT_FORWARD_CALL, number)
 end
 
 --- Starts a call with the user.
 --- @return boolean
 function service.start_call()
-    local data_code = service.status(SERVICE_INTENT_CALL_USER)
+    local data_code = service.intent(SERVICE_INTENT_CALL_USER)
     return data_code ~= SERVICE_DATA_USER_BUSY
 end
 
 --- Accepts a pending call.
 function service.accept_call()
-    service.status(SERVICE_INTENT_ACCEPT_CALL)
+    coroutine.yield(SERVICE_INTENT_ACCEPT_CALL)
 end
 
 --- Ends the call.
 function service.end_call()
     coroutine.yield(SERVICE_INTENT_END_CALL)
 end
+
+-- Native service functions
+NATIVE_API(function()
+    --- Sends a message from one service to another.
+    function service.send_message(src_name, dest_name, msg_type, msg_data) end
+
+    --- Suspends the specified service, preventing it from ticking 
+    --- unless it is receiving a call or is currently in a call.
+    function service.suspend(service_name) end
+
+    --- Un-suspends a service, allowing it to tick in non-call states.
+    function service.resume(service_name) end
+end)
 
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
@@ -196,7 +209,7 @@ function service.get_digit(max_seconds)
     local timed = type(max_seconds) == "number" and max_seconds > 0
     if timed then
         while true do
-            local data_code, data = service.status(SERVICE_INTENT_READ_DIGIT)
+            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
             if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
                 return data
             end
@@ -204,7 +217,7 @@ function service.get_digit(max_seconds)
     else
         local start_time = get_run_time()
         while get_run_time() - start_time < max_seconds do
-            local data_code, data = service.status(SERVICE_INTENT_READ_DIGIT)
+            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
             if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
                 return data
             end
@@ -231,7 +244,7 @@ local function gen_state_coroutine(s, new_state, old_state)
         on_enter(s)
         while true do
             on_tick(s)
-            service.status(SERVICE_INTENT_IDLE)
+            service.intent(SERVICE_INTENT_IDLE)
         end
     end)
     return state_coroutine

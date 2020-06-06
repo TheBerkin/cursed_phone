@@ -46,6 +46,7 @@ impl PhoneType {
     }
 }
 
+/// Provides I/O handling and state management for host phone peripherals.
 pub struct PhoneEngine {
     phone_type: PhoneType,
     sound_engine: Rc<RefCell<SoundEngine>>,
@@ -69,7 +70,6 @@ impl PhoneEngine {
         let sound_engine = sound_engine.clone();
         let mut gpio = GpioInterface::new(phone_type, &config);
         let listener = gpio.listen().expect("Unable to initialize GPIO listener.");
-
         Self {
             phone_type,
             sound_engine,
