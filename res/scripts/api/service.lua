@@ -11,6 +11,8 @@
 
 service = {}
 
+local service_messages = {}
+
 -- ========================
 -- SERVICE STATE CODE CONSTANTS
 -- ========================
@@ -110,8 +112,32 @@ local _PhoneServiceModule_MEMBERS = {
     set_ringback_enabled = function(self, enabled)
         self._ringback_enabled = (not not enabled)
     end,
+    --- Prints a message prefixed with the service name.
+    --- @param msg any
+    log = function(self, msg)
+        print("[" .. self._name .. "] " .. msg)
+    end,
     start = function(self)
         transition_service_state(self, SERVICE_STATE_IDLE)
+    end,
+    --- Sends a message to another service.
+    --- @param dest_name string
+    --- @param msg_type string|integer
+    --- @param msg_data any
+    send = function(self, dest_name, msg_type, msg_data)
+        local dest_messages = service_messages[dest_name]
+
+        if dest_messages == nil then 
+            print("WARN: Tried to write to nonexistent message queue: '" .. dest_name .. "'")
+            return
+        end
+
+        local msg = {
+            sender = self._name,
+            type = msg_type,
+            data = msg_data
+        }
+        table.insert(dest_messages, msg)
     end,
     --- Adds a function table for the specified state code.
     --- @param self PhoneServiceModule
@@ -119,6 +145,15 @@ local _PhoneServiceModule_MEMBERS = {
     --- @param func_table table
     state = function(self, state, func_table)
         self._state_func_tables[state] = func_table
+    end,
+    --- Clear any pending messages.
+    clear_messages = function(self)
+        table.clear(self._messages)
+    end,
+    --- Check if the service has pending messages.
+    --- @return boolean
+    has_messages = function(self)
+        return #self._messages > 0
     end
 }
 
@@ -134,16 +169,26 @@ local M_PhoneServiceModule = {
 --- @param role ServiceRole|nil
 --- @return PhoneServiceModule
 function SERVICE_MODULE(name, phone_number, role)
+    assert(type(name) == 'string', "Invalid service name: expected string, but found " .. type(name))
+
+    -- Create message queue for service
+    local messages = {}
+    service_messages[name] = messages
+
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
         _role = role or SERVICE_ROLE_NORMAL,
         _state_coroutine = nil,
+        _message_coroutine = nil,
         _state = SERVICE_STATE_IDLE,
         _state_func_tables = {},
         _idle_tick_phone_states = {},
-        _ringback_enabled = true
+        _ringback_enabled = true,
+        _is_suspended = false,
+        _messages = messages
     }, M_PhoneServiceModule)
+
     return module
 end
 
@@ -188,18 +233,12 @@ function service.end_call()
     coroutine.yield(SERVICE_INTENT_END_CALL)
 end
 
--- Native service functions
-NATIVE_API(function()
-    --- Sends a message from one service to another.
-    function service.send_message(src_name, dest_name, msg_type, msg_data) end
+--- Suspends the specified service, preventing it from ticking 
+--- unless it is receiving a call or is currently in a call.
+function service.suspend(service_name) end
 
-    --- Suspends the specified service, preventing it from ticking 
-    --- unless it is receiving a call or is currently in a call.
-    function service.suspend(service_name) end
-
-    --- Un-suspends a service, allowing it to tick in non-call states.
-    function service.resume(service_name) end
-end)
+--- Un-suspends a service, allowing it to tick in non-call states.
+function service.resume(service_name) end
 
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
@@ -250,6 +289,24 @@ local function gen_state_coroutine(s, new_state, old_state)
     return state_coroutine
 end
 
+--- @param s PhoneServiceModule
+--- @return thread
+local function gen_msg_handler_coroutine(s)
+    local state_table = s._state_func_tables[s._state]
+    local handler = state_table and state_table.message
+    if not handler then return nil end
+
+    local msg_coroutine = coroutine.create(function()
+        local messages = s._messages
+        for _,msg in ipairs(messages) do
+            handler(s, msg.sender, msg.type, msg.data)
+        end
+        table.clear(messages)
+    end)
+
+    return msg_coroutine
+end
+
 --- Transitions to the specified state on a service.
 --- Returns true if the transition was successful; otherwise, returns false.
 --- @param s PhoneServiceModule
@@ -267,30 +324,52 @@ end
 --- @param s PhoneServiceModule
 --- @return ServiceIntentCode, any
 function tick_service_state(s)
+    -- Check if a state machine is even running
     local state_coroutine = s._state_coroutine
-    if state_coroutine == nil then     
-        return SERVICE_INTENT_IDLE, nil 
-    end
-    
-    if coroutine.status(state_coroutine) ~= "dead" then
-        local success, status, status_data = coroutine.resume(state_coroutine)
-        -- If the coroutine is somehow dead/broken, transition the state
-        if not success then
-            error(status)
-            return SERVICE_INTENT_STATE_END, nil
-        end
-        
-        -- Check if the state finished, and if so, transition it
-        if status == SERVICE_INTENT_STATE_END and status_data then
-            local new_service_state = status_data
-            transition_service_state(s, new_service_state)
-        end
+    local message_coroutine = s._message_coroutine
 
-        -- Return latest status and any associated data
-        return status or SERVICE_INTENT_IDLE, status_data
-    else
+    -- Message handling takes priority over state ticks
+    local active_coroutine = message_coroutine or state_coroutine
+
+    -- Clear out any dead message handling coroutine
+    if message_coroutine and coroutine.status(message_coroutine) == 'dead' then
+        s._message_coroutine = nil
+    end
+
+    -- If no state is active, there's no need to tick anything
+    if active_coroutine == nil then
+        return SERVICE_INTENT_IDLE, nil
+    end
+
+    -- If the state has finished, inform the caller that we need to transition
+    if coroutine.status(state_coroutine) == 'dead' then
         return SERVICE_INTENT_STATE_END, nil
     end
+
+    -- Handle messages
+    if message_coroutine == nil and s:has_messages() then
+        message_coroutine = gen_msg_handler_coroutine(s)
+        active_coroutine = message_coroutine
+    end
+
+    -- Resume the state machine
+    local success, status, status_data = coroutine.resume(active_coroutine)
+
+    -- If the coroutine is somehow dead/broken, transition the state
+    if not success then
+        -- TODO: Handle this in a way that doesn't cause UB
+        error(status)
+        return SERVICE_INTENT_STATE_END, nil
+    end
+    
+    -- Check if the state finished, and if so, transition it
+    if status == SERVICE_INTENT_STATE_END and status_data then
+        local new_service_state = status_data
+        transition_service_state(s, new_service_state)
+    end
+
+    -- Return latest status and any associated data
+    return status or SERVICE_INTENT_IDLE, status_data
 end
 
 --- Gets the current state of a service.

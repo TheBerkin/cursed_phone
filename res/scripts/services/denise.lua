@@ -30,7 +30,7 @@ S:state(SERVICE_STATE_IDLE, {
         sound.play_wait("denise/thinking/*", CHAN_SOUL1, { interrupt = false })
     end,
 
-    message = function(self, msg_type, msg_data)
+    message = function(self, sender, msg_type, msg_data)
         local handler = msg_handlers[msg_type]
         if type(handler) == 'function' then
             handler(self, msg_data)

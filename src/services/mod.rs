@@ -25,8 +25,8 @@ pub struct PbxEngine<'lua> {
     lua: Lua,
     scripts_root: PathBuf,
     start_time: Instant,
-    services_by_number: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
-    services_by_name: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
+    services_numbered: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
+    services: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
     sound_engine: Rc<RefCell<SoundEngine>>
 }
 
@@ -145,8 +145,8 @@ impl<'lua> PbxEngine<'lua> {
             start_time: Instant::now(),
             scripts_root: Path::new(scripts_root.into().as_str()).canonicalize().unwrap(),
             sound_engine: Rc::clone(sound_engine),
-            services_by_number: Default::default(),
-            services_by_name: Default::default()
+            services_numbered: Default::default(),
+            services: Default::default()
         }
     }
 
@@ -182,7 +182,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     pub fn load_services(&'lua self) {
-        self.services_by_number.borrow_mut().clear();
+        self.services_numbered.borrow_mut().clear();
         let search_path = self.scripts_root.join("services").join("**").join("*.lua");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for service modules");
         let mut next_id: usize = 0;
@@ -201,13 +201,13 @@ impl<'lua> PbxEngine<'lua> {
                         // Register service number
                         if let Some(phone_number) = service_module.phone_number.clone() {
                             if !phone_number.is_empty() {
-                                self.services_by_number.borrow_mut().insert(phone_number, service_module.clone());
+                                self.services_numbered.borrow_mut().insert(phone_number, service_module.clone());
                             }
                         }
 
                         // Register service name
                         println!("Service loaded: {} (N = {:?}, ID = {})", service_module.name, service_module.phone_number, service_module.id);
-                        self.services_by_name.borrow_mut().insert(service_module.name.clone(), service_module);
+                        self.services.borrow_mut().insert(service_module.name.clone(), service_module);
 
                     },
                     Err(err) => {
@@ -219,7 +219,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     pub fn tick(&self) {
-        let service_modules = self.services_by_number.borrow();
+        let service_modules = self.services.borrow();
         let service_iter = service_modules.iter();
         for (_, service) in service_iter {
             if let Err(err) = service.tick() {
