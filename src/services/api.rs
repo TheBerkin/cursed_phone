@@ -2,7 +2,7 @@
 use super::*;
 
 #[allow(unused_must_use)]
-impl<'lua> LuaEngine<'lua> {
+impl<'lua> PbxEngine<'lua> {
     pub fn load_cursed_api(&'static self) -> Result<(), String> {
         // Run bootstrapper script
         println!("Bootstrapping Lua...");
@@ -16,11 +16,11 @@ impl<'lua> LuaEngine<'lua> {
         // ====================================================
     
         // sleep()
-        globals.set("sleep", lua.create_function(LuaEngine::lua_sleep).unwrap());
+        globals.set("sleep", lua.create_function(PbxEngine::lua_sleep).unwrap());
         // random_int()
-        globals.set("random_int", lua.create_function(LuaEngine::lua_random_int).unwrap());
+        globals.set("random_int", lua.create_function(PbxEngine::lua_random_int).unwrap());
         // random_float()
-        globals.set("random_float", lua.create_function(LuaEngine::lua_random_float).unwrap());
+        globals.set("random_float", lua.create_function(PbxEngine::lua_random_float).unwrap());
     
         // get_run_time()
         globals.set("get_run_time", lua.create_function(move |_, ()| {

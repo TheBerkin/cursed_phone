@@ -19,17 +19,22 @@ pub use self::props::*;
 const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
 const API_GLOB: &str = "api/*";
 
-pub struct LuaEngine<'lua> {
+/// A Lua-powered telephone exchange that loads,
+/// manages, and runs scripted phone services.
+pub struct PbxEngine<'lua> {
     lua: Lua,
     scripts_root: PathBuf,
     start_time: Instant,
-    service_modules: RefCell<IndexMap<String, ServiceModule<'lua>>>,
+    services_by_number: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
+    services_by_name: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
     sound_engine: Rc<RefCell<SoundEngine>>
 }
 
 pub struct ServiceModule<'lua> {
+    id: usize,
     name: String,
     phone_number: Option<String>,
+    ringback_enabled: bool,
     tbl_module: LuaTable<'lua>,
     func_load: Option<LuaFunction<'lua>>,
     func_unload: Option<LuaFunction<'lua>>
@@ -44,6 +49,7 @@ impl<'lua> ServiceModule<'lua> {
             Ok(table) => {
                 let name = table.raw_get("_name").expect("Module requires a name");
                 let phone_number = table.raw_get("_phone_number").unwrap();
+                let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
 
@@ -60,6 +66,8 @@ impl<'lua> ServiceModule<'lua> {
                 }              
 
                 Ok(Self {
+                    id: 0,
+                    ringback_enabled,
                     tbl_module: table,
                     name,
                     phone_number,
@@ -69,6 +77,14 @@ impl<'lua> ServiceModule<'lua> {
             },
             Err(err) => Err(format!("Unable to load service module: {:#?}", err))
         }
+    }
+
+    fn set_id(&mut self, id: usize) {
+        self.id = id;
+    }
+
+    pub fn id(&self) -> usize {
+        self.id
     }
 
     pub fn name(&self) -> &str {
@@ -121,7 +137,7 @@ impl<'lua> Drop for ServiceModule<'lua> {
 }
 
 #[allow(unused_must_use)]
-impl<'lua> LuaEngine<'lua> {
+impl<'lua> PbxEngine<'lua> {
     pub fn new(scripts_root: impl Into<String>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         Self {
@@ -129,7 +145,8 @@ impl<'lua> LuaEngine<'lua> {
             start_time: Instant::now(),
             scripts_root: Path::new(scripts_root.into().as_str()).canonicalize().unwrap(),
             sound_engine: Rc::clone(sound_engine),
-            service_modules: Default::default()
+            services_by_number: Default::default(),
+            services_by_name: Default::default()
         }
     }
 
@@ -184,21 +201,33 @@ impl<'lua> LuaEngine<'lua> {
     }
 
     pub fn load_services(&'lua self) {
-        self.service_modules.borrow_mut().clear();
+        self.services_by_number.borrow_mut().clear();
         let search_path = self.scripts_root.join("services").join("**").join("*.lua");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for service modules");
+        let mut next_id: usize = 0;
         for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for service modules") {
             if let Ok(dir) = entry {
                 let module_path = dir.path().canonicalize().expect("Unable to expand service module path");
                 let service_module = ServiceModule::from_file(&self.lua, &module_path);
                 match service_module {
-                    Ok(service_module) => {
-                        if let Some(key) = service_module.phone_number.clone() {
-                            println!("Service loaded: {}", service_module.name);
-                            self.service_modules.borrow_mut().insert(key, service_module);
-                        } else {
-                            // TODO: Handle number-less services
+                    Ok(mut service_module) => {
+                        // Apply and increment next ID
+                        service_module.set_id(next_id);
+                        next_id += 1;
+
+                        let service_module = Rc::new(service_module);
+
+                        // Register service number
+                        if let Some(phone_number) = service_module.phone_number.clone() {
+                            if !phone_number.is_empty() {
+                                self.services_by_number.borrow_mut().insert(phone_number, service_module.clone());
+                            }
                         }
+
+                        // Register service name
+                        println!("Service loaded: {} (N = {:?}, ID = {})", service_module.name, service_module.phone_number, service_module.id);
+                        self.services_by_name.borrow_mut().insert(service_module.name.clone(), service_module);
+
                     },
                     Err(err) => {
                         println!("Failed to load service module '{:?}': {:#?}", module_path, err);
@@ -209,7 +238,7 @@ impl<'lua> LuaEngine<'lua> {
     }
 
     pub fn tick(&self) {
-        let service_modules = self.service_modules.borrow();
+        let service_modules = self.services_by_number.borrow();
         let service_iter = service_modules.iter();
         for (_, service) in service_iter {
             if let Err(err) = service.tick() {

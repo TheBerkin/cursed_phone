@@ -143,7 +143,7 @@ end)
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
-        service.status(SERVICE_STATUS_WAITING)
+        service.status(SERVICE_INTENT_WAIT)
     end
 end
 
@@ -152,7 +152,7 @@ end
 --- Waits for the specified sound channel to finish playing.
 function sound.wait(channel)
     while sound.is_busy(channel) do
-        service.status(SERVICE_STATUS_WAITING)
+        service.status(SERVICE_INTENT_WAIT)
     end
 end
 
@@ -164,6 +164,6 @@ end
 function sound.wait_min(channel, duration)
     local start_time = get_run_time();
     while sound.is_busy(channel) and get_run_time() - start_time < duration do
-        service.status(SERVICE_STATUS_WAITING)
+        service.status(SERVICE_INTENT_WAIT)
     end
 end

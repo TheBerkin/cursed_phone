@@ -32,32 +32,32 @@ SERVICE_STATE_CALL = 3
 -- ========================
 -- SERVICE STATUS CODE CONSTANTS
 -- ========================
---- @alias ServiceStatusCode integer
+--- @alias ServiceIntentCode integer
 
---- @type ServiceStatusCode
+--- @type ServiceIntentCode
 --- Service performed no action.
-SERVICE_STATUS_IDLE = 0
---- @type ServiceStatusCode
+SERVICE_INTENT_IDLE = 0
+--- @type ServiceIntentCode
 --- Service is accepting an incoming call.
-SERVICE_STATUS_ACCEPT_CALL = 1
---- @type ServiceStatusCode
+SERVICE_INTENT_ACCEPT_CALL = 1
+--- @type ServiceIntentCode
 --- Service is hanging up.
-SERVICE_STATUS_END_CALL = 2
---- @type ServiceStatusCode
+SERVICE_INTENT_END_CALL = 2
+--- @type ServiceIntentCode
 --- Service is calling the user.
-SERVICE_STATUS_CALL_USER = 3
---- @type ServiceStatusCode
+SERVICE_INTENT_CALL_USER = 3
+--- @type ServiceIntentCode
 --- Service is waiting for an operation to complete.
-SERVICE_STATUS_WAITING = 4
---- @type ServiceStatusCode
+SERVICE_INTENT_WAIT = 4
+--- @type ServiceIntentCode
 --- Service is waiting for the user to dial a digit.
-SERVICE_STATUS_REQUEST_DIGIT = 5
---- @type ServiceStatusCode
+SERVICE_INTENT_READ_DIGIT = 5
+--- @type ServiceIntentCode
 --- Service is forwarding the call.
-SERVICE_STATUS_FORWARD = 6
---- @type ServiceStatusCode
+SERVICE_INTENT_FORWARD_CALL = 6
+--- @type ServiceIntentCode
 --- Service is finished with its current state and needs to transition to the next state.
-SERVICE_STATUS_FINISHED_STATE = 7
+SERVICE_INTENT_STATE_END = 7
 
 -- ========================
 -- SERVICE DATA CODE CONSTANTS
@@ -148,7 +148,7 @@ function SERVICE_MODULE(name, phone_number, role)
 end
 
 --- Wrapper around coroutine.yield() specifically for passing service status to the host.
---- @param status ServiceStatusCode
+--- @param status ServiceIntentCode
 --- @param status_data any
 --- @return ServiceDataCode, any
 function service.status(status, status_data)
@@ -161,31 +161,31 @@ end
 function service.wait(seconds)
     local start_time = get_run_time()
     while get_run_time() - start_time < seconds do
-        service.status(SERVICE_STATUS_WAITING)
+        service.status(SERVICE_INTENT_WAIT)
     end
 end
 
 --- Forwards the call to the specified number.
 --- @param number string
 function service.forward_call(number)
-    service.status(SERVICE_STATUS_FORWARD, number)
+    service.status(SERVICE_INTENT_FORWARD_CALL, number)
 end
 
 --- Starts a call with the user.
 --- @return boolean
 function service.start_call()
-    local data_code = service.status(SERVICE_STATUS_CALL_USER)
+    local data_code = service.status(SERVICE_INTENT_CALL_USER)
     return data_code ~= SERVICE_DATA_USER_BUSY
 end
 
 --- Accepts a pending call.
 function service.accept_call()
-    service.status(SERVICE_STATUS_ACCEPT_CALL)
+    service.status(SERVICE_INTENT_ACCEPT_CALL)
 end
 
 --- Ends the call.
 function service.end_call()
-    coroutine.yield(SERVICE_STATUS_END_CALL)
+    coroutine.yield(SERVICE_INTENT_END_CALL)
 end
 
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
@@ -196,7 +196,7 @@ function service.get_digit(max_seconds)
     local timed = type(max_seconds) == "number" and max_seconds > 0
     if timed then
         while true do
-            local data_code, data = service.status(SERVICE_STATUS_REQUEST_DIGIT)
+            local data_code, data = service.status(SERVICE_INTENT_READ_DIGIT)
             if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
                 return data
             end
@@ -204,7 +204,7 @@ function service.get_digit(max_seconds)
     else
         local start_time = get_run_time()
         while get_run_time() - start_time < max_seconds do
-            local data_code, data = service.status(SERVICE_STATUS_REQUEST_DIGIT)
+            local data_code, data = service.status(SERVICE_INTENT_READ_DIGIT)
             if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
                 return data
             end
@@ -231,7 +231,7 @@ local function gen_state_coroutine(s, new_state, old_state)
         on_enter(s)
         while true do
             on_tick(s)
-            service.status(SERVICE_STATUS_IDLE)
+            service.status(SERVICE_INTENT_IDLE)
         end
     end)
     return state_coroutine
@@ -252,11 +252,11 @@ function transition_service_state(s, state)
 end
 
 --- @param s PhoneServiceModule
---- @return ServiceStatusCode, any
+--- @return ServiceIntentCode, any
 function tick_service_state(s)
     local state_coroutine = s._state_coroutine
     if state_coroutine == nil then     
-        return SERVICE_STATUS_IDLE, nil 
+        return SERVICE_INTENT_IDLE, nil 
     end
     
     if coroutine.status(state_coroutine) ~= "dead" then
@@ -264,19 +264,19 @@ function tick_service_state(s)
         -- If the coroutine is somehow dead/broken, transition the state
         if not success then
             error(status)
-            return SERVICE_STATUS_FINISHED_STATE, nil
+            return SERVICE_INTENT_STATE_END, nil
         end
         
         -- Check if the state finished, and if so, transition it
-        if status == SERVICE_STATUS_FINISHED_STATE and status_data then
+        if status == SERVICE_INTENT_STATE_END and status_data then
             local new_service_state = status_data
             transition_service_state(s, new_service_state)
         end
 
         -- Return latest status and any associated data
-        return status or SERVICE_STATUS_IDLE, status_data
+        return status or SERVICE_INTENT_IDLE, status_data
     else
-        return SERVICE_STATUS_FINISHED_STATE, nil
+        return SERVICE_INTENT_STATE_END, nil
     end
 end
 

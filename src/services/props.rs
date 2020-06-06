@@ -46,10 +46,10 @@ pub enum ServiceIntent {
     AcceptCall,
     EndCall,
     CallUser,
-    Waiting,
-    RequestDigit,
-    Forward(String),
-    FinishedState(ServiceState)
+    Wait,
+    ReadDigit,
+    ForwardCall(String),
+    StateEnd(ServiceState)
 }
 
 impl ServiceIntent {
@@ -59,14 +59,14 @@ impl ServiceIntent {
             1 => ServiceIntent::AcceptCall,
             2 => ServiceIntent::EndCall,
             3 => ServiceIntent::CallUser,
-            4 => ServiceIntent::Waiting,
-            5 => ServiceIntent::RequestDigit,
+            4 => ServiceIntent::Wait,
+            5 => ServiceIntent::ReadDigit,
             6 => match status_data {
-                LuaValue::String(s) => ServiceIntent::Forward(String::from(s.to_str().unwrap())),
-                _ => ServiceIntent::Forward(String::from("A"))
+                LuaValue::String(s) => ServiceIntent::ForwardCall(String::from(s.to_str().unwrap())),
+                _ => ServiceIntent::ForwardCall(String::from("A"))
             },
             7 => match status_data {
-                LuaValue::Integer(n) => ServiceIntent::FinishedState(ServiceState::from(n as usize)),
+                LuaValue::Integer(n) => ServiceIntent::StateEnd(ServiceState::from(n as usize)),
                 _ => ServiceIntent::Idle
             },
             _ => ServiceIntent::Idle

@@ -4,7 +4,7 @@ mod phone;
 mod sound;
 mod gpio;
 
-use crate::services::LuaEngine;
+use crate::services::PbxEngine;
 use crate::sound::SoundEngine;
 use crate::phone::PhoneEngine;
 use crate::config::*;
@@ -42,9 +42,9 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut LuaEngine {
-    let lua_engine = Box::new(LuaEngine::new(SCRIPTS_PATH, sound_engine));
-    let lua_engine: &'static mut LuaEngine = Box::leak(lua_engine);
+fn create_lua_engine(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine {
+    let lua_engine = Box::new(PbxEngine::new(SCRIPTS_PATH, sound_engine));
+    let lua_engine: &'static mut PbxEngine = Box::leak(lua_engine);
     lua_engine
 }
 
