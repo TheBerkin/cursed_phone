@@ -20,16 +20,28 @@ pub enum PhoneInputSignal {
 pub enum PhoneType {
     Rotary,
     TouchTone,
-    Unknown // TODO: Rename to "Other"?
+    Other
+}
+
+pub enum PhoneState {
+    Idle = 0,
+    Dial = 1,
+    PostDialDelay = 2,
+    Ringback = 3,
+    Connected = 4,
+    Ringing = 5,
+    BusyTone = 6
 }
 
 impl PhoneType {
+    /// Converts a string to a `PhoneType`.
+    /// Unsupported strings will return `Other`.
     fn from_name(name: &str) -> PhoneType {
         use PhoneType::*;
         match name {
             "rotary" => Rotary,
             "touchtone" => TouchTone,
-            "unknown" | _ => Unknown
+            "other" | _ => Other
         }
     }
 }
@@ -126,10 +138,13 @@ impl PhoneEngine {
                         thread::sleep(time::Duration::from_millis(250));
                         continue;
                     },
+                    '-' => {
+                        thread::sleep(time::Duration::from_millis(1000));
+                        continue;
+                    },
                     _ => continue
                 };
                 tx.send(signal).unwrap();
-                
             }
         });
         (thread, rx)
@@ -142,24 +157,23 @@ impl PhoneEngine {
             use PhoneInputSignal::*;
             match signal {
                 HookState(on_hook) => {
-                    println!("ON HOOK: {}", on_hook);
-                    // TODO
+                    self.set_on_hook(on_hook);
                 },
                 Motion => todo!(),
                 Digit(digit) => {
-                    println!("DIALED: {}", digit);
-                    self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
+                    self.dial_digit(digit);
                 }
             }
         }
     }
 
     pub fn dial_digit(&self, digit: char) {
-        todo!()
+        self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
+        println!("DIALED: {}", digit);
     }
 
     pub fn set_on_hook(&self, hook_state: bool) {
-        todo!()
+        println!("ON HOOK: {}", hook_state);
     }
 
     fn on_pick_up(&self) {

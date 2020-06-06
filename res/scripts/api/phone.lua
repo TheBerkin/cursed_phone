@@ -75,31 +75,25 @@ INTERCEPT_NUMBER_DISCONNECTED = 2
 
 --- @type PhoneStateCode
 --- Indicates that the phone is currently idle and on the hook.
-PHONE_IDLE = 0
+PHONE_STATE_IDLE = 0
 --- @type PhoneStateCode
 --- Indicates that the phone is off the hook and playing a dial tone.
-PHONE_DIAL_TONE = 1
+PHONE_STATE_DIAL_TONE = 1
 --- @type PhoneStateCode
 --- Indicates that the phone is in Post-Dial Delay while the user dials a number.
-PHONE_POST_DIAL_DELAY = 2
+PHONE_STATE_PDD = 2
 --- @type PhoneStateCode
 --- Indicates that the phone is placing a call and the line is ringing.
-PHONE_DIAL_RING = 3
+PHONE_STATE_RINGBACK = 3
 --- @type PhoneStateCode
 --- Indicates that the phone is currently in a call.
-PHONE_CONNECTED = 4
+PHONE_STATE_CONNECTED = 4
 --- @type PhoneStateCode
 --- Indicates that the phone is ringing due to an incoming call.
-PHONE_RINGING = 5
+PHONE_STATE_RINGING = 5
 --- @type PhoneStateCode
---- Indicates that the phone is playing a busy signal.
-PHONE_BUSY_SIGNAL = 6
---- @type PhoneStateCode
---- Indicates that the phone is playing an automated off-hook message.
-PHONE_OFF_HOOK_WARN = 7
---- @type PhoneStateCode
---- Indicates that the phone is playing an off-hook signal.
-PHONE_OFF_HOOK_SIGNAL = 8
+--- Indicates that the phone is playing a busy signal (for varying reasons).
+PHONE_STATE_BUSY_TONE = 6
 
 -- NATIVE PHONE FUNCTIONS
 NATIVE_API(function()

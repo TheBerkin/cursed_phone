@@ -1,6 +1,6 @@
 local S = SERVICE_MODULE("denise", "*666")
 
-S:set_idle_tick_during(PHONE_IDLE, PHONE_DIAL_TONE)
+S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 
 local msg_handlers = {
     ["mark_start"] = function(self, msg_data)

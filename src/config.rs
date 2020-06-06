@@ -15,7 +15,7 @@ pub struct CursedConfig {
     /// |:------------|:------------------------|
     /// |`"rotary"`   |Rotary phone (pulse dial)|
     /// |`"touchtone"`|Touch-tone (keypad dial) |
-    /// |`"unknown"`  |Unknown/other phone type |
+    /// |`"other"`    |Other/unknown phone type |
     pub phone_type: String,
 
     /// Number of times per second to update the phone state.
