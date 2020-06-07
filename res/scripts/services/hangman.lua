@@ -9,7 +9,7 @@ S:state(SERVICE_STATE_CALL, {
         print("Hangman: call started")
     end,
     tick = function(self)
-        -- TODO
+        -- TODO: Implement Hangman
     end,
     exit = function(self)
         print("Hangman: ending call")

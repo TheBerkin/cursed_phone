@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::{time, sync::mpsc, thread, io::{stdin, Read}};
 use crate::config::*;
-use crate::sound::SoundEngine;
+use crate::sound::*;
 
 #[cfg(feature = "rpi")]
 use crate::gpio::*;
@@ -14,6 +14,11 @@ pub enum PhoneInputSignal {
     HookState(bool),
     Motion,
     Digit(char),
+}
+
+pub enum PhoneOutputSignal {
+    Ring(bool), // TODO: Add cadence settings to ringer
+    Vibrate { on: bool, duty_cycle: f32, time_seconds: f32 }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -50,14 +55,14 @@ impl PhoneType {
 pub struct PhoneEngine {
     phone_type: PhoneType,
     sound_engine: Rc<RefCell<SoundEngine>>,
-    listener: mpsc::Receiver<PhoneInputSignal>,
-    on_hook: bool,
-    dial_resting: bool,
-    dial_pulse: bool,
+    input_from_gpio: mpsc::Receiver<PhoneInputSignal>,
+    output_to_pbx: RefCell<Option<Rc<mpsc::Sender<PhoneInputSignal>>>>,
+    input_from_pbx: RefCell<Option<Rc<mpsc::Receiver<PhoneOutputSignal>>>>,
+    hook_state: bool,
+    dial_rest_state: bool,
+    dial_pulse_state: bool,
     ring_state: bool,
     vibe_state: bool,
-    pdd: f32,
-    off_hook_delay: f32,
     #[cfg(feature = "rpi")]
     gpio: GpioInterface
 }
@@ -102,14 +107,14 @@ impl PhoneEngine {
         Self {
             phone_type,
             sound_engine,
-            listener,
-            on_hook: true,
-            dial_resting: true,
-            dial_pulse: false,
+            input_from_gpio: listener,
+            hook_state: true,
+            dial_rest_state: true,
+            dial_pulse_state: false,
             ring_state: false,
             vibe_state: false,
-            pdd: config.pdd,
-            off_hook_delay: config.off_hook_delay
+            output_to_pbx: Default::default(),
+            input_from_pbx: Default::default()
         }
     }
 
@@ -130,15 +135,15 @@ impl PhoneEngine {
                         thread::sleep(time::Duration::from_millis(150));
                         Digit(digit.to_ascii_uppercase())
                     },
-                    ' ' => {
+                    '-' => {
                         thread::sleep(time::Duration::from_millis(200));
                         continue;
                     },
-                    '.' => {
-                        thread::sleep(time::Duration::from_millis(250));
+                    '_' => {
+                        thread::sleep(time::Duration::from_millis(300));
                         continue;
                     },
-                    '-' => {
+                    '.' => {
                         thread::sleep(time::Duration::from_millis(1000));
                         continue;
                     },
@@ -153,34 +158,66 @@ impl PhoneEngine {
 
 impl PhoneEngine {
     pub fn tick(&self) {
-        if let Ok(signal) = self.listener.try_recv() {
+        // Process GPIO inputs
+        if let Ok(signal) = self.input_from_gpio.try_recv() {
             use PhoneInputSignal::*;
+
+            // Perform any additional processing here before passing on the signal
             match signal {
                 HookState(on_hook) => {
-                    self.set_on_hook(on_hook);
+                    #[cfg(not(feature = "rpi"))]
+                    self.sound_engine.borrow().play(
+                        if on_hook { "handset/pickup*" } else { "handset/hangup*" }, 
+                        Channel::SignalOut, 
+                        false, 
+                        false, 
+                        true, 
+                        1.0, 
+                        1.0);
                 },
                 Motion => todo!(),
                 Digit(digit) => {
-                    self.dial_digit(digit);
+                    self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
+                }
+            }
+
+            self.send_to_pbx(signal);
+        }
+
+        // Process GPIO outputs
+        if let Some(input_from_pbx) = self.input_from_pbx.borrow().as_ref() {
+            if let Ok(signal) = input_from_pbx.try_recv() {
+                use PhoneOutputSignal::*;
+                match signal {
+                    Ring(on) => {
+                        println!("Ringing = {}", on);
+                        // TODO: Pass ringing to GPIO
+                    },
+                    Vibrate { on, duty_cycle, time_seconds } => {
+                        println!("Vibration = {}", on);
+                        // TODO: Pass vibration to GPIO
+                    }
                 }
             }
         }
     }
 
-    pub fn dial_digit(&self, digit: char) {
-        self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
-        println!("DIALED: {}", digit);
+    fn send_to_pbx(&self, input: PhoneInputSignal) -> bool {
+        if let Some(tx) = self.output_to_pbx.borrow().as_ref() {
+            tx.send(input).unwrap();
+            return true;
+        }
+        false
     }
 
-    pub fn set_on_hook(&self, hook_state: bool) {
-        println!("ON HOOK: {}", hook_state);
+    /// Creates a messaging channel for the PBX to listen to input signals from the phone.
+    pub fn gen_phone_output(&self) -> mpsc::Receiver<PhoneInputSignal> {
+        let (tx_pbx, rx_input) = mpsc::channel();
+        self.output_to_pbx.replace(Some(Rc::new(tx_pbx)));
+        rx_input
     }
 
-    fn on_pick_up(&self) {
-
-    }
-
-    fn on_hang_up(&self) {
-
+    pub fn listen_from_pbx(&self, input_from_pbx: mpsc::Receiver<PhoneOutputSignal>) {
+        self.input_from_pbx.replace(Some(Rc::new(input_from_pbx)));
     }
 }

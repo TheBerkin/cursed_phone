@@ -24,13 +24,15 @@ fn main() -> Result<(), String> {
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
     let pbx = create_pbx(sound_engine);
+    pbx.listen_phone_input(phone.gen_phone_output());
+    phone.listen_from_pbx(pbx.gen_pbx_output());
     pbx.load_cursed_api()?;
     pbx.load_services();
 
     loop {
         // Update engine state
         let tick_start = time::Instant::now();
-        phone.borrow().tick();
+        phone.tick();
         pbx.tick();
         let tick_end = time::Instant::now();
 
@@ -55,9 +57,9 @@ fn create_sound_engine(config: &CursedConfig) -> &'static mut Rc<RefCell<SoundEn
     sound_engine
 }
 
-fn create_phone(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut Rc<RefCell<PhoneEngine>> {
+fn create_phone(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PhoneEngine {
     println!("Loading phone engine... ");
-    let phone_engine = Box::new(Rc::new(RefCell::new(PhoneEngine::new(config, sound_engine))));
-    let phone_engine: &'static mut Rc<RefCell<PhoneEngine>> = Box::leak(phone_engine);
+    let phone_engine = Box::new(PhoneEngine::new(config, sound_engine));
+    let phone_engine: &'static mut PhoneEngine = Box::leak(phone_engine);
     phone_engine
 }

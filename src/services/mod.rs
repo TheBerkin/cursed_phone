@@ -5,7 +5,7 @@ mod api;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::{thread, time, fs};
+use std::{thread, time, fs, sync::mpsc};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -13,6 +13,7 @@ use rand::Rng;
 use mlua::prelude::*;
 use indexmap::IndexMap;
 use crate::sound::*;
+use crate::phone::*;
 
 pub use self::api::*;
 pub use self::props::*;
@@ -54,6 +55,12 @@ pub struct PbxEngine<'lua> {
     services: RefCell<IndexMap<String, ServiceModule<'lua>>>,
     /// The sound engine associated with the engine.
     sound_engine: RcRefCell<SoundEngine>,
+    /// The intercept service.
+    intercept_service: Option<ServiceModule<'lua>>,
+    /// Channel for sending output signals to the host phone.
+    phone_output: RefCell<Option<mpsc::Sender<PhoneOutputSignal>>>,
+    /// Channel for receiving input signals from the host phone.
+    phone_input: RefCell<Option<mpsc::Receiver<PhoneInputSignal>>>,
     /// The current state of the engine.
     state: RefCell<PbxState>
 }
@@ -65,7 +72,8 @@ pub struct ServiceModule<'lua> {
     ringback_enabled: bool,
     tbl_module: LuaTable<'lua>,
     func_load: Option<LuaFunction<'lua>>,
-    func_unload: Option<LuaFunction<'lua>>
+    func_unload: Option<LuaFunction<'lua>>,
+    func_tick: LuaFunction<'lua>
 }
 
 impl<'lua> ServiceModule<'lua> {
@@ -80,6 +88,7 @@ impl<'lua> ServiceModule<'lua> {
                 let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
+                let func_tick = table.get("tick").expect("tick() function not found");
 
                 // Start state machine
                 table.call_method::<&str, _, ()>("start", ()).expect(format!("Unable to start state machine for {}", name).as_str());
@@ -100,7 +109,8 @@ impl<'lua> ServiceModule<'lua> {
                     name,
                     phone_number,
                     func_load,
-                    func_unload
+                    func_unload,
+                    func_tick
                 })
             },
             Err(err) => Err(format!("Unable to load service module: {:#?}", err))
@@ -119,6 +129,10 @@ impl<'lua> ServiceModule<'lua> {
         self.name.as_str()
     }
 
+    pub fn suspended(&self) -> bool {
+        self.tbl_module.get("_is_suspended").unwrap_or(false)
+    }
+
     pub fn state(&self) -> LuaResult<ServiceState> {
         let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
         Ok(ServiceState::from(raw_state))
@@ -126,7 +140,11 @@ impl<'lua> ServiceModule<'lua> {
 
     #[inline]
     fn tick(&self) -> LuaResult<()> {
-        let (status_code, status_data) = self.tbl_module.call_method("tick", ())?;
+        if self.suspended() {
+            return Ok(())
+        }
+
+        let (status_code, status_data) = self.func_tick.call(self.tbl_module.clone())?;
         let status = ServiceIntent::from_lua_value(status_code, status_data);
         use ServiceIntent::*;
         match status {   
@@ -175,8 +193,21 @@ impl<'lua> PbxEngine<'lua> {
             sound_engine: Rc::clone(sound_engine),
             phone_book: Default::default(),
             services: Default::default(),
-            state: RefCell::new(PbxState::Idle)
+            intercept_service: None,
+            state: RefCell::new(PbxState::Idle),
+            phone_input: Default::default(),
+            phone_output: Default::default()
         }
+    }
+
+    pub fn gen_pbx_output(&self) -> mpsc::Receiver<PhoneOutputSignal> {
+        let (tx, rx) = mpsc::channel();
+        self.phone_output.replace(Some(tx));
+        rx
+    }
+
+    pub fn listen_phone_input(&self, input_from_phone: mpsc::Receiver<PhoneInputSignal>) {
+        self.phone_input.replace(Some(input_from_phone));
     }
 
     fn set_state(&self, state: PbxState) {
@@ -258,7 +289,28 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    pub fn tick(&self) {
+    fn process_input_signals(&self) {
+        if let Some(phone_input) = self.phone_input.borrow().as_ref() {
+            while let Ok(signal) = phone_input.try_recv() {
+                use PhoneInputSignal::*;
+                match signal {
+                    // TODO
+                    HookState(on_hook) => {
+                        println!("PBX: Received hook state ({})", on_hook);
+                    },
+                    Motion => {
+                        println!("PBX: Received motion");
+                    },
+                    Digit(digit) => {
+                        println!("PBX: Received digit '{}'", digit);
+                    }
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn update_services(&self) {
         let service_modules = self.services.borrow();
         let service_iter = service_modules.iter();
         for (_, service) in service_iter {
@@ -270,5 +322,10 @@ impl<'lua> PbxEngine<'lua> {
                 }
             }
         }
+    }
+
+    pub fn tick(&self) {
+        self.process_input_signals();
+        self.update_services();
     }
 }

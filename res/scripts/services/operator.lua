@@ -5,7 +5,7 @@ S:state(SERVICE_STATE_CALL, {
         print("Operator: call started")
     end,
     tick = function(self)
-        -- TODO
+        -- TODO: Implement Operator
     end,
     exit = function(self)
         print("Operator: ending call")

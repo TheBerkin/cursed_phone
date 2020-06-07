@@ -242,7 +242,7 @@ impl GpioInterface {
             })?;
         }
 
-        // TODO
+        // TODO: Support remaining GPIO peripherals
 
         println!("GPIO peripherals initialized.");
 

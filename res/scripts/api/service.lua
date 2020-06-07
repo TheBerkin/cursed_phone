@@ -102,7 +102,7 @@ local _PhoneServiceModule_MEMBERS = {
     ---
     --- If this function is not called on a service module, idle ticks will be allowed during all phone states.
     --- @vararg PhoneStateCode
-    set_idle_tick_during = function(self, ...)
+    set_idle_tick_during = function(self, ...) -- TODO: Implement set_idle_tick_during()
         local states = {...}
         -- (Is it even really worth doing any sanity checks here?)
         self._idle_tick_phone_states = states
@@ -145,6 +145,15 @@ local _PhoneServiceModule_MEMBERS = {
     --- @param func_table table
     state = function(self, state, func_table)
         self._state_func_tables[state] = func_table
+    end,
+    suspend = function(self)
+        self._is_suspended = true
+    end,
+    resume = function(self)
+        self._is_suspended = false
+    end,
+    is_suspended = function(self)
+        return self._is_suspended
     end,
     --- Clear any pending messages.
     clear_messages = function(self)
@@ -232,13 +241,6 @@ end
 function service.end_call()
     coroutine.yield(SERVICE_INTENT_END_CALL)
 end
-
---- Suspends the specified service, preventing it from ticking 
---- unless it is receiving a call or is currently in a call.
-function service.suspend(service_name) end
-
---- Un-suspends a service, allowing it to tick in non-call states.
-function service.resume(service_name) end
 
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
