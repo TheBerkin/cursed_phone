@@ -61,13 +61,13 @@ DIGIT_0 = 48
 --- The digit '#'.
 DIGIT_POUND = 35
 
---- @alias InterceptStateCode integer
+--- @alias InterceptReason integer
 
---- @type InterceptStateCode
+--- @type InterceptReason
 INTERCEPT_NONE = 0
---- @type InterceptStateCode
+--- @type InterceptReason
 INTERCEPT_OFF_HOOK = 1
---- @type InterceptStateCode
+--- @type InterceptReason
 INTERCEPT_NUMBER_DISCONNECTED = 2
 
 
@@ -102,6 +102,7 @@ NATIVE_API(function()
     --- Gets the current state code of the phone.
     --- @return PhoneStateCode
     function phone.get_state() end
+
     --- Gets the number that the user has dialed. If the phone is idle, this will return nil.
     --- @return string|nil
     function phone.get_dialed_number() end

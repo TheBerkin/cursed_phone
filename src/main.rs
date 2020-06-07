@@ -18,12 +18,12 @@ const CONFIG_PATH: &str = "./cursed_phone.conf";
 const SOUNDS_PATH: &str = "./res/sounds";
 
 fn main() -> Result<(), String> {
-    let config = config::load_config(CONFIG_PATH);
+    let config = Rc::new(config::load_config(CONFIG_PATH));
     println!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
-    let pbx = create_pbx(sound_engine);
+    let pbx = create_pbx(&config, sound_engine);
     pbx.listen_phone_input(phone.gen_phone_output());
     phone.listen_from_pbx(pbx.gen_pbx_output());
     pbx.load_cursed_api()?;
@@ -44,8 +44,8 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn create_pbx(sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine {
-    let pbx = Box::new(PbxEngine::new(SCRIPTS_PATH, sound_engine));
+fn create_pbx<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine<'a> {
+    let pbx = Box::new(PbxEngine::new(SCRIPTS_PATH, config, sound_engine));
     let pbx: &'static mut PbxEngine = Box::leak(pbx);
     pbx
 }

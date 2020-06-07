@@ -49,7 +49,7 @@ pub enum ServiceIntent {
     Wait,
     ReadDigit,
     ForwardCall(String),
-    StateEnd(ServiceState)
+    StateEnded(ServiceState)
 }
 
 impl ServiceIntent {
@@ -66,7 +66,7 @@ impl ServiceIntent {
                 _ => ServiceIntent::ForwardCall(String::from("A"))
             },
             7 => match status_data {
-                LuaValue::Integer(n) => ServiceIntent::StateEnd(ServiceState::from(n as usize)),
+                LuaValue::Integer(n) => ServiceIntent::StateEnded(ServiceState::from(n as usize)),
                 _ => ServiceIntent::Idle
             },
             _ => ServiceIntent::Idle

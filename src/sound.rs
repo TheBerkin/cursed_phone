@@ -17,9 +17,11 @@ use rand;
 use rand::Rng;
 
 /// Represents a playback channel for sounds.
-#[derive(IntoEnumIterator, Copy, Clone, Debug)]
+#[derive(IntoEnumIterator, Copy, Clone, Debug, PartialEq)]
 pub enum Channel {
+    /// PBX signals are played here.
     SignalIn,
+    /// Host signals are played here.
     SignalOut,
     Phone1,
     Phone2,
@@ -227,6 +229,15 @@ impl SoundEngine {
         }
     }
 
+    pub fn stop_all_except(&self, except: Channel) {
+        for ch in Channel::into_enum_iter() {
+            if ch == except {
+                continue;
+            }
+            self.stop(ch);            
+        }
+    }
+
     pub fn stop(&self, channel: Channel) {
         let mut ch = &mut self.channels.borrow_mut()[channel.as_index()];
         if !ch.sink.empty() {
@@ -269,26 +280,32 @@ impl SoundEngine {
     }
 
     pub fn play_ringback_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_ringback_tone(db_to_amp(self.config.ringback_tone_gain));
     }
 
     pub fn play_dial_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_dial_tone(db_to_amp(self.config.dial_tone_gain));
     }
 
     pub fn play_busy_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), false);
     }
 
     pub fn play_fast_busy_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), true);
     }
 
     pub fn play_off_hook_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_off_hook_tone(db_to_amp(self.config.off_hook_tone_gain));
     }
 
     pub fn play_panic_tone(&self) {
+        self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_panic_tone(1.0);
     }
 }

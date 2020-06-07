@@ -282,6 +282,12 @@ local function gen_state_coroutine(s, new_state, old_state)
         local prev_on_exit = old_func_table and old_func_table.exit or empty_func
 
         prev_on_exit(s)
+
+        -- Emit SERVICE_INTENT_STATE_END
+        if old_state then
+            coroutine.yield(SERVICE_INTENT_STATE_END, old_state)
+        end
+
         on_enter(s)
         while true do
             on_tick(s)
@@ -345,7 +351,7 @@ function tick_service_state(s)
 
     -- If the state has finished, inform the caller that we need to transition
     if coroutine.status(state_coroutine) == 'dead' then
-        return SERVICE_INTENT_STATE_END, nil
+        return SERVICE_INTENT_STATE_END, s._state
     end
 
     -- Handle messages
@@ -361,13 +367,7 @@ function tick_service_state(s)
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
         error(status)
-        return SERVICE_INTENT_STATE_END, nil
-    end
-    
-    -- Check if the state finished, and if so, transition it
-    if status == SERVICE_INTENT_STATE_END and status_data then
-        local new_service_state = status_data
-        transition_service_state(s, new_service_state)
+        return SERVICE_INTENT_STATE_END, s._state
     end
 
     -- Return latest status and any associated data

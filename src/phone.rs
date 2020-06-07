@@ -128,19 +128,19 @@ impl PhoneEngine {
             while let Ok(_) = reader.read(&mut cbuf) {
                 use PhoneInputSignal::*;
                 let signal: PhoneInputSignal = match (cbuf[0] as char).to_ascii_lowercase() {
-                    'i' | 'I' => HookState(true),
-                    'o' | 'O' => HookState(false),
+                    'i' | 'I' => HookState(false),
+                    'o' | 'O' => HookState(true),
                     'm' | 'M' => Motion,
                     digit @ '0'..='9' | digit @ 'a'..='d' | digit @ '*' | digit @ '#' => {
-                        thread::sleep(time::Duration::from_millis(150));
+                        thread::sleep(time::Duration::from_millis(200));
                         Digit(digit.to_ascii_uppercase())
                     },
                     '-' => {
-                        thread::sleep(time::Duration::from_millis(200));
+                        thread::sleep(time::Duration::from_millis(250));
                         continue;
                     },
                     '_' => {
-                        thread::sleep(time::Duration::from_millis(300));
+                        thread::sleep(time::Duration::from_millis(750));
                         continue;
                     },
                     '.' => {
@@ -167,7 +167,7 @@ impl PhoneEngine {
                 HookState(on_hook) => {
                     #[cfg(not(feature = "rpi"))]
                     self.sound_engine.borrow().play(
-                        if on_hook { "handset/pickup*" } else { "handset/hangup*" }, 
+                        if on_hook { "handset/hangup*" } else { "handset/pickup*" }, 
                         Channel::SignalOut, 
                         false, 
                         false, 
