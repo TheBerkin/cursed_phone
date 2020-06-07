@@ -29,6 +29,16 @@ impl<'lua> PbxEngine<'lua> {
             let run_time = self.start_time.elapsed().as_secs_f64();
             Ok(run_time)
         }).unwrap());
+
+        // get_call_time()
+        globals.set("get_call_time", lua.create_function(move |_, ()| {
+            match self.state() {
+                PbxState::Connected(_) => {
+                    return Ok(self.current_state_time().as_secs_f64());
+                }
+                _ => Ok(0.0)
+            }
+        }).unwrap());
     
         // ====================================================
         // ==================== SOUND API =====================
@@ -111,6 +121,12 @@ impl<'lua> PbxEngine<'lua> {
             self.sound_engine.borrow().play_ringback_tone();
             Ok(())
         }).unwrap());
+
+        // sound.play_off_hook_tone()
+        tbl_sound.set("play_off_hook_tone", lua.create_function(move |_, ()| {
+            self.sound_engine.borrow().play_off_hook_tone();
+            Ok(())
+        }).unwrap());
     
         // sound.play_dtmf_digit(digit, duration, volume)
         tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
@@ -119,6 +135,10 @@ impl<'lua> PbxEngine<'lua> {
         }).unwrap());
     
         globals.set("sound", tbl_sound);
+
+        // ====================================================
+        // =================== SERVICE API ====================
+        // ====================================================
     
         // Run API scripts
         self.run_scripts_in_glob(API_GLOB)?;

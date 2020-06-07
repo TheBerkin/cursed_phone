@@ -41,45 +41,6 @@ pub enum PbxState {
     Busy
 }
 
-/// A Lua-powered telephone exchange that loads,
-/// manages, and runs scripted phone services.
-pub struct PbxEngine<'lua> {
-    /// The Lua context associated with the engine.
-    lua: Lua,
-    /// The root directory from which Lua scripts are loaded.
-    scripts_root: PathBuf,
-    /// The starting time of the engine.
-    start_time: Instant,
-    /// The numbered services associated with the engine.
-    phone_book: RefCell<HashMap<String, ServiceId>>,
-    /// The services (both numbered and otherwise) associated with the engine.
-    services: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
-    /// The sound engine associated with the engine.
-    sound_engine: RcRefCell<SoundEngine>,
-    /// The intercept service.
-    intercept_service: RefCell<Orc<ServiceModule<'lua>>>,
-    /// Channel for sending output signals to the host phone.
-    phone_output: RefCell<Option<mpsc::Sender<PhoneOutputSignal>>>,
-    /// Channel for receiving input signals from the host phone.
-    phone_input: RefCell<Option<mpsc::Receiver<PhoneInputSignal>>>,
-    /// The service to which the PBX is connecting/has connected the host.
-    other_party: RefCell<Orc<ServiceModule<'lua>>>,
-    /// The current state of the engine.
-    state: RefCell<PbxState>,
-    /// Time when PDD last started.
-    pdd_start: RefCell<Instant>,
-    /// Time when the current state started.
-    state_start: RefCell<Instant>,
-    /// Phone configuration.
-    config: Rc<CursedConfig>,
-    /// Post-dial delay.
-    post_dial_delay: Duration,
-    /// The currently dialed number.
-    dialed_number: RefCell<String>,
-    /// Off-hook delay.
-    off_hook_delay: Duration,
-}
-
 pub struct ServiceModule<'lua> {
     id: RefCell<Option<ServiceId>>,
     name: String,
@@ -151,6 +112,11 @@ impl<'lua> ServiceModule<'lua> {
         self.tbl_module.get("_is_suspended").unwrap_or(false)
     }
 
+    pub fn set_reason(&self, reason: InterceptReason) -> LuaResult<()> {
+        self.tbl_module.call_method("set_reason", reason.as_index())?;
+        Ok(())
+    }
+
     pub fn state(&self) -> LuaResult<ServiceState> {
         let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
         Ok(ServiceState::from(raw_state))
@@ -171,6 +137,45 @@ impl<'lua> ServiceModule<'lua> {
         self.tbl_module.call_method("transition", state.as_index())?;
         Ok(())
     }
+}
+
+/// A Lua-powered telephone exchange that loads,
+/// manages, and runs scripted phone services.
+pub struct PbxEngine<'lua> {
+    /// The Lua context associated with the engine.
+    lua: Lua,
+    /// The root directory from which Lua scripts are loaded.
+    scripts_root: PathBuf,
+    /// The starting time of the engine.
+    start_time: Instant,
+    /// The numbered services associated with the engine.
+    phone_book: RefCell<HashMap<String, ServiceId>>,
+    /// The services (both numbered and otherwise) associated with the engine.
+    services: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
+    /// The sound engine associated with the engine.
+    sound_engine: RcRefCell<SoundEngine>,
+    /// The intercept service.
+    intercept_service: RefCell<Orc<ServiceModule<'lua>>>,
+    /// Channel for sending output signals to the host phone.
+    phone_output: RefCell<Option<mpsc::Sender<PhoneOutputSignal>>>,
+    /// Channel for receiving input signals from the host phone.
+    phone_input: RefCell<Option<mpsc::Receiver<PhoneInputSignal>>>,
+    /// The service to which the PBX is connecting/has connected the host.
+    other_party: RefCell<Orc<ServiceModule<'lua>>>,
+    /// The current state of the engine.
+    state: RefCell<PbxState>,
+    /// Time when PDD last started.
+    pdd_start: RefCell<Instant>,
+    /// Time when the current state started.
+    state_start: RefCell<Instant>,
+    /// Phone configuration.
+    config: Rc<CursedConfig>,
+    /// Post-dial delay.
+    post_dial_delay: Duration,
+    /// The currently dialed number.
+    dialed_number: RefCell<String>,
+    /// Off-hook delay.
+    off_hook_delay: Duration,
 }
 
 impl<'lua> Drop for ServiceModule<'lua> {
@@ -236,7 +241,7 @@ impl<'lua> PbxEngine<'lua> {
             self.call_service(service);
             return true;
         } else {
-            self.call_intercept();
+            self.call_intercept(InterceptReason::NumberDisconnected);
             return false;
         }
     }
@@ -252,8 +257,9 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    fn call_intercept(&'lua self) {
+    fn call_intercept(&'lua self, reason: InterceptReason) {
         if let Some(intercept_service) = self.intercept_service.borrow().as_ref() {
+            intercept_service.set_reason(reason);
             self.call_service(Rc::clone(intercept_service));
         } else {
             // Default to busy signal if there is no intercept service
@@ -283,7 +289,6 @@ impl<'lua> PbxEngine<'lua> {
     #[inline]
     fn clear_dialed_number(&self) {
         self.dialed_number.borrow_mut().clear();
-        //println!("PBX: Dialed number cleared.");
     }
 
     fn get_dialed_number(&self) -> String {
@@ -339,7 +344,6 @@ impl<'lua> PbxEngine<'lua> {
                         let service_role = service.role;
                         let service_phone_number = service.phone_number.clone();
                         let service = Rc::new(service);
-                        println!("Service loaded: {} (N = {:?}, ID = {:?})", service_name, service_phone_number, service.id());
                         let (service_id, _) = services.insert_full(service_name, Rc::clone(&service));
                         service.register_id(service_id);
 
@@ -357,6 +361,8 @@ impl<'lua> PbxEngine<'lua> {
                             },
                             _ => {}
                         }
+
+                        println!("Service loaded: {} (N = {:?}, ID = {:?})", service.name, service.phone_number, service.id());
                     },
                     Err(err) => {
                         println!("Failed to load service module '{:?}': {:#?}", module_path, err);
@@ -373,7 +379,22 @@ impl<'lua> PbxEngine<'lua> {
         None
     }
 
+    fn play_comfort_noise(&self) {
+        let sound_engine = self.sound_engine.borrow();
+        if sound_engine.channel_busy(Channel::NoiseIn) { return }
+        sound_engine.play(
+            self.config.sound.comfort_noise_name.as_str(), 
+            Channel::NoiseIn,
+            false,
+            true,
+            true,
+            1.0,
+            self.config.sound.comfort_noise_volume
+        );
+    }
+
     fn set_state(&'lua self, state: PbxState) {
+        use PbxState::*;
         if *self.state.borrow() == state {
             return;
         }
@@ -383,8 +404,12 @@ impl<'lua> PbxEngine<'lua> {
         let last_state_start = self.state_start.replace(state_start);
         let state_time = state_start.saturating_duration_since(last_state_start);
 
+        // Play comfort noise when phone is off the hook
+        if prev_state == Idle {
+            self.play_comfort_noise()
+        }
+
         // Run behavior for state transition
-        use PbxState::*;
         match (prev_state, state) {
             // TODO: Implement all valid PBX state transitions
             (_, Idle) => {
@@ -402,14 +427,13 @@ impl<'lua> PbxEngine<'lua> {
             (_, Busy) => {
                 self.other_party.replace(None);
                 let sound_engine = self.sound_engine.borrow();
-                sound_engine.stop_all_except(Channel::SignalOut);
+                sound_engine.stop_all_nonsignal();
                 sound_engine.play_busy_tone();
             },
             (_, PDD) => {
                 // Stop any PBX signals
                 self.sound_engine.borrow().stop(Channel::SignalIn);
                 self.update_pdd_start();
-                // TODO: Wait for digits
             },
             (_, CallingOut(id)) => {
                 self.clear_dialed_number();
@@ -428,7 +452,7 @@ impl<'lua> PbxEngine<'lua> {
                     sound_engine.play_ringback_tone();
                 }
             },
-            (_, Connected(id)) => {
+            (_, Connected(_)) => {
                 self.clear_dialed_number();
                 let sound_engine = self.sound_engine.borrow();
                 sound_engine.stop(Channel::SignalIn);
@@ -441,7 +465,7 @@ impl<'lua> PbxEngine<'lua> {
 
     fn handle_off_hook_timeout(&'lua self) {
         println!("PBX: Off-hook timeout.");
-        self.call_intercept();
+        self.call_intercept(InterceptReason::OffHook);
     }
 
     fn handle_digit(&'lua self, digit: char) {
@@ -496,7 +520,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     #[inline]
-    fn current_state_time(&self) -> Duration {
+    pub fn current_state_time(&self) -> Duration {
         Instant::now().saturating_duration_since(*self.state_start.borrow())
     }
 

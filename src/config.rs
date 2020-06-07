@@ -64,7 +64,7 @@ pub struct CursedConfig {
 }
 
 #[serde(rename_all = "kebab-case")]
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SoundConfig {
     /// Initial master volume.
     pub master_volume: f32,
@@ -72,11 +72,13 @@ pub struct SoundConfig {
     pub dial_tone_gain: f32,
     pub ringback_tone_gain: f32,
     pub busy_tone_gain: f32,
-    pub off_hook_tone_gain: f32
+    pub off_hook_tone_gain: f32,
+    pub comfort_noise_name: String,
+    pub comfort_noise_volume: f32
 }
 
 #[serde(rename_all = "kebab-case")]
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct GpioConfig {
     /// Input configuration.
     pub inputs: GpioInputsConfig,
@@ -85,7 +87,7 @@ pub struct GpioConfig {
 }
 
 #[serde(rename_all = "kebab-case")]
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct GpioInputsConfig {
     /// BCM pin number of switch hook input.
     pub pin_hook: u8,
@@ -110,7 +112,7 @@ pub struct GpioInputsConfig {
 }
 
 #[serde(rename_all = "kebab-case")]
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct GpioOutputsConfig {
     /// BCM pin number of ringer output.
     pub pin_ringer: Option<u8>,
@@ -121,7 +123,7 @@ pub struct GpioOutputsConfig {
 }
 
 #[serde(rename_all = "kebab-case")]
-#[derive(Deserialize, Copy, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct DebugConfig {
     /// Plays the panic tone when a Lua script encounters an error.
     pub enable_panic_tone: Option<bool>

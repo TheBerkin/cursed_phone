@@ -40,6 +40,30 @@ impl ServiceState {
     }
 }
 
+pub enum InterceptReason {
+    None = 0,
+    OffHook = 1,
+    NumberDisconnected = 2
+}
+
+impl From<usize> for InterceptReason {
+    fn from(value: usize) -> Self {
+        use InterceptReason::*;
+        match value {
+            0 => None,
+            1 => OffHook,
+            2 => NumberDisconnected,
+            _ => None
+        }
+    }
+}
+
+impl InterceptReason {
+    pub fn as_index(self) -> usize {
+        self as usize
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum ServiceIntent {
     Idle,

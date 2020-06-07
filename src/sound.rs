@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
-use crate::config::SoundConfig;
+use crate::config::*;
 use std::path::{Path, PathBuf};
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
@@ -19,25 +20,43 @@ use rand::Rng;
 /// Represents a playback channel for sounds.
 #[derive(IntoEnumIterator, Copy, Clone, Debug, PartialEq)]
 pub enum Channel {
-    /// PBX signals are played here.
+    /// Channel for incoming telephony signal tones.
     SignalIn,
-    /// Host signals are played here.
+    /// Channel for incoming comfort noise.
+    NoiseIn,
+    /// Channel for outgoing telephony signal tones.
     SignalOut,
+    /// Phone Channel 1.
     Phone1,
+    /// Phone Channel 2.
     Phone2,
+    /// Phone Channel 3.
     Phone3,
+    /// Phone Channel 4.
     Phone4,
+    /// Phone Channel 5.
     Phone5,
+    /// Phone Channel 6.
     Phone6,
+    /// Phone Channel 7.
     Phone7,
+    /// Phone Channel 8.
     Phone8,
+    /// Soul Channel 1.
     Soul1,
+    /// Soul Channel 2.
     Soul2,
+    /// Soul Channel 3.
     Soul3,
+    /// Soul Channel 4.
     Soul4,
+    /// Background Channel 1.
     Bg1,
+    /// Background Channel 2.
     Bg2,
+    /// Background Channel 3.
     Bg3,
+    /// Background Channel 4.
     Bg4
 }
 
@@ -71,7 +90,7 @@ pub struct SoundEngine {
     root_path: PathBuf,
     device: rodio::Device,
     channels: RefCell<Vec<SoundChannel>>,
-    config: SoundConfig,
+    config: Rc<CursedConfig>,
     sounds: IndexMap<String, Sound>,
     sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
     master_volume: f32
@@ -101,11 +120,12 @@ impl Sound {
 }
 
 impl SoundEngine {
-    pub fn new(root_path: impl Into<String>, config: SoundConfig) -> Self {
+    pub fn new(root_path: impl Into<String>, config: &Rc<CursedConfig>) -> Self {
         // Load output device
         let device = rodio::default_output_device().expect("No default output device found!");        
         let channels = RefCell::from(Vec::<SoundChannel>::new());
-        let master_volume = config.master_volume;
+        let config = Rc::clone(config);
+        let master_volume = config.sound.master_volume;
 
         let mut engine = Self {
             root_path: Path::new(root_path.into().as_str()).canonicalize().unwrap(),
@@ -238,6 +258,15 @@ impl SoundEngine {
         }
     }
 
+    pub fn stop_all_nonsignal(&self) {
+        for ch in Channel::into_enum_iter() {
+            match ch {
+                Channel::NoiseIn | Channel::SignalIn => continue,
+                _ => self.stop(ch)
+            }    
+        }
+    }
+
     pub fn stop(&self, channel: Channel) {
         let mut ch = &mut self.channels.borrow_mut()[channel.as_index()];
         if !ch.sink.empty() {
@@ -275,33 +304,35 @@ impl SoundEngine {
             Some(index) => DTMF_COLUMN_FREQUENCIES[index % 4],
             None => return false
         };
-        self.channels.borrow()[Channel::SignalOut.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.dtmf_volume);
+        self.channels.borrow()[Channel::SignalOut.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.sound.dtmf_volume);
         true
     }
 
+    // TODO: Cache dB-to-amplitude conversions for call progress tones
+
     pub fn play_ringback_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_ringback_tone(db_to_amp(self.config.ringback_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_ringback_tone(db_to_amp(self.config.sound.ringback_tone_gain));
     }
 
     pub fn play_dial_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_dial_tone(db_to_amp(self.config.dial_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_dial_tone(db_to_amp(self.config.sound.dial_tone_gain));
     }
 
     pub fn play_busy_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), false);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.sound.busy_tone_gain), false);
     }
 
     pub fn play_fast_busy_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.busy_tone_gain), true);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_busy_tone(db_to_amp(self.config.sound.busy_tone_gain), true);
     }
 
     pub fn play_off_hook_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_off_hook_tone(db_to_amp(self.config.off_hook_tone_gain));
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_off_hook_tone(db_to_amp(self.config.sound.off_hook_tone_gain));
     }
 
     pub fn play_panic_tone(&self) {

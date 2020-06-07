@@ -18,6 +18,11 @@ NATIVE_API(function()
     --- @return number
     function get_run_time() end
 
+    --- Gets the number of seconds elapsed since the current call started.
+    --- Returns 0 if no call is active.
+    --- @return number
+    function get_call_time() end
+
     --- Pauses execution for the specified number of milliseconds.
     --- @param ms integer
     --- @type function

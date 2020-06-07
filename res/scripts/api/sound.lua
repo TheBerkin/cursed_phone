@@ -13,46 +13,66 @@
 -- ==================== SOUND API =====================
 -- ====================================================
 
--- ========================
--- SOUND CHANNEL CONSTANTS
--- ========================
 
---- Channel for incoming telephony signal tones
+--- @alias SoundChannel integer
+
+--- Channel for incoming telephony signal tones.
+--- @type SoundChannel
 CHAN_SIGIN = 0
---- Channel for outgoing telephony signal tones
-CHAN_SIGOUT = 1
---- Phone channel 1
-CHAN_PHONE1 = 1
---- Phone channel 2
-CHAN_PHONE2 = 2
---- Phone channel 3
-CHAN_PHONE3 = 3
---- Phone channel 4
-CHAN_PHONE4 = 4
---- Phone channel 5
-CHAN_PHONE5 = 5
---- Phone channel 6
-CHAN_PHONE6 = 6
---- Phone channel 7
-CHAN_PHONE7 = 7
---- Phone channel 8
-CHAN_PHONE8 = 8
---- Soul channel 1
-CHAN_SOUL1 = 9
---- Soul channel 2
-CHAN_SOUL2 = 10
---- Soul channel 3
-CHAN_SOUL3 = 11
---- Soul channel 4
-CHAN_SOUL4 = 12
---- Background channel 1
-CHAN_BG1 = 13
---- Background channel 2
-CHAN_BG2 = 14
---- Background channel 3
-CHAN_BG3 = 15
---- Background channel 4
-CHAN_BG4 = 16
+--- Channel for incoming comfort noise.
+--- @type SoundChannel
+CHAN_NOISEIN = 1
+--- Channel for outgoing telephony signal tones.
+--- @type SoundChannel
+CHAN_SIGOUT = 2
+--- Phone Channel 1
+--- @type SoundChannel
+CHAN_PHONE1 = 3
+--- Phone Channel 2
+--- @type SoundChannel
+CHAN_PHONE2 = 4
+--- Phone Channel 3
+--- @type SoundChannel
+CHAN_PHONE3 = 5
+--- Phone Channel 4
+--- @type SoundChannel
+CHAN_PHONE4 = 6
+--- Phone Channel 5
+--- @type SoundChannel
+CHAN_PHONE5 = 7
+--- Phone Channel 6
+--- @type SoundChannel
+CHAN_PHONE6 = 8
+--- Phone Channel 7
+--- @type SoundChannel
+CHAN_PHONE7 = 9
+--- Phone Channel 8
+--- @type SoundChannel
+CHAN_PHONE8 = 10
+--- Soul Channel 1
+--- @type SoundChannel
+CHAN_SOUL1 = 11
+--- Soul Channel 2
+--- @type SoundChannel
+CHAN_SOUL2 = 12
+--- Soul Channel 3
+--- @type SoundChannel
+CHAN_SOUL3 = 13
+--- Soul Channel 4
+--- @type SoundChannel
+CHAN_SOUL4 = 14
+--- Background Channel 1
+--- @type SoundChannel
+CHAN_BG1 = 15
+--- Background Channel 2
+--- @type SoundChannel
+CHAN_BG2 = 16
+--- Background Channel 3
+--- @type SoundChannel
+CHAN_BG3 = 17
+--- Background Channel 4
+--- @type SoundChannel
+CHAN_BG4 = 18
 
 NATIVE_API(function()
     sound = {}
@@ -65,29 +85,29 @@ NATIVE_API(function()
     --- * `speed: number` Multiply the playback speed (Default: `1.0`)
     --- * `volume: number` Multiply each sample by this value (Default: `1.0`)
     --- @param path string
-    --- @param channel integer
+    --- @param channel SoundChannel
     --- @param opts table
     function sound.play(path, channel, opts) end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
-    --- @param channel integer
+    --- @param channel SoundChannel
     --- @return boolean
     function sound.is_busy(channel) end
 
     --- Stops playback on a specific channel.
-    --- @param channel integer
+    --- @param channel SoundChannel
     function sound.stop(channel) end
 
     --- Stops playback on all channels.
     function sound.stop_all() end
 
     --- Gets the volume of the specified channel.
-    --- @param channel integer
+    --- @param channel SoundChannel
     --- @return number
     function sound.get_channel_volume(channel) end
 
     --- Sets the volume of the specified channel.
-    --- @param channel integer
+    --- @param channel SoundChannel
     --- @param volume number
     function sound.set_channel_volume(channel, volume) end
 
@@ -123,6 +143,9 @@ NATIVE_API(function()
     --- Plays a dial tone on `CHAN_SIGIN`.
     function sound.play_dial_tone() end
 
+    --- Plays an off-hook tone on `CHAN_SIGIN`.
+    function sound.play_off_hook_tone() end
+
     --- Plays the specified DTMF digit on `CHAN_SIGOUT`.
     --- @param digit PhoneDigit
     --- @param duration number
@@ -146,6 +169,31 @@ function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
         service.intent(SERVICE_INTENT_WAIT)
+    end
+end
+
+--- *(Service use only)*
+---
+--- Plays a sound on a specific channel and waits asynchronously for it to end or until the specified predicate returns true.
+---
+--- Available options:
+--- * `looping: boolean` Make the sound loop (Default: `false`)
+--- * `interrupt: boolean` Stop other sounds on the channel before playing (Default: `true`)
+--- * `speed: number` Multiply the playback speed (Default: `1.0`)
+--- * `volume: number` Multiply each sample by this value (Default: `1.0`)
+--- * `early_stop: boolean` Stop the channel if canceled (Default: `true`)
+--- @param path string
+--- @param channel integer
+--- @param opts table
+--- @param predicate function
+function sound.play_wait_cancel(path, channel, predicate, opts)
+    if not predicate or predicate() then return end
+    sound.play(path, channel, opts)
+    while not predicate() and sound.is_busy(channel) do
+        service.intent(SERVICE_INTENT_WAIT)
+    end
+    if not opts or opts.early_stop == nil or opts.early_stop == true then
+        sound.stop(channel)
     end
 end
 

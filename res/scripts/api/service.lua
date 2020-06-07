@@ -9,6 +9,7 @@
     
 ]]
 
+--- Exposes functions to interact with and control phone services.
 service = {}
 
 local service_messages = {}
@@ -159,6 +160,15 @@ local _PhoneServiceModule_MEMBERS = {
     clear_messages = function(self)
         table.clear(self._messages)
     end,
+    --- Sets the call reason.
+    --- @param reason InterceptReason
+    set_reason = function(self, reason)
+        -- TODO: Expand InterceptReason to other kinds of reasons?
+        self._reason = reason
+    end,
+    get_reason = function(self)
+        return self._reason
+    end,
     --- Check if the service has pending messages.
     --- @return boolean
     has_messages = function(self)
@@ -194,6 +204,7 @@ function SERVICE_MODULE(name, phone_number, role)
         _state_func_tables = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
+        _reason = INTERCEPT_NONE,
         _is_suspended = false,
         _messages = messages
     }, M_PhoneServiceModule)
@@ -215,6 +226,17 @@ end
 function service.wait(seconds)
     local start_time = get_run_time()
     while get_run_time() - start_time < seconds do
+        service.intent(SERVICE_INTENT_WAIT)
+    end
+end
+
+--- Asynchronously waits the specified number of seconds or until the specified function returns true.
+--- @param seconds number
+--- @param predicate function
+function service.wait_cancel(seconds, predicate)
+    if predicate == nil or predicate() then return end
+    local start_time = get_run_time()
+    while not predicate() and get_run_time() - start_time < seconds do
         service.intent(SERVICE_INTENT_WAIT)
     end
 end
