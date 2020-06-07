@@ -81,6 +81,32 @@ const DTMF_COLUMN_FREQUENCIES: &[u32] = &[1209, 1336, 1477, 1633];
 const DTMF_ROW_FREQUENCIES: &[u32] = &[697, 770, 852, 941];
 const DTMF_DIGITS: &[char] = &['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'];
 
+const SIT_FREQS_FIRST: (u32, u32) = (914, 985);
+const SIT_FREQS_SECOND: (u32, u32) = (1371, 1429);
+const SIT_FREQS_THIRD: (u32, u32) = (1777, 1777);
+const SIT_SHORT_SEG_MS: u64 = 276;
+const SIT_LONG_SEG_MS: u64 = 380;
+
+enum SitSegmentLength {
+    Short,
+    Long
+}
+
+impl SitSegmentLength {
+    fn as_ms(self) -> u64 {
+        use SitSegmentLength::*;
+        match self {
+            Short => SIT_SHORT_SEG_MS,
+            Long => SIT_LONG_SEG_MS
+        }
+    }
+}
+
+enum SitSegment {
+    High(SitSegmentLength),
+    Low(SitSegmentLength)
+}
+
 /// Converts decibels to amplitude (assuming a normalized signal).
 fn db_to_amp(db: f32) -> f32 {
     10.0f32.powf(db / 20.0)
@@ -339,6 +365,17 @@ impl SoundEngine {
         self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_panic_tone(1.0);
     }
+
+    // TODO: Other SIT types as Lua-exposed enum?
+    pub fn play_sit_disconnected(&self) {
+        use {SitSegment::*, SitSegmentLength::*};
+        self.stop(Channel::SignalIn);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_special_info_tone(
+            Low(Short), 
+            Low(Short), 
+            Low(Long),
+            db_to_amp(self.config.sound.special_info_tone_gain));
+    }
 }
 
 impl SoundChannel {
@@ -480,5 +517,33 @@ impl SoundChannel {
         let busy_loop = busy_start.clone().delay(cadence).repeat_infinite();
         self.sink.append(busy_start);
         self.sink.append(busy_loop);
+    }
+
+    fn queue_special_info_tone(&self, first: SitSegment, second: SitSegment, third: SitSegment, volume: f32) {
+        use SitSegment::*;
+        let (f1, d1) = match first {
+            Low(len) => (SIT_FREQS_FIRST.0, len.as_ms()),
+            High(len) => (SIT_FREQS_FIRST.1, len.as_ms())
+        };
+        let (f2, d2) = match second {
+            Low(len) => (SIT_FREQS_SECOND.0, len.as_ms()),
+            High(len) => (SIT_FREQS_SECOND.1, len.as_ms())
+        };
+        let (f3, d3) = match third {
+            Low(len) => (SIT_FREQS_THIRD.0, len.as_ms()),
+            High(len) => (SIT_FREQS_THIRD.1, len.as_ms())
+        };
+        let sine1 = rodio::source::SineWave::new(f1)
+            .take_duration(Duration::from_millis(d1))
+            .amplify(volume);
+        let sine2 = rodio::source::SineWave::new(f2)
+            .take_duration(Duration::from_millis(d2))
+            .amplify(volume);
+        let sine3 = rodio::source::SineWave::new(f3)
+            .take_duration(Duration::from_millis(d3))
+            .amplify(volume);
+        self.sink.append(sine1);
+        self.sink.append(sine2);
+        self.sink.append(sine3);
     }
 }

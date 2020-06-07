@@ -6,6 +6,9 @@ S:set_ringback_enabled(false)
 
 local reason_handlers = {
     [INTERCEPT_NUMBER_DISCONNECTED] = function(self)
+        sound.play_sit_disconnected()
+        sound.wait(CHAN_SIGIN)
+        service.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
         sound.play_fast_busy_tone()
         while true do

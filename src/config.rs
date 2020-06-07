@@ -73,6 +73,7 @@ pub struct SoundConfig {
     pub ringback_tone_gain: f32,
     pub busy_tone_gain: f32,
     pub off_hook_tone_gain: f32,
+    pub special_info_tone_gain: f32,
     pub comfort_noise_name: String,
     pub comfort_noise_volume: f32
 }

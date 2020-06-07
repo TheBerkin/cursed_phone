@@ -127,6 +127,12 @@ impl<'lua> PbxEngine<'lua> {
             self.sound_engine.borrow().play_off_hook_tone();
             Ok(())
         }).unwrap());
+
+        // sound.play_sit_disconnected()
+        tbl_sound.set("play_sit_disconnected", lua.create_function(move |_, ()| {
+            self.sound_engine.borrow().play_sit_disconnected();
+            Ok(())
+        }).unwrap());
     
         // sound.play_dtmf_digit(digit, duration, volume)
         tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
