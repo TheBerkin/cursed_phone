@@ -53,3 +53,11 @@ end
 function table.random_choice(t)
     return t[random_int(1, #t + 1)]
 end
+
+function is_number(val)
+    return type(val) == 'number'
+end
+
+function is_string(val)
+    return type(val) == 'string'
+end

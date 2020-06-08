@@ -74,7 +74,7 @@ local SERVICE_DATA_NONE = 0
 --- @type ServiceDataCode
 local SERVICE_DATA_DIGIT = 1
 --- Indicates that the user line is busy.
-local SERVICE_DATA_USER_BUSY = 2
+local SERVICE_DATA_LINE_BUSY = 2
 
 -- ========================
 -- SERVICE ROLE CONSTANTS
@@ -90,8 +90,8 @@ SERVICE_ROLE_INTERCEPT = 1
 
 --- @class PhoneServiceModule
 local _PhoneServiceModule_MEMBERS = {
-    tick = function(self)        
-        local status, state = tick_service_state(self)
+    tick = function(self, data_code, data)        
+        local status, state = tick_service_state(self, data_code, data)
         return status, state
     end,
     transition = function(self, state)
@@ -256,7 +256,7 @@ end
 --- @return boolean
 function service.start_call()
     local data_code = service.intent(SERVICE_INTENT_CALL_USER)
-    return data_code ~= SERVICE_DATA_USER_BUSY
+    return data_code ~= SERVICE_DATA_LINE_BUSY
 end
 
 --- Accepts a pending call.
@@ -273,16 +273,9 @@ end
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
 --- @param max_seconds number|nil
 --- @return string|nil
-function service.get_digit(max_seconds)
-    local timed = type(max_seconds) == "number" and max_seconds > 0
+function service.read_digit(max_seconds)
+    local timed = is_number(max_seconds) and max_seconds > 0
     if timed then
-        while true do
-            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
-            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
-                return data
-            end
-        end
-    else
         local start_time = get_run_time()
         while get_run_time() - start_time < max_seconds do
             local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
@@ -291,6 +284,13 @@ function service.get_digit(max_seconds)
             end
         end
         return nil
+    else
+        while true do
+            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
+            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
+                return data
+            end
+        end
     end
 end
 
@@ -358,7 +358,7 @@ end
 
 --- @param s PhoneServiceModule
 --- @return ServiceIntentCode, any
-function tick_service_state(s)
+function tick_service_state(s, data_code, data)
     -- Check if a state machine is even running
     local state_coroutine = s._state_coroutine
     local message_coroutine = s._message_coroutine
@@ -388,17 +388,17 @@ function tick_service_state(s)
     end
 
     -- Resume the state machine
-    local success, status, status_data = coroutine.resume(active_coroutine)
+    local success, intent, intent_data = coroutine.resume(active_coroutine, data_code, data)
 
     -- If the coroutine is somehow dead/broken, transition the state
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
-        error(status)
+        error(intent)
         return SERVICE_INTENT_STATE_END, s._state
     end
 
     -- Return latest status and any associated data
-    return status or SERVICE_INTENT_IDLE, status_data
+    return intent or SERVICE_INTENT_IDLE, intent_data
 end
 
 --- Gets the current state of a service.

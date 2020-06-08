@@ -6,6 +6,10 @@ S:state(SERVICE_STATE_CALL, {
     end,
     tick = function(self)
         -- TODO: Implement Operator
+        while true do
+            local digit = service.read_digit()
+            print("Operator: Got digit '" .. digit .. "'")
+        end
     end,
     exit = function(self)
         print("Operator: ending call")

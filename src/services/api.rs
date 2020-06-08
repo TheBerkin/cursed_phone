@@ -11,7 +11,7 @@ impl<'lua> PbxEngine<'lua> {
         let lua = &self.lua;
         let globals = &lua.globals();
         let tbl_sound = lua.create_table().unwrap();
-        let tbl_service = lua.create_table().unwrap();
+        // let tbl_service = lua.create_table().unwrap();
 
         // ====================================================
         // ================ MISC API FUNCTIONS ================

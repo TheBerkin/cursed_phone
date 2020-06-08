@@ -97,3 +97,20 @@ impl ServiceIntent {
         }
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum ServiceData {
+    None,
+    Digit(char),
+    LineBusy
+}
+
+impl ServiceData {
+    pub fn to_code(&self) -> usize {
+        match self {
+            ServiceData::None => 0,
+            ServiceData::Digit(_) => 1,
+            ServiceData::LineBusy => 2
+        }
+    }
+}

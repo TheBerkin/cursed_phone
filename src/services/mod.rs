@@ -151,12 +151,21 @@ impl<'lua> ServiceModule<'lua> {
     }
 
     #[inline]
-    fn tick(&self) -> LuaResult<ServiceIntent> {
+    fn tick(&self, data: ServiceData) -> LuaResult<ServiceIntent> {
         if self.suspended() {
             return Ok(ServiceIntent::Idle)
         }
 
-        let (intent_code, intent_data) = self.func_tick.call(self.tbl_module.clone())?;
+        let service_table = self.tbl_module.clone();
+        let data_code = data.to_code();
+
+        // Tick service
+        let (intent_code, intent_data) = match data {
+            ServiceData::None => self.func_tick.call((service_table, data_code))?,
+            ServiceData::Digit(digit) => self.func_tick.call((service_table, data_code, digit.to_string()))?,
+            ServiceData::LineBusy => self.func_tick.call((service_table, data_code))?
+        };
+
         let intent = ServiceIntent::from_lua_value(intent_code, intent_data);
         Ok(intent)
     }
@@ -317,6 +326,11 @@ impl<'lua> PbxEngine<'lua> {
     #[inline]
     fn clear_dialed_number(&self) {
         self.dialed_number.borrow_mut().clear();
+    }
+
+    #[inline]
+    fn consume_dialed_digit(&self) -> Option<char> {
+        self.dialed_number.borrow_mut().pop()
     }
 
     fn get_dialed_number(&self) -> String {
@@ -591,39 +605,49 @@ impl<'lua> PbxEngine<'lua> {
         let service_modules = self.services.borrow();
         let service_iter = service_modules.iter();
         for (_, service) in service_iter {
-            match service.tick() {
-                Ok(AcceptCall) => {
-                    let id = service.id().unwrap();
-                    if state == CallingOut(id) {
-                        service.transition_state(ServiceState::Call);
-                        self.set_state(Connected(id));
+            let mut intent = service.tick(ServiceData::None);
+            loop {
+                match intent {
+                    Ok(ReadDigit) => {
+                        if let Some(digit) = self.consume_dialed_digit() {
+                            intent = service.tick(ServiceData::Digit(digit));
+                            continue;
+                        }
                     }
-                },
-                Ok(EndCall) => {
-                    let id = service.id().unwrap();
-                    if state == Connected(id) {
-                        service.transition_state(ServiceState::Idle);
+                    Ok(AcceptCall) => {
+                        let id = service.id().unwrap();
+                        if state == CallingOut(id) {
+                            service.transition_state(ServiceState::Call);
+                            self.set_state(Connected(id));
+                        }
+                    },
+                    Ok(EndCall) => {
+                        let id = service.id().unwrap();
+                        if state == Connected(id) {
+                            service.transition_state(ServiceState::Idle);
+                        }
+                    }
+                    Ok(StateEnded(ServiceState::Call)) => {
+                        // Don't affect PBX state if the call is already ended
+                        match state {
+                            Connected(id) if id == service.id().unwrap() => {
+                                self.set_state(Busy);
+                            },
+                            _ => {}
+                        }
+                    },
+                    Ok(intent) => {
+                        
+                    },
+                    Err(err) => {
+                        self.sound_engine.borrow().play_panic_tone();
+                        match err {
+                            LuaError::RuntimeError(msg) => println!("LUA ERROR: {}", msg),
+                            _ => println!("LUA ERROR: {:?}", err)
+                        }
                     }
                 }
-                Ok(StateEnded(ServiceState::Call)) => {
-                    // Don't affect PBX state if the call is already ended
-                    match state {
-                        Connected(id) if id == service.id().unwrap() => {
-                            self.set_state(Busy);
-                        },
-                        _ => {}
-                    }
-                },
-                Ok(intent) => {
-                    
-                },
-                Err(err) => {
-                    self.sound_engine.borrow().play_panic_tone();
-                    match err {
-                        LuaError::RuntimeError(msg) => println!("LUA ERROR: {}", msg),
-                        _ => println!("LUA ERROR: {:?}", err)
-                    }
-                }
+                break;
             }
         }
     }

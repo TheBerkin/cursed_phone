@@ -53,7 +53,8 @@ fn create_pbx<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngi
 
 fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<SoundEngine>> {
     println!("Loading sound engine... ");
-    let sound_engine = Box::new(Rc::new(RefCell::new(SoundEngine::new(SOUNDS_PATH, SOUNDBANKS_PATH, config))));
+    let sound_engine = Box::new(Rc::new(RefCell::new(
+        SoundEngine::new(SOUNDS_PATH, SOUNDBANKS_PATH, config))));
     let sound_engine: &'static mut Rc<RefCell<SoundEngine>> = Box::leak(sound_engine);
     sound_engine
 }
