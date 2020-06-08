@@ -68,9 +68,9 @@ checksum = "08c48aae112d48ed9f069b33538ea9e3e90aa263cfa3d1c24309612b1f7472de"
 
 [[package]]
 name = "cc"
-version = "1.0.52"
+version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d87b23d6a92cd03af510a5ade527033f6aa6fa92161e2d5863a907d4c5e31d"
+checksum = "7bbb73db36c1246e9034e307d0fba23f9a2e251faa47ade70c1bd252220c8311"
 
 [[package]]
 name = "cexpr"
@@ -318,18 +318,18 @@ dependencies = [
 
 [[package]]
 name = "lua-src"
-version = "535.0.2+540rc1"
+version = "535.0.4+540rc4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b08b4a5fc181b6c3d291130899b529ed744219c7ba58bbf6440010a296f84c8"
+checksum = "e459bf5b67b0473e319e5ba54c4bb4d72c3cf40095bdd8e1efa9e356cfa7d617"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "luajit-src"
-version = "210.0.0+694d69a"
+version = "210.1.0+resty31116c4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80d84f30aba8908dba49f46e6d2470c7018e5f60418edf3fc91a4f251238b20c"
+checksum = "d02d96d3dc58eea174e1838bb9f093012955db61225f1101a658544448ae4d4f"
 dependencies = [
  "cc",
 ]
@@ -342,9 +342,9 @@ checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
 
 [[package]]
 name = "mlua"
-version = "0.3.2"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cb547f46dffcb8ce35738c836449bf0152f24787cdd9f8bf02c77d05d243d40"
+checksum = "b5e4f6acfacd1b86a4a486c256ccf04058545000e9f429549b9d899a5a4aea58"
 dependencies = [
  "bstr",
  "cc",
