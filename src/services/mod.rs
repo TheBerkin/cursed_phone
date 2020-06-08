@@ -47,6 +47,7 @@ pub struct ServiceModule<'lua> {
     phone_number: Option<String>,
     role: ServiceRole,
     ringback_enabled: bool,
+    required_sound_banks: Vec<String>,
     tbl_module: LuaTable<'lua>,
     func_load: Option<LuaFunction<'lua>>,
     func_unload: Option<LuaFunction<'lua>>,
@@ -67,6 +68,7 @@ impl<'lua> ServiceModule<'lua> {
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
                 let func_tick = table.get("tick").expect("tick() function not found");
+                let mut required_sound_banks: Vec<String> = Default::default();
 
                 // Start state machine
                 table.call_method::<&str, _, ()>("start", ()).expect(format!("Unable to start state machine for {}", name).as_str());
@@ -78,10 +80,22 @@ impl<'lua> ServiceModule<'lua> {
                     if let Err(err) = func_load.call::<LuaTable, ()>(load_args) {
                         return Err(format!("Error while calling service loader: {:#?}", err));
                     }
-                }              
+                }      
+                
+                // Get required sound banks
+                if let Ok(bank_name_table) = table.raw_get::<&'static str, LuaTable>("_required_sound_banks") {
+                    let pairs = bank_name_table.pairs::<String, bool>();
+                    for pair in pairs {
+                        if let Ok((bank_name, required)) = pair {
+                            if !required || bank_name.is_empty() { continue }
+                            required_sound_banks.push(bank_name);
+                        }
+                    }
+                }
 
                 Ok(Self {
                     id: Default::default(),
+                    required_sound_banks,
                     ringback_enabled,
                     tbl_module: table,
                     name,
@@ -93,6 +107,20 @@ impl<'lua> ServiceModule<'lua> {
                 })
             },
             Err(err) => Err(format!("Unable to load service module: {:#?}", err))
+        }
+    }
+
+    fn load_sound_banks(&self, sound_engine: &Rc<RefCell<SoundEngine>>) {
+        let mut sound_engine = sound_engine.borrow_mut();
+        for bank_name in &self.required_sound_banks {
+            sound_engine.add_sound_bank_user(bank_name, SoundBankUser(self.id().unwrap()));
+        }
+    }
+
+    fn unload_sound_banks(&self, sound_engine: &Rc<RefCell<SoundEngine>>) {
+        let mut sound_engine = sound_engine.borrow_mut();
+        for bank_name in &self.required_sound_banks {
+            sound_engine.remove_sound_bank_user(bank_name, SoundBankUser(self.id().unwrap()), true);
         }
     }
 
@@ -379,6 +407,21 @@ impl<'lua> PbxEngine<'lua> {
         None
     }
 
+    fn unload_other_party(&self) {
+        if let Some(service) = self.other_party.borrow().as_ref() {
+            service.transition_state(ServiceState::Idle);
+            service.unload_sound_banks(&self.sound_engine);
+        }
+        self.other_party.replace(None);
+    }
+
+    fn load_other_party(&self, service: Rc<ServiceModule<'lua>>) {
+        service.load_sound_banks(&self.sound_engine);
+        if let Some(prev_service) = self.other_party.replace(Some(service)) {
+            prev_service.unload_sound_banks(&self.sound_engine);
+        }
+    }
+
     fn play_comfort_noise(&self) {
         let sound_engine = self.sound_engine.borrow();
         if sound_engine.channel_busy(Channel::NoiseIn) { return }
@@ -413,11 +456,7 @@ impl<'lua> PbxEngine<'lua> {
         match (prev_state, state) {
             // TODO: Implement all valid PBX state transitions
             (_, Idle) => {
-                // Force other party (if available) to idle state
-                if let Some(service) = self.get_other_party_service() {
-                    service.transition_state(ServiceState::Idle);
-                    self.other_party.replace(None);
-                }
+                self.unload_other_party();
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
                 self.clear_dialed_number();
             },
@@ -425,7 +464,7 @@ impl<'lua> PbxEngine<'lua> {
                 self.sound_engine.borrow().play_dial_tone();
             },
             (_, Busy) => {
-                self.other_party.replace(None);
+                self.unload_other_party();
                 let sound_engine = self.sound_engine.borrow();
                 sound_engine.stop_all_nonsignal();
                 sound_engine.play_busy_tone();
@@ -437,19 +476,18 @@ impl<'lua> PbxEngine<'lua> {
             },
             (_, CallingOut(id)) => {
                 self.clear_dialed_number();
-                let sound_engine = self.sound_engine.borrow();
-                sound_engine.stop(Channel::SignalIn);
+                self.sound_engine.borrow().stop(Channel::SignalIn);
 
                 // Set other_party to requested service
                 let service = self.lookup_service_id(id).unwrap();
-                self.other_party.replace(Some(Rc::clone(&service)));
+                self.load_other_party(Rc::clone(&service));
 
                 // Tell service that we're calling it
                 service.transition_state(ServiceState::IncomingCall);
 
                 // Finally, play the ringback tone (if we're allowed to)
                 if service.ringback_enabled {
-                    sound_engine.play_ringback_tone();
+                    self.sound_engine.borrow().play_ringback_tone();
                 }
             },
             (_, Connected(_)) => {

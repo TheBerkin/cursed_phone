@@ -16,6 +16,7 @@ use std::{thread, time};
 const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
 const SOUNDS_PATH: &str = "./res/sounds";
+const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 
 fn main() -> Result<(), String> {
     let config = Rc::new(config::load_config(CONFIG_PATH));
@@ -52,7 +53,7 @@ fn create_pbx<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngi
 
 fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<SoundEngine>> {
     println!("Loading sound engine... ");
-    let sound_engine = Box::new(Rc::new(RefCell::new(SoundEngine::new(SOUNDS_PATH, config))));
+    let sound_engine = Box::new(Rc::new(RefCell::new(SoundEngine::new(SOUNDS_PATH, SOUNDBANKS_PATH, config))));
     let sound_engine: &'static mut Rc<RefCell<SoundEngine>> = Box::leak(sound_engine);
     sound_engine
 }

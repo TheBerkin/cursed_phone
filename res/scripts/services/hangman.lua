@@ -1,5 +1,6 @@
 local S = SERVICE_MODULE("hangman", "7308432")
 
+S:require_sound_bank("hangman")
 
 function S.load(args)
 end
@@ -13,14 +14,12 @@ S:state(SERVICE_STATE_CALL, {
     end,
     exit = function(self)
         print("Hangman: ending call")
-        sound.unload_bank("hangman")
     end
 })
 
 
 S:state(SERVICE_STATE_CALL_IN, {
     enter = function(self) 
-        sound.load_bank("hangman")
     end,
     tick = function(self)
         service.wait(random_float(4.0, 8.0))
@@ -30,7 +29,6 @@ S:state(SERVICE_STATE_CALL_IN, {
 
 S:state(SERVICE_STATE_CALL_OUT, {
     enter = function(self)
-        sound.load_bank("hangman")
     end,
     tick = function(self)
         service.wait(random_float(4.0, 8.0))

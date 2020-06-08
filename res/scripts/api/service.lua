@@ -173,6 +173,10 @@ local _PhoneServiceModule_MEMBERS = {
     --- @return boolean
     has_messages = function(self)
         return #self._messages > 0
+    end,
+    --- Requires the specified sound bank during calls.
+    require_sound_bank = function(self, bank_name)
+        self._required_sound_banks[bank_name] = true
     end
 }
 
@@ -205,6 +209,7 @@ function SERVICE_MODULE(name, phone_number, role)
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
         _reason = INTERCEPT_NONE,
+        _required_sound_banks = {},
         _is_suspended = false,
         _messages = messages
     }, M_PhoneServiceModule)

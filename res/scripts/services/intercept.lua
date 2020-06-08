@@ -9,7 +9,7 @@ local reason_handlers = {
         sound.play_sit_disconnected()
         sound.wait(CHAN_SIGIN)
         service.wait(0.05)
-        sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
+        sound.play_wait("intercept/intercept_disconnected_04", CHAN_PHONE1)
         sound.play_fast_busy_tone()
         while true do
             service.intent(SERVICE_INTENT_WAIT)

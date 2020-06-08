@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::fs::File;
 use std::io::BufReader;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use enum_iterator::IntoEnumIterator;
 use indexmap::map::IndexMap;
@@ -113,12 +113,13 @@ fn db_to_amp(db: f32) -> f32 {
 }
 
 pub struct SoundEngine {
-    root_path: PathBuf,
+    sounds_root_path: PathBuf,
+    sound_banks_root_path: PathBuf,
     device: rodio::Device,
     channels: RefCell<Vec<SoundChannel>>,
     config: Rc<CursedConfig>,
-    sounds: IndexMap<String, Sound>,
-    sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
+    static_sounds: SoundBank,
+    sound_banks: IndexMap<String, Rc<RefCell<SoundBank>>>,
     master_volume: f32
 }
 
@@ -145,18 +146,123 @@ impl Sound {
     }
 }
 
+#[derive(Hash, Eq, PartialEq, Debug)]
+pub struct SoundBankUser(pub usize);
+
+struct SoundBank {
+    name: String,
+    root_dir: PathBuf,
+    sounds: IndexMap<String, Rc<Sound>>,
+    sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
+    users: HashSet<SoundBankUser>,
+}
+
+impl SoundBank {
+    pub fn from_dir(name: String, root_dir: &Path) -> Self {   
+        
+        let mut bank = Self {
+            name,
+            root_dir: PathBuf::from(root_dir),
+            sounds: Default::default(),
+            sound_glob_cache: Default::default(),
+            users: Default::default()
+        };
+
+        let root_dir = root_dir.canonicalize().expect("Unable to expand soundbank root path");
+        
+        bank.sounds.clear();
+        bank.sound_glob_cache.borrow_mut().clear();
+        let search_path = root_dir.join("**").join("*.{wav,ogg}");
+        let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound bank");
+        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound bank") {
+            if let Ok(path) = entry {
+                let sound_path = path.path().canonicalize().expect("Unable to expand path");
+                let sound_key = sound_path
+                .strip_prefix(&root_dir).expect("Unable to form sound key from path")
+                .with_extension("")
+                .to_string_lossy()
+                .replace("\\", "/");
+                let sound = Sound::from_file(&sound_path);
+                bank.sounds.insert(sound_key, Rc::new(sound));
+            }
+        }
+
+        bank
+    }
+
+    pub fn add_user(&mut self, user: SoundBankUser) -> bool {
+        self.users.insert(user)
+    }
+
+    pub fn remove_user(&mut self, user: &SoundBankUser) -> bool {
+        self.users.remove(user)
+    }
+
+    pub fn has_user(&self, user: &SoundBankUser) -> bool {
+        self.users.contains(user)
+    }
+
+    pub fn user_count(&self) -> usize {
+        self.users.len()
+    }
+
+    pub fn find_sound(&self, key: &str) -> Option<Rc<Sound>> {
+        // Check for exact match
+        let sound = self.sounds.get(key);
+        match sound {
+            // If it exists, just return it right away
+            Some(sound) => return Some(Rc::clone(sound)),
+            // If not, try a glob match
+            None => {
+                // First, check if there's a glob match list pre-cached
+                let mut glob_cache = self.sound_glob_cache.borrow_mut();
+                let glob_list = glob_cache.get(key);
+                if let Some(glob_list) = glob_list {
+                    let index = rand::thread_rng().gen_range(0, glob_list.len());
+                    return Some(Rc::clone(&self.sounds.get_index(glob_list[index]).unwrap().1));
+                }
+                // If not, run the search manually and cache the results
+                let glob = globset::GlobBuilder::new(key).literal_separator(true).build();
+                if let Ok(glob) = glob {
+                    let matcher = glob.compile_matcher();
+                    let mut glob_list = Vec::<usize>::new();
+                    let sound_iter = self.sounds.iter();
+                    for (k, _) in sound_iter {
+                        if matcher.is_match(k) {
+                            glob_list.push(self.sounds.get_full(k).unwrap().0);
+                        }
+                    }                    
+                    // Cache and pick only if there were results
+                    if glob_list.len() > 0 {
+                        let index = rand::thread_rng().gen_range(0, glob_list.len());
+                        let sound = Some(self.sounds.get_index(glob_list[index]).unwrap().1);
+                        glob_cache.insert(key.to_string(), glob_list);
+                        return Some(Rc::clone(sound.unwrap()));
+                    }
+                }
+                return None;
+            }
+        }
+    }
+}
+
 impl SoundEngine {
-    pub fn new(root_path: impl Into<String>, config: &Rc<CursedConfig>) -> Self {
+    pub fn new(sounds_root_path: &str, sound_banks_root_path: &str, config: &Rc<CursedConfig>) -> Self {
         // Load output device
-        let device = rodio::default_output_device().expect("No default output device found!");        
+        let device = rodio::default_output_device().expect("No audio output device found!");        
         let channels = RefCell::from(Vec::<SoundChannel>::new());
         let config = Rc::clone(config);
         let master_volume = config.sound.master_volume;
+        let sounds_root_path = Path::new(sounds_root_path);
+
+        println!("Loading static sound resources...");
+        let static_sounds = SoundBank::from_dir("[static]".to_owned(),sounds_root_path);
 
         let mut engine = Self {
-            root_path: Path::new(root_path.into().as_str()).canonicalize().unwrap(),
-            sounds: IndexMap::new(),
-            sound_glob_cache: Default::default(),
+            sounds_root_path: sounds_root_path.canonicalize().expect("Unable to expand static sound root path"),
+            sound_banks_root_path: Path::new(sound_banks_root_path).canonicalize().expect("Unable to expand soundbank root path"),
+            sound_banks: Default::default(),
+            static_sounds,
             device,
             channels,
             config,
@@ -169,30 +275,9 @@ impl SoundEngine {
             engine.channels.borrow_mut().push(channel);
         }
 
-        engine.load_sounds();
         engine.set_master_volume(master_volume);
 
         engine
-    }
-
-    fn load_sounds(&mut self) {
-        println!("Loading static sound assets...");
-        self.sounds.clear();
-        self.sound_glob_cache.borrow_mut().clear();
-        let search_path = self.root_path.join("**").join("*.{wav,ogg}");
-        let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound resources");
-        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound resources") {
-            if let Ok(path) = entry {   
-                let sound_path = path.path().canonicalize().expect("Unable to expand path");
-                let sound_key = sound_path
-                .strip_prefix(self.root_path.as_path()).expect("Unable to form sound key from path")
-                .with_extension("")
-                .to_string_lossy()
-                .replace("\\", "/");
-                let sound = Sound::from_file(&sound_path);
-                self.sounds.insert(sound_key, sound);
-            }
-        }
     }
 }
 
@@ -230,43 +315,60 @@ impl SoundEngine {
         ch.sink.sleep_until_end();
     }
 
-    fn find_sound(&self, key: &str) -> Option<&Sound> {
-        // Check for exact match
-        let sound = self.sounds.get(key);
-        match sound {
-            // If it exists, just return it right away
-            Some(_) => return sound,
-            // If not, try a glob match
-            None => {
-                // First, check if there's a glob match list pre-cached
-                let mut glob_cache = self.sound_glob_cache.borrow_mut();
-                let glob_list = glob_cache.get(key);
-                if let Some(glob_list) = glob_list {
-                    let index = rand::thread_rng().gen_range(0, glob_list.len());
-                    return Some(&self.sounds.get_index(glob_list[index]).unwrap().1);
+    fn get_sound_bank(&self, name: &str) -> Option<Rc<RefCell<SoundBank>>> {
+        if let Some(bank) = self.sound_banks.get(name) {
+            return Some(Rc::clone(bank));
+        }
+        None
+    }
+
+    pub fn add_sound_bank_user(&mut self, name: &str, user: SoundBankUser) -> bool {
+        if let Some(bank) = self.get_sound_bank(name) {
+            return bank.borrow_mut().add_user(user);
+        }
+
+        println!("Loading sound bank: '{}'", name);
+        let bank_path = self.sound_banks_root_path.join(name);
+        let bank_path = bank_path.as_path();
+        let mut bank = SoundBank::from_dir(name.to_owned(), bank_path);
+        bank.add_user(user);
+
+        self.sound_banks.insert(name.to_owned(), Rc::new(RefCell::new(bank)));
+        true
+    }
+
+    pub fn sound_bank_used_by(&self, name: &str, user: &SoundBankUser) -> bool {
+        if let Some(bank) = self.get_sound_bank(name) {
+            return bank.borrow().has_user(&user);
+        }
+        false
+    }
+
+    pub fn remove_sound_bank_user(&mut self, name: &str, user: SoundBankUser, unload_if_userless: bool) -> bool {
+        if let Some(bank) = self.get_sound_bank(name) {
+            let removed = bank.borrow_mut().remove_user(&user);
+            if unload_if_userless && bank.borrow().user_count() == 0 {
+                println!("Unloading sound bank: '{}'", name);
+                self.sound_banks.remove(name);
+            }
+            return removed;
+        }
+        false
+    }
+
+    fn find_sound(&self, key: &str) -> Option<Rc<Sound>> {
+        // See if it's a soundbank sound
+        if key.starts_with("$") {
+            if let Some(separator_index) = key.find('/') {
+                let soundbank_name = &key[1..separator_index];
+                if let Some(bank) = self.get_sound_bank(soundbank_name) {
+                    let key = &key[separator_index + 1 ..];
+                    return bank.borrow().find_sound(key)
                 }
-                // If not, run the search manually and cache the results
-                let glob = globset::GlobBuilder::new(key).literal_separator(true).build();
-                if let Ok(glob) = glob {
-                    let matcher = glob.compile_matcher();
-                    let mut glob_list = Vec::<usize>::new();
-                    let sound_iter = self.sounds.iter();
-                    for (k, _) in sound_iter {
-                        if matcher.is_match(k) {
-                            glob_list.push(self.sounds.get_full(k).unwrap().0);
-                        }
-                    }                    
-                    // Cache and pick only if there were results
-                    if glob_list.len() > 0 {
-                        let index = rand::thread_rng().gen_range(0, glob_list.len());
-                        let snd = Some(self.sounds.get_index(glob_list[index]).unwrap().1);
-                        glob_cache.insert(key.to_string(), glob_list);
-                        return snd;
-                    }
-                }
-                return None;
             }
         }
+        // Find as static sound
+        self.static_sounds.find_sound(key)
     }
 
     pub fn stop_all(&self) {
@@ -416,7 +518,7 @@ impl SoundChannel {
         self.sink.stop();
     }
 
-    fn queue(&self, snd: &Sound, looping: bool, speed: f32, volume: f32) {
+    fn queue(&self, snd: Rc<Sound>, looping: bool, speed: f32, volume: f32) {
         let src = snd.src.clone().amplify(volume);
         let speed_mod = speed != 1.0;
         if looping {
