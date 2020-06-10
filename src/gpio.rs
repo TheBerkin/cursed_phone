@@ -170,7 +170,7 @@ impl GpioInterface {
         let (in_dial_switch, in_dial_pulse) = match phone_type {
             Rotary => {
                 let pin_dial_pulse = inputs.pin_dial_pulse.expect("gpio.inputs.pin-dial-pulse is required for this phone type, but was not defined");
-                let pin_dial_switch = inputs.pin_dial_pulse.expect("gpio.inputs.pin-dial-switch is required for this phone type, but was not defined");
+                let pin_dial_switch = inputs.pin_dial_switch.expect("gpio.inputs.pin-dial-switch is required for this phone type, but was not defined");
                 let in_dial_pulse = gen_required_soft_input(&gpio, pin_dial_pulse, inputs.pin_dial_pulse_bounce_ms);
                 let in_dial_switch = gen_required_soft_input(&gpio, pin_dial_switch, inputs.pin_dial_switch_bounce_ms);
                 (Some(in_dial_switch), Some(in_dial_pulse))
