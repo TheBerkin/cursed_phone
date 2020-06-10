@@ -3,6 +3,7 @@
 
 use std::sync::{mpsc, Mutex, Arc};
 use std::time::{Instant, Duration};
+use std::rc::Rc;
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
@@ -119,8 +120,8 @@ pub struct GpioInterface {
     out_ringer: Option<OutputPin>,
     /// Pin for vibration motor output.
     out_vibe: Option<OutputPin>,
-    /// Copy of GPIO pin config used to initialize pins.
-    config: GpioConfig
+    /// Copy of config used to initialize pins.
+    config: Rc<CursedConfig>
 }
 
 fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, debounce: Option<u64>) -> Option<SoftInputPin> {
@@ -153,7 +154,7 @@ fn gen_required_output(gpio: &Gpio, pin: u8) -> OutputPin {
 }
 
 impl GpioInterface {
-    pub fn new(phone_type: PhoneType, config: &CursedConfig) -> GpioInterface {
+    pub fn new(phone_type: PhoneType, config: &Rc<CursedConfig>) -> GpioInterface {
         use PhoneType::*;
         let gpio = Gpio::new().expect("Unable to initialize GPIO interface");
         let inputs = &config.gpio.inputs;
@@ -216,7 +217,7 @@ impl GpioInterface {
             out_keypad_cols,
             out_ringer,
             out_vibe,
-            config: config.gpio
+            config: Rc::clone(config)
         }
     }
 }

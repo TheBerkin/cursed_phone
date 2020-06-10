@@ -70,7 +70,7 @@ pub struct PhoneEngine {
 impl PhoneEngine {
     /// Constructor for Phone on Raspberry Pi platforms.
     #[cfg(feature = "rpi")]
-    pub fn new(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
+    pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
         let mut gpio = GpioInterface::new(phone_type, &config);
@@ -92,7 +92,7 @@ impl PhoneEngine {
 
     /// Constructor for Phone on non-Pi platforms.
     #[cfg(not(feature = "rpi"))]
-    pub fn new(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
+    pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
         // We won't use the JoinHandle here since it's frankly pretty useless in this case

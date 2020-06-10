@@ -66,7 +66,7 @@ fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<Sou
     sound_engine
 }
 
-fn create_phone(config: &CursedConfig, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PhoneEngine {
+fn create_phone(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PhoneEngine {
     println!("Loading phone engine... ");
     let phone_engine = Box::new(PhoneEngine::new(config, sound_engine));
     let phone_engine: &'static mut PhoneEngine = Box::leak(phone_engine);
