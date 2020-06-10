@@ -58,9 +58,9 @@ pub struct PhoneEngine {
     input_from_gpio: mpsc::Receiver<PhoneInputSignal>,
     output_to_pbx: RefCell<Option<Rc<mpsc::Sender<PhoneInputSignal>>>>,
     input_from_pbx: RefCell<Option<Rc<mpsc::Receiver<PhoneOutputSignal>>>>,
-    hook_state: bool,
     dial_rest_state: bool,
     dial_pulse_state: bool,
+    hook_state: bool,
     ring_state: bool,
     vibe_state: bool,
     #[cfg(feature = "rpi")]
@@ -78,14 +78,14 @@ impl PhoneEngine {
         Self {
             phone_type,
             sound_engine,
-            listener,
-            on_hook: true,
-            dial_resting: true,
-            dial_pulse: false,
+            input_from_gpio: listener,
+            dial_rest_state: true,
+            dial_pulse_state: false,
+            hook_state: true,
             ring_state: false,
             vibe_state: false,
-            pdd: config.pdd,
-            off_hook_delay: config.off_hook_delay,
+            output_to_pbx: Default::default(),
+            input_from_pbx: Default::default(),
             gpio
         }
     }
@@ -108,9 +108,9 @@ impl PhoneEngine {
             phone_type,
             sound_engine,
             input_from_gpio: listener,
-            hook_state: true,
             dial_rest_state: true,
             dial_pulse_state: false,
+            hook_state: true,
             ring_state: false,
             vibe_state: false,
             output_to_pbx: Default::default(),
