@@ -19,6 +19,13 @@ S:state(SERVICE_STATE_CALL_IN, {
     end
 })
 
+S:state(SERVICE_STATE_CALL_OUT, {
+    enter = function(self)
+        service.wait(rand_float(30.0, 40.0))
+        service.end_call()
+    end
+})
+
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)
         sound.play("handset/pickup*", CHAN_PHONE2)

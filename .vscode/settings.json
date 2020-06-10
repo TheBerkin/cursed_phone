@@ -23,5 +23,6 @@
         "**/res/scripts/**/*.lua",
         "**/src/**/*.rs"
     ],
-    "todo-tree.regex.regex": "(?:(?://|#|--|/\\*\\*?|\\*)\\s*($TAGS)|^\\s*- \\[ \\])"
+    "todo-tree.regex.regex": "(?:(?://|#|--|/\\*\\*?|\\*)\\s*($TAGS)|^\\s*- \\[ \\])",
+    "rust-client.engine": "rust-analyzer"
 }

@@ -128,7 +128,7 @@ fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, d
     if enable.unwrap_or(false) {
         if let Some(pin) = pin {
             let input = gpio.get(pin).unwrap()
-                .into_input_pulldown()
+                .into_input_pullup()
                 .debounce(Duration::from_millis(debounce.unwrap_or(0)));
             return Some(input);
         }
@@ -137,7 +137,7 @@ fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, d
 }
 
 fn gen_required_soft_input(gpio: &Gpio, pin: u8, debounce: Option<u64>) -> SoftInputPin {
-    gpio.get(pin).unwrap().into_input_pulldown().debounce(Duration::from_millis(debounce.unwrap_or(0)))
+    gpio.get(pin).unwrap().into_input_pullup().debounce(Duration::from_millis(debounce.unwrap_or(0)))
 }
 
 fn gen_optional_output(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>) -> Option<OutputPin> {
@@ -161,12 +161,10 @@ impl GpioInterface {
         let outputs = &config.gpio.outputs;
 
         // Register standard GPIO pins
-        let in_hook = gpio.get(inputs.pin_hook).unwrap()
-            .into_input_pulldown()
-            .debounce(Duration::from_millis(inputs.pin_hook_bounce_ms.unwrap_or(0)));
+        let in_hook = gen_required_soft_input(gpio, inputs.pin_hook, inputs.pin_hook_bounce_ms);
         let in_motion = gen_optional_soft_input(&gpio, config.enable_motion_sensor, inputs.pin_motion, inputs.pin_motion_bounce_ms);
-        let out_ringer = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer);
-        let out_vibe = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate);
+        let out_ringer = gen_optional_output(gpio, config.enable_ringer, outputs.pin_ringer);
+        let out_vibe = gen_optional_output(gpio, config.enable_vibration, outputs.pin_vibrate);
 
         // Register pulse-dialing pins
         let (in_dial_switch, in_dial_pulse) = match phone_type {

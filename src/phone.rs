@@ -99,8 +99,8 @@ impl PhoneEngine {
         let (_, listener) = PhoneEngine::create_mock_input_thread();
 
         println!("Mock input is enabled. To send inputs, type a sequence of the following characters and press Enter:");
-        println!("  - i: On-hook signal");
-        println!("  - o: Off-hook signal");
+        println!("  - i: Off-hook signal");
+        println!("  - o: On-hook signal");
         println!("  - m: Motion signal");
         println!("  - 0-9, A-D, #, *: Dial digit");
 
