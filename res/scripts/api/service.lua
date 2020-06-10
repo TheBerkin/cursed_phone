@@ -174,6 +174,16 @@ local _PhoneServiceModule_MEMBERS = {
     has_messages = function(self)
         return #self._messages > 0
     end,
+    --- Removes the oldest message from the queue and returns it.
+    --- If the message queue is empty, the function returns nil.
+    --- @return table|nil
+    pop_message = function(self)
+        local messages = self._messages
+        local msgc = #messages
+        if msgc == 0 then return nil end
+        local msg = table.remove(messages, 1)
+        return msg
+    end,
     --- Requires the specified sound bank during calls.
     require_sound_bank = function(self, bank_name)
         self._required_sound_banks[bank_name] = true
@@ -326,17 +336,14 @@ end
 
 --- @param s PhoneServiceModule
 --- @return thread
-local function gen_msg_handler_coroutine(s)
+local function gen_msg_handler_coroutine(s, msg)
     local state_table = s._state_func_tables[s._state]
     local handler = state_table and state_table.message
     if not handler then return nil end
 
     local msg_coroutine = coroutine.create(function()
-        local messages = s._messages
-        for _,msg in ipairs(messages) do
-            handler(s, msg.sender, msg.type, msg.data)
-        end
-        table.clear(messages)
+        handler(s, msg.sender, msg.type, msg.data)
+        s._message_coroutine = nil
     end)
 
     return msg_coroutine
@@ -366,11 +373,6 @@ function tick_service_state(s, data_code, data)
     -- Message handling takes priority over state ticks
     local active_coroutine = message_coroutine or state_coroutine
 
-    -- Clear out any dead message handling coroutine
-    if message_coroutine and coroutine.status(message_coroutine) == 'dead' then
-        s._message_coroutine = nil
-    end
-
     -- If no state is active, there's no need to tick anything
     if active_coroutine == nil then
         return SERVICE_INTENT_IDLE, nil
@@ -383,7 +385,9 @@ function tick_service_state(s, data_code, data)
 
     -- Handle messages
     if message_coroutine == nil and s:has_messages() then
-        message_coroutine = gen_msg_handler_coroutine(s)
+        local msg = s:pop_message()
+        message_coroutine = gen_msg_handler_coroutine(s, msg)
+        s._message_coroutine = message_coroutine
         active_coroutine = message_coroutine
     end
 

@@ -19,11 +19,15 @@ impl<'lua> PbxEngine<'lua> {
     
         // sleep()
         globals.set("sleep", lua.create_function(PbxEngine::lua_sleep).unwrap());
-        // random_int()
-        globals.set("random_int", lua.create_function(PbxEngine::lua_random_int).unwrap());
-        // random_float()
-        globals.set("random_float", lua.create_function(PbxEngine::lua_random_float).unwrap());
-    
+        // rand_int(min, max)
+        globals.set("rand_int", lua.create_function(PbxEngine::lua_rand_int).unwrap());
+        // rand_int_skip(min, skip, max)
+        globals.set("rand_int_skip", lua.create_function(PbxEngine::lua_rand_int_skip).unwrap());
+        // rand_float(min, max)
+        globals.set("rand_float", lua.create_function(PbxEngine::lua_rand_float).unwrap());
+        // chance(p)
+        globals.set("chance", lua.create_function(PbxEngine::lua_chance).unwrap());
+
         // get_run_time()
         globals.set("get_run_time", lua.create_function(move |_, ()| {
             let run_time = self.start_time.elapsed().as_secs_f64();
@@ -157,17 +161,43 @@ impl<'lua> PbxEngine<'lua> {
         Ok(())
     }
 
-    fn lua_random_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+    fn lua_rand_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
         if min >= max {
             return Ok(min);
         }
         Ok(rand::thread_rng().gen_range(min, max))
     }
 
-    fn lua_random_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
+    fn lua_rand_int_skip(_: &Lua, (min, skip, max): (i32, i32, i32)) -> LuaResult<i32> {
+        if min >= max {
+            return Ok(min);
+        }
+        if skip < min || skip > max {
+            Ok(rand::thread_rng().gen_range(min, max))
+        } else {
+            let range_size: i64 = (max as i64) - (min as i64);
+            if range_size > 1 {
+                let range_select = rand::thread_rng().gen_range(1, range_size) % range_size;
+                let output = min as i64 + range_select;
+                Ok(output as i32)
+            } else {
+                Ok(rand::thread_rng().gen_range(min, max))
+            }
+        }
+    }
+
+    fn lua_rand_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
         if min >= max {
             return Ok(min);
         }
         Ok(rand::thread_rng().gen_range(min, max))
+    }
+
+    fn lua_chance(_: &Lua, p: f64) -> LuaResult<bool> {
+        match p {
+            p if {p < 0.0 || p.is_nan()} => Ok(false),
+            p if {p > 1.0} => Ok(true),
+            p => Ok(rand::thread_rng().gen_bool(p))
+        }
     }
 }

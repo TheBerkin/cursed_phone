@@ -33,10 +33,10 @@ type ServiceId = usize;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PbxState {
     Idle,
+    IdleRinging(ServiceId),
     DialTone,
     PDD,
     CallingOut(ServiceId),
-    CallingHost(ServiceId),
     Connected(ServiceId),
     Busy
 }
@@ -261,6 +261,13 @@ impl<'lua> PbxEngine<'lua> {
         self.phone_input.replace(Some(input_from_phone));
     }
 
+    fn send_output(&self, signal: PhoneOutputSignal) -> bool {
+        if let Some(tx) = self.phone_output.borrow().as_ref() {
+            tx.send(signal).is_ok();
+        }
+        false
+    }
+
     fn lookup_service_id(&self, id: ServiceId) -> Orc<ServiceModule> {
         self.services.borrow().get_index(id).map(|result| Rc::clone(result.1))
     }
@@ -461,9 +468,20 @@ impl<'lua> PbxEngine<'lua> {
         let last_state_start = self.state_start.replace(state_start);
         let state_time = state_start.saturating_duration_since(last_state_start);
 
-        // Play comfort noise when phone is off the hook
-        if prev_state == Idle {
-            self.play_comfort_noise()
+        // Run behavior for state we're leaving
+        match prev_state {
+            PbxState::IdleRinging(_) => {
+                self.send_output(PhoneOutputSignal::Ring(false));
+            },
+            _ => {}
+        }
+
+        // Run behavior for new state
+        match state {
+            Idle | IdleRinging(_) => {},
+            _ => {
+                self.play_comfort_noise();
+            }
         }
 
         // Run behavior for state transition
@@ -473,6 +491,9 @@ impl<'lua> PbxEngine<'lua> {
                 self.unload_other_party();
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
                 self.clear_dialed_number();
+            },
+            (_, IdleRinging(id)) => {
+                self.send_output(PhoneOutputSignal::Ring(true));
             },
             (_, DialTone) => {
                 self.sound_engine.borrow().play_dial_tone();
@@ -506,8 +527,13 @@ impl<'lua> PbxEngine<'lua> {
             },
             (_, Connected(_)) => {
                 self.clear_dialed_number();
+                // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
                 sound_engine.stop(Channel::SignalIn);
+                // Transition connecting service to call state
+                if let Some(service) = self.other_party.borrow().as_ref() {
+                    service.transition_state(ServiceState::Call);
+                }
             }
             _ => {}
         }
@@ -548,16 +574,29 @@ impl<'lua> PbxEngine<'lua> {
                 // TODO: Move switchhook dialing to PBX?
                 match signal {
                     HookState(true) => {
-                        if state != Idle {
-                            println!("PBX: Interrupted.");
-                            self.set_state(PbxState::Idle);
+                        match state {
+                            Idle | IdleRinging(_) => {}
+                            _ => {
+                                println!("PBX: Host on-hook.");
+                                self.set_state(PbxState::Idle);
+                            }
                         }
                     },
                     HookState(false) => {
-                        // Only process this signal if the line is inactive
-                        if state == Idle {
-                            println!("PBX: Connected.");
-                            self.set_state(PbxState::DialTone);
+                        // Only process this signal if the line is inactive or ringing
+                        match state {
+                            // Picking up idle phone
+                            Idle => {
+                                println!("PBX: Host off-hook.");
+                                self.set_state(PbxState::DialTone);
+                            },
+                            // Answering a call
+                            IdleRinging(id) => {
+                                println!("PBX: Host off-hook, connecting call.");
+                                // Connect the call
+                                self.set_state(PbxState::Connected(id));
+                            },
+                            _ => {}
                         }
                     },
                     Motion => {
@@ -608,25 +647,51 @@ impl<'lua> PbxEngine<'lua> {
             let mut intent = service.tick(ServiceData::None);
             loop {
                 match intent {
+                    // Service requests a digit from the user
                     Ok(ReadDigit) => {
                         if let Some(digit) = self.consume_dialed_digit() {
                             intent = service.tick(ServiceData::Digit(digit));
                             continue;
                         }
-                    }
+                    },
+                    // Service wants to call the user
+                    Ok(CallUser) => {
+                        // First, check that there's nobody on the line and the user's on-hook
+                        if self.state() == PbxState::Idle && self.other_party.borrow().is_none() {
+                            let id = service.id().unwrap();
+                            service.transition_state(ServiceState::OutgoingCall);
+                            self.load_other_party(Rc::clone(service));
+                            self.set_state(PbxState::IdleRinging(id));
+                        } else {
+                            // Tell the service they're busy
+                            intent = service.tick(ServiceData::LineBusy);
+                            continue;
+                        }
+                    },
+                    // Service wants to accept incoming call
                     Ok(AcceptCall) => {
                         let id = service.id().unwrap();
-                        if state == CallingOut(id) {
-                            service.transition_state(ServiceState::Call);
+                        if state == CallingOut(id) {                            
                             self.set_state(Connected(id));
                         }
                     },
+                    // Service wants to end current call
                     Ok(EndCall) => {
                         let id = service.id().unwrap();
-                        if state == Connected(id) {
-                            service.transition_state(ServiceState::Idle);
+                        match state {
+                            // Transition to idle (hangs up at end of CALL state)
+                            Connected(id) => {
+                                service.transition_state(ServiceState::Idle);
+                            },
+                            // Caller has given up, disconnect immediately
+                            IdleRinging(id) => {
+                                service.transition_state(ServiceState::Idle);
+                                self.set_state(PbxState::Idle);
+                            },
+                            _ => {}
                         }
                     }
+                    // Service has just exited CALL state
                     Ok(StateEnded(ServiceState::Call)) => {
                         // Don't affect PBX state if the call is already ended
                         match state {

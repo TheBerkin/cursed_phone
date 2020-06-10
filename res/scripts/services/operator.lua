@@ -19,7 +19,7 @@ S:state(SERVICE_STATE_CALL, {
 
 S:state(SERVICE_STATE_CALL_IN, {
     tick = function(self)
-        service.wait(random_float(1.0, 5.0))
+        service.wait(rand_float(1.0, 3.0))
         service.accept_call()
     end
 })

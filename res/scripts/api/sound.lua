@@ -204,6 +204,18 @@ end
 --- Keeps waiting even if `duration` lasts longer than the sound.
 function sound.wait_min(channel, duration)
     local start_time = get_run_time();
+    while sound.is_busy(channel) or get_run_time() - start_time < duration do
+        service.intent(SERVICE_INTENT_WAIT)
+    end
+end
+
+--- *(Service use only)*
+---
+--- Waits at most `duration` seconds for the specified sound channel to finish playing.
+---
+--- If the sound stops within `duration`, the wait is canceled.
+function sound.wait_max(channel, duration)
+    local start_time = get_run_time();
     while sound.is_busy(channel) and get_run_time() - start_time < duration do
         service.intent(SERVICE_INTENT_WAIT)
     end

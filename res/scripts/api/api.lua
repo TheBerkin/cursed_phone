@@ -32,13 +32,26 @@ NATIVE_API(function()
     --- @param min integer
     --- @param max integer
     --- @type function
-    function random_int(min, max) end
+    function rand_int(min, max) end
+
+    --- Generates a random number between an inclusive minimum and exclusive maximum,
+    --- but avoids the `skip` value within the range.
+    --- @param min integer
+    --- @param skip integer
+    --- @param max integer
+    --- @type function
+    function rand_int_skip(min, skip, max) end
 
     --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
     --- @param min number
     --- @param max number
     --- @type function
-    function random_float(min, max) end
+    function rand_float(min, max) end
+
+    --- Returns a boolean value with probability `p` of being true, where `0.0 <= p <= 1.0`.
+    --- @param p number
+    --- @return boolean
+    function chance(p) end
 end)
 
 --- Removes all keys from table `t`.
@@ -51,7 +64,7 @@ end
 
 --- Returns a random element from `t`.
 function table.random_choice(t)
-    return t[random_int(1, #t + 1)]
+    return t[rand_int(1, #t + 1)]
 end
 
 function is_number(val)

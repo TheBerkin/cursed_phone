@@ -191,6 +191,11 @@ impl PhoneEngine {
                 match signal {
                     Ring(on) => {
                         println!("Ringing = {}", on);
+                        if on {
+                            self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, false, true, true, 1.0, 0.25);
+                        } else {
+                            self.sound_engine.borrow().stop(Channel::SignalOut)
+                        }
                         // TODO: Pass ringing to GPIO
                     },
                     Vibrate { on, duty_cycle, time_seconds } => {
