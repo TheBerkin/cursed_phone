@@ -159,6 +159,7 @@ dependencies = [
  "globset",
  "globwalk",
  "indexmap",
+ "log",
  "mlua",
  "rand",
  "ref-portals",

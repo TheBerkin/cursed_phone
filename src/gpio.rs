@@ -161,10 +161,10 @@ impl GpioInterface {
         let outputs = &config.gpio.outputs;
 
         // Register standard GPIO pins
-        let in_hook = gen_required_soft_input(gpio, inputs.pin_hook, inputs.pin_hook_bounce_ms);
+        let in_hook = gen_required_soft_input(&gpio, inputs.pin_hook, inputs.pin_hook_bounce_ms);
         let in_motion = gen_optional_soft_input(&gpio, config.enable_motion_sensor, inputs.pin_motion, inputs.pin_motion_bounce_ms);
-        let out_ringer = gen_optional_output(gpio, config.enable_ringer, outputs.pin_ringer);
-        let out_vibe = gen_optional_output(gpio, config.enable_vibration, outputs.pin_vibrate);
+        let out_ringer = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer);
+        let out_vibe = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate);
 
         // Register pulse-dialing pins
         let (in_dial_switch, in_dial_pulse) = match phone_type {
