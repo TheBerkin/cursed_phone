@@ -13,7 +13,7 @@ local msg_handlers = {
     end,
     ["mark_talk"] = function(self, msg_data)
         -- Mark says something
-        service.wait(rand_float(1.75, 3.0))
+        service.wait(rand_float(1.75, 2.5))
         if not sound.is_busy(CHAN_SOUL1) then
             sound.play("denise/reactions/mark_plead/*", CHAN_SOUL1, { interrupt = false })
         end

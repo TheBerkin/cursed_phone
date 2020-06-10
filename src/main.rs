@@ -12,6 +12,7 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
+use thread_priority::*;
 
 const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
@@ -19,6 +20,12 @@ const SOUNDS_PATH: &str = "./res/sounds";
 const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 
 fn main() -> Result<(), String> {
+    // Set thread priority
+    if let Err(err) = set_current_thread_priority(ThreadPriority::Max) {
+        println!("WARN: Failed to raise thread priority: {:?}", err);
+    }
+
+    // Load engine
     let config = Rc::new(config::load_config(CONFIG_PATH));
     println!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
