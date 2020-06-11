@@ -179,12 +179,10 @@ impl PhoneEngine {
                         1.0, 
                         1.0);
                 },
-                Motion => {
-                    println!("Detected motion!");
-                },
                 Digit(digit) => {
                     self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
-                }
+                },
+                _ => {}
             }
 
             self.send_to_pbx(signal);

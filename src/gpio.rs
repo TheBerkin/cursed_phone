@@ -28,23 +28,38 @@ trait Debounced {
 
 /// Simple wrapper around `rppal::gpio::pin::InputPin` to add debouncing.
 struct SoftInputPin {
-    pin: InputPin,
-    bounce_time: Arc<Mutex<Duration>>,
-    last_changed: Arc<Mutex<Instant>>,
-    last_state: Arc<Mutex<bool>>
+    pin: Arc<Mutex<InputPin>>,
+    state: Arc<Mutex<SoftInputState>>
+}
+
+struct SoftInputState {
+    bounce_time: Duration,
+    last_changed: Instant,
+    last_value: bool
+}
+
+impl SoftInputState {
+    fn change_last_value(&mut self, new_value: bool) {
+        self.last_changed = Instant::now();
+        self.last_value = new_value;
+    }
 }
 
 impl SoftInputPin {
     fn new(mut pin: InputPin, bounce_time: Duration) -> Self {
-        let last_changed = Arc::new(Mutex::new(Instant::now()));
-        let bounce_time = Arc::new(Mutex::new(bounce_time));
-        let last_state = Arc::new(Mutex::new(pin.is_high()));
         pin.set_interrupt(Trigger::Both).unwrap();
-        Self {
-            pin,
-            bounce_time,
+        let last_changed = Instant::now();
+        let last_value = pin.is_high();
+
+        let state = SoftInputState {
             last_changed,
-            last_state
+            bounce_time,
+            last_value
+        };
+
+        Self {
+            pin: Arc::new(Mutex::new(pin)),
+            state: Arc::new(Mutex::new(state))
         }
     }
 }
@@ -58,32 +73,37 @@ impl Debounce<SoftInputPin> for InputPin {
 impl Debounced for SoftInputPin {
     fn on_changed<C>(&mut self, mut callback: C) -> Result<()> 
     where C: FnMut(bool) + Send + 'static {
-        let last_changed = self.last_changed.clone();
-        let bounce_time = self.bounce_time.clone();
-        let last_state = self.last_state.clone();
-        self.pin.set_async_interrupt(Trigger::Both, move |level| {
-            let new_state = level == Level::High;
-            let bounce_time = bounce_time.lock().unwrap();
-            let mut last_changed = last_changed.lock().unwrap();
-            let mut last_state = last_state.lock().unwrap();
-            if last_changed.elapsed() > *bounce_time && new_state != *last_state {
-                *last_changed = Instant::now();
-                *last_state = new_state;
-                callback(new_state);
+        let state = Arc::clone(&self.state);
+        let pin = Arc::clone(&self.pin);
+        self.pin.lock().unwrap().set_async_interrupt(Trigger::Both, move |level| {
+            let mut new_value = level == Level::High;
+            let mut state = state.lock().unwrap();
+            let pin = pin.lock().unwrap();
+            // If the bounce time has passed, raise the event
+            let elapsed = state.last_changed.elapsed();
+            if elapsed > state.bounce_time && new_value != state.last_value {
+                state.change_last_value(new_value);
+                callback(new_value);
+            } else if let Some(delay) = state.bounce_time.checked_sub(elapsed) { 
+                // If the bounce time hasn't passed, wait until it has and read the pin again
+                thread::sleep(delay);
+                new_value = pin.is_high();
+                if new_value != state.last_value {
+                    state.change_last_value(new_value);
+                    callback(new_value);
+                }
             }
         })
     }
 
     fn is_high(&self) -> bool {
-        let mut last_changed = self.last_changed.lock().unwrap();
-        let mut last_state = self.last_state.lock().unwrap();
-        let bounce_time = self.bounce_time.lock().unwrap();
-        if last_changed.elapsed() < *bounce_time {
-            return *last_state;
+        let mut state = self.state.lock().unwrap();
+        if state.last_changed.elapsed() < state.bounce_time {
+            return state.last_value;
         }
-        let new_state = self.pin.is_high();
-        *last_state = new_state;
-        *last_changed = Instant::now();
+        let new_state = self.pin.lock().unwrap().is_high();
+        state.last_value = new_state;
+        state.last_changed = Instant::now();
         new_state
     }
 
@@ -93,8 +113,8 @@ impl Debounced for SoftInputPin {
     }
 
     fn set_bounce_time(&mut self, time: Duration) {
-        let mut bounce_time = self.bounce_time.lock().unwrap();
-        *bounce_time = time;
+        let mut state = self.state.lock().unwrap();
+        state.bounce_time = time;
     }
 }
 
@@ -252,7 +272,7 @@ impl GpioInterface {
             let ringer_thread = thread::spawn(move || {
                 const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
                 const RINGER_FREQ: f64 = 20.0;
-                let ring_cycle = Duration::from_secs_f64(RINGER_FREQ.recip());
+                const RINGER_DUTY_CYCLE: f64 = 0.5;
                 let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
                 let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
 
