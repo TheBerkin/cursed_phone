@@ -90,26 +90,29 @@ pub struct GpioConfig {
 #[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
 pub struct GpioInputsConfig {
-    /// BCM pin number of switch hook input.
-    pub pin_hook: u8,
-    /// Bounce time (ms) of switch hook input.
-    pub pin_hook_bounce_ms: Option<ms>,
-    /// BCM pin number of dial pulse input.
-    pub pin_dial_pulse: Option<u8>,
-    /// Bounce time (ms) of dial pulse input.
-    pub pin_dial_pulse_bounce_ms: Option<ms>,
-    /// BCM pin number of dial switch input.
-    pub pin_dial_switch: Option<u8>,
-    /// Bounce time (ms) of dial switch input.
-    pub pin_dial_switch_bounce_ms: Option<ms>,
-    /// BCM pin number of motion sensor input.
-    pub pin_motion: Option<u8>,
-    /// Bounce time (ms) of motion sensor input.
-    pub pin_motion_bounce_ms: Option<ms>,
+    /// Input configuration for the switchhook.
+    pub hook: InputPinConfig,
+    /// Input configuration for the dial (pulse component).
+    pub dial_pulse: Option<InputPinConfig>,
+    /// Input configuration for the dial (switch component).
+    pub dial_switch: Option<InputPinConfig>,
+    /// Input configuration for the motion sensor.
+    pub motion: Option<InputPinConfig>,
     /// BCM pin numbers of keypad row inputs.
     pub pins_keypad_rows: Option<[u8; 4]>,
     /// Bounce time (ms) of keypad row inputs.
     pub pins_keypad_rows_bounce_ms: Option<ms>
+}
+
+#[serde(rename_all = "kebab-case")]
+#[derive(Deserialize, Clone, Debug)]
+pub struct InputPinConfig {
+    /// BCM pin number of the input.
+    pub pin: u8,
+    /// Bounce time (ms) of the input.
+    pub bounce_ms: Option<ms>,
+    /// Name of the resistor type to use. Defaults to "none".
+    pub pull: Option<String>
 }
 
 #[serde(rename_all = "kebab-case")]

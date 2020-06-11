@@ -3,6 +3,7 @@
 
 use std::sync::{mpsc, Mutex, Arc};
 use std::time::{Instant, Duration};
+use std::thread;
 use std::rc::Rc;
 use rppal::gpio::*;
 use crate::config::*;
@@ -100,10 +101,6 @@ impl Debounced for SoftInputPin {
 /// Provides an interface for phone-related GPIO pins.
 pub struct GpioInterface {
     gpio: Gpio,
-    /// Number of pulses since the dial switch last opened.
-    dial_pulse_count: Arc<Mutex<u32>>,
-    /// Position of the dial switch (true when at resting).
-    dial_switch_state: Arc<Mutex<bool>>,
     /// Pin for switch hook input.
     in_hook: SoftInputPin,
     /// Pin for dial switch input.
@@ -117,11 +114,48 @@ pub struct GpioInterface {
     /// Pins for keypad column outputs.
     out_keypad_cols: Option<[OutputPin; 3]>,
     /// Pin for ringer output.
-    out_ringer: Option<OutputPin>,
+    out_ringer: Option<Arc<Mutex<OutputPin>>>,
     /// Pin for vibration motor output.
-    out_vibe: Option<OutputPin>,
+    out_vibe: Option<Arc<Mutex<OutputPin>>>,
+    /// Transmission channel for ringer control
+    tx_ringer: Option<mpsc::Sender<bool>>, // TODO: Pass cadence data to ringer thread
     /// Copy of config used to initialize pins.
     config: Rc<CursedConfig>
+}
+
+fn gen_optional_soft_input_from(gpio: &Gpio, enable: Option<bool>, input_config: &Option<InputPinConfig>) -> Option<SoftInputPin> {
+    if enable.unwrap_or(false) {
+        if let Some(input) = input_config {
+            let raw_pin = gpio.get(input.pin).unwrap();
+            let raw_input = if let Some(pull_name) = &input.pull {
+                match pull_name.to_ascii_lowercase().as_str() {
+                    "up" => raw_pin.into_input_pullup(),
+                    "down" => raw_pin.into_input_pulldown(),
+                    "none" | _ => raw_pin.into_input()
+                }
+            } else {
+                raw_pin.into_input()
+            };
+            let soft_input = raw_input.debounce(Duration::from_millis(input.bounce_ms.unwrap_or(0)));
+            return Some(soft_input);
+        }
+    }
+    None
+}
+
+fn gen_required_soft_input_from(gpio: &Gpio, input_config: &InputPinConfig) -> SoftInputPin {
+    let raw_pin = gpio.get(input_config.pin).unwrap();
+    let raw_input = if let Some(pull_name) = &input_config.pull {
+        match pull_name.to_ascii_lowercase().as_str() {
+            "up" => raw_pin.into_input_pullup(),
+            "down" => raw_pin.into_input_pulldown(),
+            "none" | _ => raw_pin.into_input()
+        }
+    } else {
+        raw_pin.into_input()
+    };
+    let soft_input = raw_input.debounce(Duration::from_millis(input_config.bounce_ms.unwrap_or(0)));
+    soft_input
 }
 
 fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, debounce: Option<u64>) -> Option<SoftInputPin> {
@@ -161,18 +195,28 @@ impl GpioInterface {
         let outputs = &config.gpio.outputs;
 
         // Register standard GPIO pins
-        let in_hook = gen_required_soft_input(&gpio, inputs.pin_hook, inputs.pin_hook_bounce_ms);
-        let in_motion = gen_optional_soft_input(&gpio, config.enable_motion_sensor, inputs.pin_motion, inputs.pin_motion_bounce_ms);
-        let out_ringer = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer);
-        let out_vibe = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate);
+        let in_hook = gen_required_soft_input_from(&gpio, &inputs.hook);
+        let in_motion = gen_optional_soft_input_from(&gpio, config.enable_motion_sensor, &inputs.motion);
+
+        let out_ringer = if let Some(output) = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer) {
+            Some(Arc::new(Mutex::new(output)))
+        } else {
+            None
+        };
+
+        let out_vibe = if let Some(output) = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate) {
+            Some(Arc::new(Mutex::new(output)))
+        } else {
+            None
+        };
 
         // Register pulse-dialing pins
         let (in_dial_switch, in_dial_pulse) = match phone_type {
             Rotary => {
-                let pin_dial_pulse = inputs.pin_dial_pulse.expect("gpio.inputs.pin-dial-pulse is required for this phone type, but was not defined");
-                let pin_dial_switch = inputs.pin_dial_switch.expect("gpio.inputs.pin-dial-switch is required for this phone type, but was not defined");
-                let in_dial_pulse = gen_required_soft_input(&gpio, pin_dial_pulse, inputs.pin_dial_pulse_bounce_ms);
-                let in_dial_switch = gen_required_soft_input(&gpio, pin_dial_switch, inputs.pin_dial_switch_bounce_ms);
+                let dial_pulse = inputs.dial_pulse.as_ref().expect("gpio.inputs.pin-dial-pulse is required for this phone type, but was not defined");
+                let dial_switch = inputs.dial_switch.as_ref().expect("gpio.inputs.pin-dial-switch is required for this phone type, but was not defined");
+                let in_dial_pulse = gen_required_soft_input_from(&gpio, dial_pulse);
+                let in_dial_switch = gen_required_soft_input_from(&gpio, dial_switch);
                 (Some(in_dial_switch), Some(in_dial_pulse))
             },
             _ => (None, None)
@@ -199,14 +243,62 @@ impl GpioInterface {
             _ => (None, None)
         };
 
-        // Rotary dial state
-        let dial_pulse_count = Arc::new(Mutex::new(0));
-        let dial_switch_state = Arc::new(Mutex::new(true));
+        // Ringer fields
+        let mut tx_ringer = None;
+        if config.enable_ringer.unwrap_or(true) {
+            let (tx, rx) = mpsc::channel();
+            tx_ringer = Some(tx);
+            let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
+            let ringer_thread = thread::spawn(move || {
+                const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
+                const RINGER_FREQ: f64 = 20.0;
+                let ring_cycle = Duration::from_secs_f64(RINGER_FREQ.recip());
+                let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
+                let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
+
+                'ring_check: loop {
+                    while let Ok(true) = rx.recv() {
+                        loop {
+                            let phase_start = Instant::now();
+
+                            if let Ok(false) = rx.try_recv() {
+                                break 'ring_check;
+                            }
+
+                            // Start ringing
+                            ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ, 0.5);
+
+                            // Wait for on-time or cancel signal
+                            while phase_start.elapsed() < ring_on_time {
+                                if let Ok(false) = rx.try_recv() {
+                                    break 'ring_check;
+                                }
+                            }
+
+                            let phase_start = Instant::now();
+
+                            // Stop ringing
+                            ringer.lock().unwrap().clear_pwm();
+
+                            if let Ok(false) = rx.try_recv() {
+                                break 'ring_check;
+                            }
+
+                            // Wait for off-time or cancel signal
+                            while phase_start.elapsed() < ring_off_time {
+                                if let Ok(false) = rx.try_recv() {
+                                    break 'ring_check;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
 
         GpioInterface {
             gpio,
-            dial_pulse_count,
-            dial_switch_state,
             in_hook,
             in_dial_switch,
             in_dial_pulse,
@@ -215,6 +307,7 @@ impl GpioInterface {
             out_keypad_cols,
             out_ringer,
             out_vibe,
+            tx_ringer,
             config: Rc::clone(config)
         }
     }
@@ -246,5 +339,12 @@ impl GpioInterface {
         println!("GPIO peripherals initialized.");
 
         Ok(rx)
+    }
+
+    pub fn tx_ringer(&self) -> Option<mpsc::Sender<bool>> {
+        if let Some(tx) = &self.tx_ringer {
+            return Some(tx.clone())
+        }
+        None
     }
 }

@@ -63,6 +63,7 @@ pub struct PhoneEngine {
     hook_state: bool,
     ring_state: bool,
     vibe_state: bool,
+    tx_ringer: Option<mpsc::Sender<bool>>,
     #[cfg(feature = "rpi")]
     gpio: GpioInterface
 }
@@ -75,6 +76,7 @@ impl PhoneEngine {
         let sound_engine = sound_engine.clone();
         let mut gpio = GpioInterface::new(phone_type, &config);
         let listener = gpio.listen().expect("Unable to initialize GPIO listener.");
+        let tx_ringer = gpio.tx_ringer();
         Self {
             phone_type,
             sound_engine,
@@ -86,6 +88,7 @@ impl PhoneEngine {
             vibe_state: false,
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default(),
+            tx_ringer,
             gpio
         }
     }
@@ -113,6 +116,7 @@ impl PhoneEngine {
             hook_state: true,
             ring_state: false,
             vibe_state: false,
+            tx_ringer: None,
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default()
         }
@@ -192,13 +196,21 @@ impl PhoneEngine {
                 use PhoneOutputSignal::*;
                 match signal {
                     Ring(on) => {
-                        println!("Ringing = {}", on);
-                        if on {
-                            self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, false, true, true, 1.0, 0.25);
-                        } else {
-                            self.sound_engine.borrow().stop(Channel::SignalOut)
+                        // Send ring status to GPIO
+                        if let Some(tx_ringer) = &self.tx_ringer {
+                            tx_ringer.send(on).expect("Ringer TX channel is dead");
                         }
-                        // TODO: Pass ringing to GPIO
+
+                        // Play sound on PC
+                        #[cfg(not(feature = "rpi"))]
+                        {
+                            println!("Ringing = {}", on);
+                            if on {
+                                self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, false, true, true, 1.0, 1.0);
+                            } else {
+                                self.sound_engine.borrow().stop(Channel::SignalOut)
+                            }
+                        }
                     },
                     Vibrate { on, duty_cycle, time_seconds } => {
                         println!("Vibration = {}", on);

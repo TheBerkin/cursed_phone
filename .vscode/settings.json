@@ -14,6 +14,7 @@
     ],
     "rust.all_features": true,
     "rust-analyzer.updates.channel": "nightly",
+    "rust-analyzer.cargo.allFeatures": true,
     "rust-analyzer.cargo.features": [
         "rpi"
     ],
