@@ -256,11 +256,11 @@ impl GpioInterface {
                 let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
                 let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
 
-                'ring_check: loop {
+                loop {
                     // Stop any ringing that was interrupted
                     ringer.lock().unwrap().clear_pwm();
 
-                    while let Ok(true) = rx.recv() {
+                    'ring_check: while let Ok(true) = rx.recv() {
                         loop {
                             let phase_start = Instant::now();
 
