@@ -3,8 +3,10 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{time, sync::mpsc, thread, io::{stdin, Read}};
+use log::{info, warn, trace};
 use crate::config::*;
 use crate::sound::*;
+
 
 #[cfg(feature = "rpi")]
 use crate::gpio::*;
@@ -101,11 +103,11 @@ impl PhoneEngine {
         // We won't use the JoinHandle here since it's frankly pretty useless in this case
         let (_, listener) = PhoneEngine::create_mock_input_thread();
 
-        println!("Mock input is enabled. To send inputs, type a sequence of the following characters and press Enter:");
-        println!("  - i: Off-hook signal");
-        println!("  - o: On-hook signal");
-        println!("  - m: Motion signal");
-        println!("  - 0-9, A-D, #, *: Dial digit");
+        info!("Mock input is enabled. To send inputs, type a sequence of the following characters and press Enter:");
+        info!("  - i: Off-hook signal");
+        info!("  - o: On-hook signal");
+        info!("  - m: Motion signal");
+        info!("  - 0-9, A-D, #, *: Dial digit");
 
         Self {
             phone_type,
@@ -194,6 +196,8 @@ impl PhoneEngine {
                 use PhoneOutputSignal::*;
                 match signal {
                     Ring(on) => {
+                        trace!("Ringer = {}", on);
+                        
                         // Send ring status to GPIO
                         if let Some(tx_ringer) = &self.tx_ringer {
                             tx_ringer.send(on).expect("Ringer TX channel is dead");
@@ -202,7 +206,6 @@ impl PhoneEngine {
                         // Play sound on PC
                         #[cfg(not(feature = "rpi"))]
                         {
-                            println!("Ringing = {}", on);
                             if on {
                                 self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, false, true, true, 1.0, 1.0);
                             } else {
@@ -211,7 +214,7 @@ impl PhoneEngine {
                         }
                     },
                     Vibrate { on, duty_cycle, time_seconds } => {
-                        println!("Vibration = {}", on);
+                        trace!("Vibration = {}", on);
                         // TODO: Pass vibration to GPIO
                     }
                 }

@@ -5,6 +5,7 @@ use std::sync::{mpsc, Mutex, Arc};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
+use log::{info, warn, trace};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
@@ -359,7 +360,7 @@ impl GpioInterface {
 
         // TODO: Support remaining GPIO peripherals
 
-        println!("GPIO peripherals initialized.");
+        info!("GPIO peripherals initialized.");
 
         Ok(rx)
     }

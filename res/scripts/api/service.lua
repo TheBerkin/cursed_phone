@@ -262,7 +262,7 @@ function service.forward_call(number)
     service.intent(SERVICE_INTENT_FORWARD_CALL, number)
 end
 
---- Starts a call with the user.
+--- Starts a call with the user, if the line is open.
 --- @return boolean
 function service.start_call()
     local data_code = service.intent(SERVICE_INTENT_CALL_USER)

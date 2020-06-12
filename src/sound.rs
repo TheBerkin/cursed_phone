@@ -16,6 +16,7 @@ use globwalk;
 use globset;
 use rand;
 use rand::Rng;
+use log::{info, warn, trace};
 
 /// Represents a playback channel for sounds.
 #[derive(IntoEnumIterator, Copy, Clone, Debug, PartialEq)]
@@ -255,7 +256,7 @@ impl SoundEngine {
         let master_volume = config.sound.master_volume;
         let sounds_root_path = Path::new(sounds_root_path);
 
-        println!("Loading static sound resources...");
+        info!("Loading static sound resources...");
         let static_sounds = SoundBank::from_dir("[static]".to_owned(),sounds_root_path);
 
         let mut engine = Self {
@@ -286,7 +287,6 @@ impl SoundEngine {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
-                //println!("Playing sound '{}' on channel {:?}", key, channel);
                 if interrupt {
                     self.stop(channel);
                 }
@@ -301,7 +301,7 @@ impl SoundEngine {
                     ch.sink.sleep_until_end();
                 }
             },
-            None => println!("WARNING: Tried to play nonexistent sound or soundglob '{}'", key)
+            None => warn!("WARNING: Tried to play nonexistent sound or soundglob '{}'", key)
         }
     }
 
@@ -327,7 +327,7 @@ impl SoundEngine {
             return bank.borrow_mut().add_user(user);
         }
 
-        println!("Loading sound bank: '{}'", name);
+        info!("Loading sound bank: '{}'", name);
         let bank_path = self.sound_banks_root_path.join(name);
         let bank_path = bank_path.as_path();
         let mut bank = SoundBank::from_dir(name.to_owned(), bank_path);
@@ -348,7 +348,7 @@ impl SoundEngine {
         if let Some(bank) = self.get_sound_bank(name) {
             let removed = bank.borrow_mut().remove_user(&user);
             if unload_if_userless && bank.borrow().user_count() == 0 {
-                println!("Unloading sound bank: '{}'", name);
+                info!("Unloading sound bank: '{}'", name);
                 self.sound_banks.remove(name);
             }
             return removed;
@@ -497,7 +497,7 @@ impl SoundChannel {
     fn update_sink_volume(&mut self, master_volume: f32) -> &mut Self {
         let mixed_vol = master_volume * self.channel_volume;
         self.sink.set_volume(mixed_vol);
-        //println!("Sink volume for Channel {:?} is now {}", self.id, self.sink.volume());
+        // trace!("Sink volume for Channel {:?} is now {}", self.id, self.sink.volume());
         self
     }
 

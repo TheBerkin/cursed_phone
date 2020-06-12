@@ -13,6 +13,7 @@ use std::time::{Instant, Duration};
 use rand::Rng;
 use mlua::prelude::*;
 use indexmap::IndexMap;
+use log::{info, warn, trace, error};
 use crate::sound::*;
 use crate::phone::*;
 use crate::config::*;
@@ -220,7 +221,7 @@ impl<'lua> Drop for ServiceModule<'lua> {
     fn drop(&mut self) {
         if let Some(unload) = &self.func_unload {
             if let Err(error) = unload.call::<(), ()>(()) {
-                println!("Service module '{}' encountered error while unloading: {:?}", self.name, error);
+                error!("Service module '{}' encountered error while unloading: {:?}", self.name, error);
             }
         }
     }
@@ -281,7 +282,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     fn call_number(&'lua self, number: &str) -> bool {
-        println!("Placing call to: {}", number);
+        info!("Placing call to: {}", number);
         if let Some(service) = self.lookup_service(number) {
             self.call_service(service);
             return true;
@@ -295,7 +296,7 @@ impl<'lua> PbxEngine<'lua> {
         use PbxState::*;
         match self.state() {
             DialTone | Busy | PDD => {
-                println!("PBX: Connecting call -> {} ({:?})", service.name, service.phone_number);
+                info!("PBX: Connecting call -> {} ({:?})", service.name, service.phone_number);
                 self.set_state(CallingOut(service.id().unwrap()));
             },
             _ => {}
@@ -308,7 +309,7 @@ impl<'lua> PbxEngine<'lua> {
             self.call_service(Rc::clone(intercept_service));
         } else {
             // Default to busy signal if there is no intercept service
-            println!("PBX: No intercept service; defaulting to busy signal.");
+            warn!("PBX: No intercept service; defaulting to busy signal.");
             self.set_state(PbxState::Busy);
         }
     }
@@ -363,7 +364,7 @@ impl<'lua> PbxEngine<'lua> {
             if let Ok(dir) = entry {
                 let script_path = dir.path().canonicalize().expect("Unable to expand service module path");
                 let script_path_str = script_path.to_str().unwrap();
-                println!("Loading API: {}", script_path_str);
+                info!("PBX: Loading Lua API: {:?}", script_path.file_name());
                 match fs::read_to_string(&script_path) {
                     Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec(),
                     Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", script_path_str, err))
@@ -412,10 +413,10 @@ impl<'lua> PbxEngine<'lua> {
                             _ => {}
                         }
 
-                        println!("Service loaded: {} (N = {:?}, ID = {:?})", service.name, service.phone_number, service.id());
+                        info!("Service loaded: {} (N = {:?}, ID = {:?})", service.name, service.phone_number, service.id());
                     },
                     Err(err) => {
-                        println!("Failed to load service module '{:?}': {:#?}", module_path, err);
+                        error!("Failed to load service module '{:?}': {:#?}", module_path, err);
                     }
                 }
             }
@@ -539,17 +540,17 @@ impl<'lua> PbxEngine<'lua> {
             _ => {}
         }
 
-        println!("PBX: {:?} -> {:?} ({:?})", prev_state, state, state_time);
+        info!("PBX: {:?} -> {:?} ({:?})", prev_state, state, state_time);
     }
 
     fn handle_off_hook_timeout(&'lua self) {
-        println!("PBX: Off-hook timeout.");
+        info!("PBX: Off-hook timeout.");
         self.call_intercept(InterceptReason::OffHook);
     }
 
     fn handle_digit(&'lua self, digit: char) {
         use PbxState::*;
-        println!("PBX: Digit '{}'", digit);
+        info!("PBX: Digit '{}'", digit);
         let state = self.state();
         match state {
             Idle => return,
@@ -578,7 +579,7 @@ impl<'lua> PbxEngine<'lua> {
                         match state {
                             Idle | IdleRinging(_) => {}
                             _ => {
-                                println!("PBX: Host on-hook.");
+                                info!("PBX: Host on-hook.");
                                 self.set_state(PbxState::Idle);
                             }
                         }
@@ -588,12 +589,12 @@ impl<'lua> PbxEngine<'lua> {
                         match state {
                             // Picking up idle phone
                             Idle => {
-                                println!("PBX: Host off-hook.");
+                                info!("PBX: Host off-hook.");
                                 self.set_state(PbxState::DialTone);
                             },
                             // Answering a call
                             IdleRinging(id) => {
-                                println!("PBX: Host off-hook, connecting call.");
+                                info!("PBX: Host off-hook, connecting call.");
                                 // Connect the call
                                 self.set_state(PbxState::Connected(id));
                             },
@@ -601,7 +602,7 @@ impl<'lua> PbxEngine<'lua> {
                         }
                     },
                     Motion => {
-                        println!("PBX: Detected motion.");
+                        info!("PBX: Detected motion.");
                     },
                     Digit(digit) => {
                         self.handle_digit(digit);
@@ -708,8 +709,8 @@ impl<'lua> PbxEngine<'lua> {
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
                         match err {
-                            LuaError::RuntimeError(msg) => println!("LUA ERROR: {}", msg),
-                            _ => println!("LUA ERROR: {:?}", err)
+                            LuaError::RuntimeError(msg) => error!("LUA ERROR: {}", msg),
+                            _ => error!("LUA ERROR: {:?}", err)
                         }
                     }
                 }

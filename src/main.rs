@@ -12,6 +12,8 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
+use log::{info, warn};
+use simplelog::{TermLogger, LevelFilter, TerminalMode};
 use thread_priority::*;
 
 const SCRIPTS_PATH: &str = "./res/scripts";
@@ -20,14 +22,17 @@ const SOUNDS_PATH: &str = "./res/sounds";
 const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 
 fn main() -> Result<(), String> {
+    // Set up logger
+    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed);
+
     // Set thread priority
     if let Err(err) = set_current_thread_priority(ThreadPriority::Max) {
-        println!("WARN: Failed to raise thread priority: {:?}", err);
+        warn!("Failed to raise thread priority: {:?}", err);
     }
 
     // Load engine
     let config = Rc::new(config::load_config(CONFIG_PATH));
-    println!("Config loaded: {:#?}", config);
+    info!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
@@ -59,7 +64,7 @@ fn create_pbx<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngi
 }
 
 fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<SoundEngine>> {
-    println!("Loading sound engine... ");
+    info!("Loading sound engine... ");
     let sound_engine = Box::new(Rc::new(RefCell::new(
         SoundEngine::new(SOUNDS_PATH, SOUNDBANKS_PATH, config))));
     let sound_engine: &'static mut Rc<RefCell<SoundEngine>> = Box::leak(sound_engine);
@@ -67,7 +72,7 @@ fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<Sou
 }
 
 fn create_phone(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PhoneEngine {
-    println!("Loading phone engine... ");
+    info!("Loading phone engine... ");
     let phone_engine = Box::new(PhoneEngine::new(config, sound_engine));
     let phone_engine: &'static mut PhoneEngine = Box::leak(phone_engine);
     phone_engine

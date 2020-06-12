@@ -1,17 +1,22 @@
 
 use super::*;
+use log::{info, warn};
 
 #[allow(unused_must_use)]
 impl<'lua> PbxEngine<'lua> {    
     pub fn load_cursed_api(&'static self) -> Result<(), String> {
-        // Run bootstrapper script
-        println!("Bootstrapping Lua...");
-        self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
+        info!("Bootstrapping Lua...");
     
         let lua = &self.lua;
         let globals = &lua.globals();
         let tbl_sound = lua.create_table().unwrap();
         // let tbl_service = lua.create_table().unwrap();
+
+        // Override print()
+        globals.set("print", lua.create_function(PbxEngine::lua_print).unwrap());
+
+        // Run bootstrapper script
+        self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
 
         // ====================================================
         // ================ MISC API FUNCTIONS ================
@@ -153,6 +158,20 @@ impl<'lua> PbxEngine<'lua> {
         // Run API scripts
         self.run_scripts_in_glob(API_GLOB)?;
     
+        Ok(())
+    }
+
+    fn lua_print(lua: &Lua, values: LuaMultiValue) -> LuaResult<()> {
+        let mut buffer = String::new();
+        let tostring: LuaFunction = lua.globals().raw_get("tostring").unwrap();
+        for val in values.iter() {
+            if buffer.len() > 0 {
+                buffer.push('\t');
+            }
+            let val_str = tostring.call::<(LuaValue), (String)>(val.clone()).unwrap_or(String::from("???"));
+            buffer.push_str(val_str.as_str());
+        }
+        info!("[LUA] {}", buffer);
         Ok(())
     }
 
