@@ -41,6 +41,9 @@ pub struct CursedConfig {
     /// (Only used if `enable_switch_hook_dialing == true`)
     pub hangup_delay: f32,
 
+    /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
+    pub rotary_first_pulse_delay_ms: Option<ms>,
+
     /// Enables ringer.
     pub enable_ringer: Option<bool>,
 

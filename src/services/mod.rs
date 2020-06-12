@@ -34,6 +34,8 @@ const API_GLOB: &str = "api/*";
 // Pulse dialing digits
 const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
+
 type ServiceId = usize;
 
 // TODO: Get rid of ServiceId fields in PbxState, as they're made redundant by PbxEngine.other_party
@@ -222,8 +224,12 @@ pub struct PbxEngine<'lua> {
     off_hook_delay: Duration,
     /// Is host rotary dial resting?
     host_rotary_resting: RefCell<bool>,
-    /// Number of host pulses since last dialed digit
-    host_rotary_pulses: RefCell<usize>
+    /// Number of host pulses since last dialed digit.
+    host_rotary_pulses: RefCell<usize>,
+    /// Time of the last lifting of the rotary dial rest switch.
+    host_rotary_dial_lift_time: RefCell<Instant>,
+    /// Delay between rotary dial leaving resting state and first valid pulse.
+    host_rotary_first_pulse_delay: Duration,
 }
 
 impl<'lua> Drop for ServiceModule<'lua> {
@@ -260,7 +266,9 @@ impl<'lua> PbxEngine<'lua> {
             other_party: Default::default(),
             dialed_number: Default::default(),
             host_rotary_pulses: Default::default(),
-            host_rotary_resting: Default::default()
+            host_rotary_resting: Default::default(),
+            host_rotary_dial_lift_time: RefCell::new(now),
+            host_rotary_first_pulse_delay: Duration::from_millis(config.rotary_first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
         }
     }
 
@@ -602,8 +610,15 @@ impl<'lua> PbxEngine<'lua> {
             _ => {
                 let current_rest_state = *self.host_rotary_resting.borrow();
                 if !current_rest_state {
-                    // Increment pulse count
-                    self.host_rotary_pulses.replace_with(|&mut old| old + 1);
+                    // This is a fix for my noisy rotary dial randomly pulsing when I lift it from resting.
+                    // Forcing a delay between the dial lift and the first pulse seems to resolve this issue.
+                    let rotary_rest_lifted_time = self.host_rotary_dial_lift_time.borrow().elapsed();
+                    if rotary_rest_lifted_time > self.host_rotary_first_pulse_delay {
+                        // Increment pulse count
+                        self.host_rotary_pulses.replace_with(|&mut old| old + 1);
+                    } else {
+                        trace!("PBX: Discarded premature rotary dial pulse");
+                    }
                 }
             }
         }
@@ -630,6 +645,7 @@ impl<'lua> PbxEngine<'lua> {
         } else {
             // When dial moves away from resting, reset pulse count
             self.host_rotary_pulses.replace(0);
+            self.host_rotary_dial_lift_time.replace(Instant::now());
         }
     }
 
