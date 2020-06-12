@@ -140,7 +140,10 @@ impl PhoneEngine {
                     'i' => tx.send(PhoneInputSignal::HookState(false)).unwrap(),
                     'o' => tx.send(PhoneInputSignal::HookState(true)).unwrap(),
                     'm' => tx.send(PhoneInputSignal::Motion).unwrap(),
-                    'w' => tx.send(PhoneInputSignal::RotaryDialRest(false)).unwrap(),
+                    'w' => {                        
+                        tx.send(PhoneInputSignal::RotaryDialRest(false)).unwrap();
+                        thread::sleep(time::Duration::from_millis(350));
+                    },
                     'e' => {
                         tx.send(PhoneInputSignal::RotaryDialPulse).unwrap();
                         thread::sleep(time::Duration::from_millis(80));
@@ -183,9 +186,6 @@ impl PhoneEngine {
                 Digit(digit) => {
                     self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
                 },
-                RotaryDialPulse => {
-                    self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0);
-                },
                 _ => {}
             }
 
@@ -209,7 +209,13 @@ impl PhoneEngine {
                         #[cfg(not(feature = "rpi"))]
                         {
                             if on {
-                                self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, false, true, true, 1.0, 1.0);
+                                self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, 
+                                
+                                false, 
+                                true, 
+                                true, 
+                                1.0, 
+                                1.0);
                             } else {
                                 self.sound_engine.borrow().stop(Channel::SignalOut)
                             }

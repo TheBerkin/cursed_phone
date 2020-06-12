@@ -161,9 +161,9 @@ local _PhoneServiceModule_MEMBERS = {
         table.clear(self._messages)
     end,
     --- Sets the call reason.
-    --- @param reason InterceptReason
+    --- @param reason CallReason
     set_reason = function(self, reason)
-        -- TODO: Expand InterceptReason to other kinds of reasons?
+        -- TODO: Expand CallReason to other kinds of reasons?
         self._reason = reason
     end,
     get_reason = function(self)

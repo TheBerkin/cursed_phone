@@ -108,17 +108,9 @@ PHONE_STATE_BUSY_TONE = 6
 NATIVE_API(function()
     phone = {}
 
-    --- Gets the current state code of the phone.
-    --- @return PhoneStateCode
-    function phone.get_state() end
-
-    --- Gets the number that the user has dialed. If the phone is idle, this will return nil.
-    --- @return string|nil
-    function phone.get_dialed_number() end
-
     function phone.vibrate(power, time) end
 
     function phone.vibrate_set(power) end
-    
+
     function phone.vibrate_stop() end
 end)

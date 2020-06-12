@@ -10,11 +10,11 @@ edition = "2018"
 opt-level = 3
 incremental = true
 codegen-units = 1
-lto = true
+# lto = true
 
 [features]
 rpi = ["rppal"]
-nolog = ["log/release_max_level_off", "log/max_level_off"]
+no-log = ["log/release_max_level_off", "log/max_level_off"]
 
 [dependencies]
 rand = "0.7.3"

@@ -1,5 +1,6 @@
 
 use super::*;
+use std::cmp;
 use log::{info, warn};
 
 #[allow(unused_must_use)]
@@ -19,17 +20,27 @@ impl<'lua> PbxEngine<'lua> {
         self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
 
         // ====================================================
-        // ================ MISC API FUNCTIONS ================
+        // ============== GENERAL API FUNCTIONS ===============
         // ====================================================
     
         // sleep()
         globals.set("sleep", lua.create_function(PbxEngine::lua_sleep).unwrap());
+
         // rand_int(min, max)
         globals.set("rand_int", lua.create_function(PbxEngine::lua_rand_int).unwrap());
+
         // rand_int_skip(min, skip, max)
         globals.set("rand_int_skip", lua.create_function(PbxEngine::lua_rand_int_skip).unwrap());
+
+        // rand_int_bias_low(min, max)
+        globals.set("rand_int_bias_low", lua.create_function(PbxEngine::lua_rand_int_bias_low).unwrap());
+
+        // rand_int_bias_high(min, max)
+        globals.set("rand_int_bias_high", lua.create_function(PbxEngine::lua_rand_int_bias_high).unwrap());
+
         // rand_float(min, max)
         globals.set("rand_float", lua.create_function(PbxEngine::lua_rand_float).unwrap());
+
         // chance(p)
         globals.set("chance", lua.create_function(PbxEngine::lua_chance).unwrap());
 
@@ -168,7 +179,7 @@ impl<'lua> PbxEngine<'lua> {
             if buffer.len() > 0 {
                 buffer.push('\t');
             }
-            let val_str = tostring.call::<(LuaValue), (String)>(val.clone()).unwrap_or(String::from("???"));
+            let val_str = tostring.call::<LuaValue, String>(val.clone()).unwrap_or(String::from("???"));
             buffer.push_str(val_str.as_str());
         }
         info!("[LUA] {}", buffer);
@@ -185,6 +196,24 @@ impl<'lua> PbxEngine<'lua> {
             return Ok(min);
         }
         Ok(rand::thread_rng().gen_range(min, max))
+    }
+
+    fn lua_rand_int_bias_low(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+        if min >= max {
+            return Ok(min);
+        }
+        let mut rng = rand::thread_rng();
+        let (a, b) = (rng.gen_range(min, max), rng.gen_range(min, max));
+        Ok(cmp::min(a, b))
+    }
+
+    fn lua_rand_int_bias_high(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+        if min >= max {
+            return Ok(max);
+        }
+        let mut rng = rand::thread_rng();
+        let (a, b) = (rng.gen_range(min, max), rng.gen_range(min, max));
+        Ok(cmp::max(a, b))
     }
 
     fn lua_rand_int_skip(_: &Lua, (min, skip, max): (i32, i32, i32)) -> LuaResult<i32> {

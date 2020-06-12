@@ -40,25 +40,35 @@ impl ServiceState {
     }
 }
 
-pub enum InterceptReason {
+/// Provides reason codes to pass to a service when connects to a call.
+pub enum CallReason {
+    /// No call reason given.
     None = 0,
+    /// Call was placed because of an off-hook timeout.
     OffHook = 1,
-    NumberDisconnected = 2
+    /// Call was placed because the originally dialed number was disconnected.
+    NumberDisconnected = 2,
+    /// Call was placed by the user.
+    UserInit = 3,
+    /// Call was placed by a service.
+    ServiceInit = 4
 }
 
-impl From<usize> for InterceptReason {
+impl From<usize> for CallReason {
     fn from(value: usize) -> Self {
-        use InterceptReason::*;
+        use CallReason::*;
         match value {
             0 => None,
             1 => OffHook,
             2 => NumberDisconnected,
+            3 => UserInit,
+            4 => ServiceInit,
             _ => None
         }
     }
 }
 
-impl InterceptReason {
+impl CallReason {
     pub fn as_index(self) -> usize {
         self as usize
     }

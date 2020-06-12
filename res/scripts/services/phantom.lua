@@ -28,7 +28,12 @@ S:state(SERVICE_STATE_CALL_OUT, {
 
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)
-        sound.play("handset/pickup*", CHAN_PHONE2)
+        if S:get_reason() == CALL_REASON_USER_INIT then
+            sound.play("handset/pickup*", CHAN_PHONE2)
+            if chance(0.5) then
+                sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), CHAN_PHONE3, { volume = 0.25 })
+            end
+        end
         sound.play_wait("$phantoms/speech", CHAN_PHONE1)
         service.end_call()
     end

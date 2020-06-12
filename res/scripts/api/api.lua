@@ -28,19 +28,33 @@ NATIVE_API(function()
     --- @type function
     function sleep(ms) end
 
-    --- Generates a random number between an inclusive minimum and exclusive maximum.
+    --- Generates a random integer between an inclusive minimum and exclusive maximum.
     --- @param min integer
     --- @param max integer
     --- @type function
     function rand_int(min, max) end
 
-    --- Generates a random number between an inclusive minimum and exclusive maximum,
+    --- Generates a random integer between an inclusive minimum and exclusive maximum,
     --- but avoids the `skip` value within the range.
     --- @param min integer
     --- @param skip integer
     --- @param max integer
     --- @type function
     function rand_int_skip(min, skip, max) end
+
+    --- Generates a random integer between an inclusive minimum and exclusive maximum
+    --- with an asymptotal distribution biased to lower values.
+    --- @param min integer
+    --- @param max integer
+    --- @type function
+    function rand_int_bias_low(min, max) end
+
+    --- Generates a random integer between an inclusive minimum and exclusive maximum
+    --- with an asymptotal distribution biased to higher values.
+    --- @param min integer
+    --- @param max integer
+    --- @type function
+    function rand_int_bias_high(min, max) end
 
     --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
     --- @param min number

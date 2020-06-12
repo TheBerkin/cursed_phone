@@ -15,8 +15,8 @@ end
 S:state(SERVICE_STATE_IDLE, {
     enter = function(self)
         while true do
-            service.wait(10.0 + rand_float(0.0, 5.0))
-            if chance(0.1) then
+            service.wait(120.0 + rand_float(0.0, 60.0))
+            if chance(0.02) then
                 service.start_call()
             end
         end

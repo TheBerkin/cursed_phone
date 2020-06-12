@@ -149,7 +149,7 @@ impl<'lua> ServiceModule<'lua> {
         self.tbl_module.get("_is_suspended").unwrap_or(false)
     }
 
-    pub fn set_reason(&self, reason: InterceptReason) -> LuaResult<()> {
+    pub fn set_reason(&self, reason: CallReason) -> LuaResult<()> {
         self.tbl_module.call_method("set_reason", reason.as_index())?;
         Ok(())
     }
@@ -308,7 +308,7 @@ impl<'lua> PbxEngine<'lua> {
             self.call_service(service);
             return true;
         } else {
-            self.call_intercept(InterceptReason::NumberDisconnected);
+            self.call_intercept(CallReason::NumberDisconnected);
             return false;
         }
     }
@@ -326,7 +326,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     /// Calls the intercept service, if available.
-    fn call_intercept(&'lua self, reason: InterceptReason) {
+    fn call_intercept(&'lua self, reason: CallReason) {
         if let Some(intercept_service) = self.intercept_service.borrow().as_ref() {
             intercept_service.set_reason(reason);
             self.call_service(Rc::clone(intercept_service));
@@ -573,7 +573,7 @@ impl<'lua> PbxEngine<'lua> {
     /// Called when an off-hook timeout occurs.
     fn handle_off_hook_timeout(&'lua self) {
         info!("PBX: Off-hook timeout.");
-        self.call_intercept(InterceptReason::OffHook);
+        self.call_intercept(CallReason::OffHook);
     }
 
     /// Called when the host dials a digit via any method.
@@ -616,6 +616,7 @@ impl<'lua> PbxEngine<'lua> {
                     if rotary_rest_lifted_time > self.host_rotary_first_pulse_delay {
                         // Increment pulse count
                         self.host_rotary_pulses.replace_with(|&mut old| old + 1);
+                        self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0);
                     } else {
                         trace!("PBX: Discarded premature rotary dial pulse");
                     }
@@ -749,6 +750,7 @@ impl<'lua> PbxEngine<'lua> {
                         // First, check that there's nobody on the line and the user's on-hook
                         if self.state() == PbxState::Idle && self.other_party.borrow().is_none() {
                             let id = service.id().unwrap();
+                            service.set_reason(CallReason::ServiceInit);
                             service.transition_state(ServiceState::OutgoingCall);
                             self.load_other_party(Rc::clone(service));
                             self.set_state(PbxState::IdleRinging(id));
@@ -761,7 +763,8 @@ impl<'lua> PbxEngine<'lua> {
                     // Service wants to accept incoming call
                     Ok(AcceptCall) => {
                         let id = service.id().unwrap();
-                        if state == CallingOut(id) {                            
+                        if state == CallingOut(id) {                
+                            service.set_reason(CallReason::UserInit);            
                             self.set_state(Connected(id));
                         }
                     },
