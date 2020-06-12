@@ -61,14 +61,23 @@ DIGIT_0 = 48
 --- The digit '#'.
 DIGIT_POUND = 35
 
---- @alias InterceptReason integer
+--- @alias CallReason integer
 
---- @type InterceptReason
-INTERCEPT_NONE = 0
---- @type InterceptReason
-INTERCEPT_OFF_HOOK = 1
---- @type InterceptReason
-INTERCEPT_NUMBER_DISCONNECTED = 2
+--- @type CallReason
+--- No call reason given.
+CALL_REASON_NONE = 0
+--- @type CallReason
+--- Call was placed because of an off-hook timeout.
+CALL_REASON_OFF_HOOK = 1
+--- @type CallReason
+--- Call was placed because the originally dialed number was disconnected.
+CALL_REASON_NUMBER_DISCONNECTED = 2
+--- @type CallReason
+--- Call was placed by the user.
+CALL_REASON_USER_INIT = 3
+--- @type CallReason
+--- Call was placed by a service.
+CALL_REASON_SERVICE_INIT = 4
 
 
 --- @alias PhoneStateCode integer

@@ -218,7 +218,7 @@ function SERVICE_MODULE(name, phone_number, role)
         _state_func_tables = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
-        _reason = INTERCEPT_NONE,
+        _reason = CALL_REASON_NONE,
         _required_sound_banks = {},
         _is_suspended = false,
         _messages = messages

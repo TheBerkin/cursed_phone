@@ -5,17 +5,20 @@ local MAX_MESSAGE_TIME = 30
 S:set_ringback_enabled(false)
 
 local reason_handlers = {
-    [INTERCEPT_NUMBER_DISCONNECTED] = function(self)
+    -- Number is disconnected
+    [CALL_REASON_NUMBER_DISCONNECTED] = function(self)
         sound.play_sit_disconnected()
         sound.wait(CHAN_SIGIN)
         service.wait(0.05)
-        sound.play_wait("intercept/intercept_disconnected_04", CHAN_PHONE1)
+        sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
         sound.play_fast_busy_tone()
         while true do
             service.intent(SERVICE_INTENT_WAIT)
         end
     end,
-    [INTERCEPT_OFF_HOOK] = function(self)
+
+    -- Phone was left off the hook
+    [CALL_REASON_OFF_HOOK] = function(self)
         local cancel_func = function()
             return get_call_time() > MAX_MESSAGE_TIME
         end
@@ -39,6 +42,7 @@ S:state(SERVICE_STATE_CALL_IN, {
     end
 })
 
+-- Call handler for intercept reason
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)
     end,

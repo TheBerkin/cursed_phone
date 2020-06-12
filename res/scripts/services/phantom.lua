@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("phantoms", "3763987")
+local S = SERVICE_MODULE("phantom", "9873763")
 S:require_sound_bank('phantoms')
 
 S:state(SERVICE_STATE_IDLE, {
@@ -31,7 +31,7 @@ S:state(SERVICE_STATE_CALL, {
         sound.play("handset/pickup*", CHAN_PHONE2)
         sound.play_wait("$phantoms/speech", CHAN_PHONE1)
         service.end_call()
-    end,
+    end
 })
 
 return S
