@@ -319,6 +319,7 @@ impl<'lua> PbxEngine<'lua> {
         match self.state() {
             DialTone | Busy | PDD => {
                 info!("PBX: Connecting call -> {} ({:?})", service.name, service.phone_number);
+                service.set_reason(CallReason::UserInit);
                 self.set_state(CallingOut(service.id().unwrap()));
             },
             _ => {}
@@ -328,8 +329,8 @@ impl<'lua> PbxEngine<'lua> {
     /// Calls the intercept service, if available.
     fn call_intercept(&'lua self, reason: CallReason) {
         if let Some(intercept_service) = self.intercept_service.borrow().as_ref() {
-            intercept_service.set_reason(reason);
             self.call_service(Rc::clone(intercept_service));
+            intercept_service.set_reason(reason);
         } else {
             // Default to busy signal if there is no intercept service
             warn!("PBX: No intercept service; defaulting to busy signal.");
@@ -763,8 +764,7 @@ impl<'lua> PbxEngine<'lua> {
                     // Service wants to accept incoming call
                     Ok(AcceptCall) => {
                         let id = service.id().unwrap();
-                        if state == CallingOut(id) {                
-                            service.set_reason(CallReason::UserInit);            
+                        if state == CallingOut(id) { 
                             self.set_state(Connected(id));
                         }
                     },
