@@ -9,14 +9,8 @@
         "service"
     ],
     "Lua.runtime.version": "LuaJIT",
-    "rust.features": [
-        "rpi"
-    ],
     "rust-analyzer.updates.channel": "nightly",
     "rust-analyzer.cargo.allFeatures": false,
-    "rust-analyzer.cargo.features": [
-        "rpi"
-    ],
     "rust.unstable_features": true,
     "todo-tree.general.enableFileWatcher": true,
     "todo-tree.filtering.includeGlobs": [

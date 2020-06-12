@@ -23,7 +23,7 @@ const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 
 fn main() -> Result<(), String> {
     // Set up logger
-    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed);
+    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed).unwrap();
 
     // Set thread priority
     if let Err(err) = set_current_thread_priority(ThreadPriority::Max) {

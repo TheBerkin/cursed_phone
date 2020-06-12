@@ -27,11 +27,16 @@ type Orc<T> = Option<Rc<T>>;
 /// `Rc<RefCell<T>>`
 type RcRefCell<T> = Rc<RefCell<T>>;
 
+// Script path constants
 const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
 const API_GLOB: &str = "api/*";
 
+// Pulse dialing digits
+const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 type ServiceId = usize;
 
+// TODO: Get rid of ServiceId fields in PbxState, as they're made redundant by PbxEngine.other_party
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PbxState {
     Idle,
@@ -215,6 +220,10 @@ pub struct PbxEngine<'lua> {
     dialed_number: RefCell<String>,
     /// Off-hook delay.
     off_hook_delay: Duration,
+    /// Is host rotary dial resting?
+    host_rotary_resting: RefCell<bool>,
+    /// Number of host pulses since last dialed digit
+    host_rotary_pulses: RefCell<usize>
 }
 
 impl<'lua> Drop for ServiceModule<'lua> {
@@ -250,6 +259,8 @@ impl<'lua> PbxEngine<'lua> {
             post_dial_delay: Duration::from_secs_f32(config.pdd),
             other_party: Default::default(),
             dialed_number: Default::default(),
+            host_rotary_pulses: Default::default(),
+            host_rotary_resting: Default::default()
         }
     }
 
@@ -274,6 +285,7 @@ impl<'lua> PbxEngine<'lua> {
         self.services.borrow().get_index(id).map(|result| Rc::clone(result.1))
     }
 
+    /// Searches the phone directory for the specified number and returns the service associated with it, or `None` if the number is unassigned.
     fn lookup_service(&self, phone_number: &str) -> Orc<ServiceModule> {
         if let Some(id) = self.phone_book.borrow().get(phone_number) {
             return self.lookup_service_id(*id);
@@ -281,6 +293,7 @@ impl<'lua> PbxEngine<'lua> {
         None
     }
 
+    /// Calls the specified phone number.
     fn call_number(&'lua self, number: &str) -> bool {
         info!("Placing call to: {}", number);
         if let Some(service) = self.lookup_service(number) {
@@ -292,6 +305,7 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    /// Calls the specified service.
     fn call_service(&'lua self, service: Rc<ServiceModule>) {
         use PbxState::*;
         match self.state() {
@@ -303,6 +317,7 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    /// Calls the intercept service, if available.
     fn call_intercept(&'lua self, reason: InterceptReason) {
         if let Some(intercept_service) = self.intercept_service.borrow().as_ref() {
             intercept_service.set_reason(reason);
@@ -423,6 +438,7 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    /// Gets the other party associated with the active or pending call.
     fn get_other_party_service(&self) -> Orc<ServiceModule> {
         if let Some(service) = self.other_party.borrow().as_ref() {
             return Some(Rc::clone(service));
@@ -430,6 +446,7 @@ impl<'lua> PbxEngine<'lua> {
         None
     }
 
+    /// Removes the other party and unloads any associated non-static resources.
     fn unload_other_party(&self) {
         if let Some(service) = self.other_party.borrow().as_ref() {
             service.transition_state(ServiceState::Idle);
@@ -438,6 +455,7 @@ impl<'lua> PbxEngine<'lua> {
         self.other_party.replace(None);
     }
 
+    /// Sets the other party to the specified service.
     fn load_other_party(&self, service: Rc<ServiceModule<'lua>>) {
         service.load_sound_banks(&self.sound_engine);
         if let Some(prev_service) = self.other_party.replace(Some(service)) {
@@ -459,6 +477,7 @@ impl<'lua> PbxEngine<'lua> {
         );
     }
 
+    /// Sets the current state of the engine.
     fn set_state(&'lua self, state: PbxState) {
         use PbxState::*;
         if *self.state.borrow() == state {
@@ -540,33 +559,81 @@ impl<'lua> PbxEngine<'lua> {
             _ => {}
         }
 
-        info!("PBX: {:?} -> {:?} ({:?})", prev_state, state, state_time);
+        info!("PBX: {:?} ({:?}) --> {:?}", prev_state, state_time, state);
     }
 
+    /// Called when an off-hook timeout occurs.
     fn handle_off_hook_timeout(&'lua self) {
         info!("PBX: Off-hook timeout.");
         self.call_intercept(InterceptReason::OffHook);
     }
 
-    fn handle_digit(&'lua self, digit: char) {
+    /// Called when the host dials a digit via any method.
+    fn handle_host_digit(&'lua self, digit: char) {
         use PbxState::*;
-        info!("PBX: Digit '{}'", digit);
-        let state = self.state();
-        match state {
-            Idle => return,
+
+        // Perform special digit-triggered behaviors
+        match self.state() {
+            // Ignore digits dialed while the phone is on the hook
+            Idle | IdleRinging(_) => return,
+
+            // Transition from dial tone to PDD once the first digit is dialed
             DialTone => {
                 self.set_state(PbxState::PDD);
             },
+
+            // Reset the PDD timer each time a digit is dialed
             PDD => {
                 self.update_pdd_start();
             },
-            _ => {} // TODO: Pass digits to service in call
+            _ => {}
         }
+
+        info!("PBX: Digit '{}'", digit);
 
         // Add digit to dialed number
         self.dialed_number.borrow_mut().push(digit);
     }
 
+    /// Called when the engine receives a pulse from the host's rotary dial.
+    fn handle_rotary_pulse(&self) {
+        match self.state() {
+            PbxState::Idle | PbxState::IdleRinging(_) => return,
+            _ => {
+                let current_rest_state = *self.host_rotary_resting.borrow();
+                if !current_rest_state {
+                    // Increment pulse count
+                    self.host_rotary_pulses.replace_with(|&mut old| old + 1);
+                }
+            }
+        }
+    }
+
+    /// Called when the resting state of the host's rotary dial changes.
+    fn handle_rotary_rest_state(&'lua self, resting: bool) {
+        if resting == self.host_rotary_resting.replace(resting) {return}
+
+        if resting {
+            // Ignore 
+            match self.state() {
+                PbxState::Idle | PbxState::IdleRinging(_) => {},
+                _ => {
+                    // When dial moves to resting, dial digit according to pulse count
+                    let digit_num = *self.host_rotary_pulses.borrow();
+                    if digit_num < PULSE_DIAL_DIGITS.len() && digit_num > 0 {
+                        let digit = PULSE_DIAL_DIGITS[digit_num - 1] as char;
+                        self.handle_host_digit(digit);
+                    }
+                }
+            }
+            
+        } else {
+            // When dial moves away from resting, reset pulse count
+            self.host_rotary_pulses.replace(0);
+        }
+    }
+
+    /// Reads and handles pending input signals from the host device.
     fn process_input_signals(&'lua self) {
         if let Some(phone_input) = self.phone_input.borrow().as_ref() {
             while let Ok(signal) = phone_input.try_recv() {
@@ -601,22 +668,26 @@ impl<'lua> PbxEngine<'lua> {
                             _ => {}
                         }
                     },
+                    RotaryDialRest(resting) => self.handle_rotary_rest_state(resting),
+                    RotaryDialPulse => self.handle_rotary_pulse(),
                     Motion => {
                         info!("PBX: Detected motion.");
                     },
                     Digit(digit) => {
-                        self.handle_digit(digit);
+                        self.handle_host_digit(digit);
                     }
                 }
             }
         }
     }
 
+    /// Gets the length of time for which the current state has been active.
     #[inline]
     pub fn current_state_time(&self) -> Duration {
         Instant::now().saturating_duration_since(*self.state_start.borrow())
     }
 
+    /// Updates the state of the engine.
     #[inline]
     fn update_pbx_state(&'lua self) {
         use PbxState::*;
@@ -638,6 +709,7 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    /// Updates the states of the services associated with the engine.
     #[inline]
     fn update_services(&'lua self) {
         use ServiceIntent::*;
@@ -719,6 +791,7 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    /// Processes pending inputs and updates state information associated with the engine.
     pub fn tick(&'lua self) {
         self.process_input_signals();
         self.update_pbx_state();

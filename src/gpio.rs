@@ -319,6 +319,9 @@ impl GpioInterface {
                 }
             });
         }
+
+        // Vibration fields
+        // TODO: Set up vibration output
         
 
         GpioInterface {
@@ -339,13 +342,12 @@ impl GpioInterface {
 
 impl GpioInterface {
     pub fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>> {
-        use PhoneInputSignal::*;
         let (tx, rx) = mpsc::channel();
         
         // On/Off-hook GPIO events
         let sender = tx.clone();
         self.in_hook.on_changed(move |state| {
-            sender.send(HookState(state)).unwrap();
+            sender.send(PhoneInputSignal::HookState(state)).unwrap();
         })?;
 
         // Motion sensor
@@ -353,12 +355,30 @@ impl GpioInterface {
         if let Some(in_motion) = &mut self.in_motion {
             in_motion.on_changed(move |motion_detected| {
                 if motion_detected {
-                     sender.send(Motion).unwrap();
+                     sender.send(PhoneInputSignal::Motion).unwrap();
                 }
             })?;
         }
 
-        // TODO: Support remaining GPIO peripherals
+        // Rotary dial rest switch
+        let sender = tx.clone();
+        if let Some(in_dial_switch) = &mut self.in_dial_switch {
+            in_dial_switch.on_changed(move |dial_resting| {
+                sender.send(PhoneInputSignal::RotaryDialRest(dial_resting));
+            })?;
+        }
+
+        // Rotary dial pulse switch
+        let sender = tx.clone();
+        if let Some(in_dial_pulse) = &mut self.in_dial_pulse {
+            in_dial_pulse.on_changed(move |dial_pulse_state| {
+                // We're only interested in the closed state of the pulse,
+                // as the full pulse is implied to have happened for this state to be reached.
+                if dial_pulse_state {
+                    sender.send(PhoneInputSignal::RotaryDialPulse);
+                }
+            })?;
+        }
 
         info!("GPIO peripherals initialized.");
 

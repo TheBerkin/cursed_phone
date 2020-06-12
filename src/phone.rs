@@ -14,6 +14,8 @@ use crate::gpio::*;
 #[derive(Copy, Clone, Debug)]
 pub enum PhoneInputSignal {
     HookState(bool),
+    RotaryDialRest(bool),
+    RotaryDialPulse,
     Motion,
     Digit(char),
 }
@@ -106,6 +108,8 @@ impl PhoneEngine {
         info!("Mock input is enabled. To send inputs, type a sequence of the following characters and press Enter:");
         info!("  - i: Off-hook signal");
         info!("  - o: On-hook signal");
+        info!("  - w/r: Dial rest open/close");
+        info!("  - e: Rotary dial pulse (full cycle)");
         info!("  - m: Motion signal");
         info!("  - 0-9, A-D, #, *: Dial digit");
 
@@ -132,30 +136,25 @@ impl PhoneEngine {
             let mut reader = input.lock();
             let mut cbuf = [0u8];
             while let Ok(_) = reader.read(&mut cbuf) {
-                use PhoneInputSignal::*;
-                let signal: PhoneInputSignal = match (cbuf[0] as char).to_ascii_lowercase() {
-                    'i' | 'I' => HookState(false),
-                    'o' | 'O' => HookState(true),
-                    'm' | 'M' => Motion,
+                match (cbuf[0] as char).to_ascii_lowercase() {
+                    'i' => tx.send(PhoneInputSignal::HookState(false)).unwrap(),
+                    'o' => tx.send(PhoneInputSignal::HookState(true)).unwrap(),
+                    'm' => tx.send(PhoneInputSignal::Motion).unwrap(),
+                    'w' => tx.send(PhoneInputSignal::RotaryDialRest(false)).unwrap(),
+                    'e' => {
+                        tx.send(PhoneInputSignal::RotaryDialPulse).unwrap();
+                        thread::sleep(time::Duration::from_millis(80));
+                    }
+                    'r' => tx.send(PhoneInputSignal::RotaryDialRest(true)).unwrap(),
                     digit @ '0'..='9' | digit @ 'a'..='d' | digit @ '*' | digit @ '#' => {
                         thread::sleep(time::Duration::from_millis(200));
-                        Digit(digit.to_ascii_uppercase())
+                        tx.send(PhoneInputSignal::Digit(digit.to_ascii_uppercase())).unwrap();
                     },
-                    '-' => {
-                        thread::sleep(time::Duration::from_millis(250));
-                        continue;
-                    },
-                    '_' => {
-                        thread::sleep(time::Duration::from_millis(750));
-                        continue;
-                    },
-                    '.' => {
-                        thread::sleep(time::Duration::from_millis(1000));
-                        continue;
-                    },
-                    _ => continue
+                    '-' => thread::sleep(time::Duration::from_millis(250)),
+                    '_' => thread::sleep(time::Duration::from_millis(500)),
+                    '.' => thread::sleep(time::Duration::from_millis(1000)),
+                    _ => {}
                 };
-                tx.send(signal).unwrap();
             }
         });
         (thread, rx)
@@ -183,6 +182,9 @@ impl PhoneEngine {
                 },
                 Digit(digit) => {
                     self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
+                },
+                RotaryDialPulse => {
+                    self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0);
                 },
                 _ => {}
             }
