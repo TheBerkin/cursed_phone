@@ -4,9 +4,8 @@ S:require_sound_bank('paradise_man')
 S:state(SERVICE_STATE_IDLE, {
     enter = function(self)
         while true do
-            --service.wait(60.0 + rand_float(0.0, 60.0))
-            service.wait(1.0)
-            if chance(1) then
+            service.wait(60.0 + rand_float(0.0, 60.0))
+            if chance(0.01) then
                 service.start_call()
             end
         end
