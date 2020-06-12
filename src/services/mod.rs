@@ -266,7 +266,7 @@ impl<'lua> PbxEngine<'lua> {
             other_party: Default::default(),
             dialed_number: Default::default(),
             host_rotary_pulses: Default::default(),
-            host_rotary_resting: Default::default(),
+            host_rotary_resting: RefCell::new(true),
             host_rotary_dial_lift_time: RefCell::new(now),
             host_rotary_first_pulse_delay: Duration::from_millis(config.rotary_first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
         }
