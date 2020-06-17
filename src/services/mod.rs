@@ -222,6 +222,12 @@ pub struct PbxEngine<'lua> {
     dialed_number: RefCell<String>,
     /// Off-hook delay.
     off_hook_delay: Duration,
+    /// Enable switchhook dialing?
+    switch_hook_dialing_enabled: bool,
+    /// Last known state of the host's hookswitch.
+    host_on_hook: RefCell<bool>,
+    /// Time of the last staet change of the host's hookswitch.
+    host_hook_change_time: RefCell<Instant>,
     /// Is host rotary dial resting?
     host_rotary_resting: RefCell<bool>,
     /// Number of host pulses since last dialed digit.
@@ -265,6 +271,9 @@ impl<'lua> PbxEngine<'lua> {
             post_dial_delay: Duration::from_secs_f32(config.pdd),
             other_party: Default::default(),
             dialed_number: Default::default(),
+            switch_hook_dialing_enabled: config.enable_switch_hook_dialing.unwrap_or(false),
+            host_hook_change_time: RefCell::new(now),
+            host_on_hook: RefCell::new(true),
             host_rotary_pulses: Default::default(),
             host_rotary_resting: RefCell::new(true),
             host_rotary_dial_lift_time: RefCell::new(now),
@@ -572,12 +581,14 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     /// Called when an off-hook timeout occurs.
+    #[inline]
     fn handle_off_hook_timeout(&'lua self) {
         info!("PBX: Off-hook timeout.");
         self.call_intercept(CallReason::OffHook);
     }
 
     /// Called when the host dials a digit via any method.
+    #[inline]
     fn handle_host_digit(&'lua self, digit: char) {
         use PbxState::*;
 
@@ -605,6 +616,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     /// Called when the engine receives a pulse from the host's rotary dial.
+    #[inline]
     fn handle_rotary_pulse(&self) {
         match self.state() {
             PbxState::Idle | PbxState::IdleRinging(_) => return,
@@ -627,6 +639,7 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     /// Called when the resting state of the host's rotary dial changes.
+    #[inline]
     fn handle_rotary_rest_state(&'lua self, resting: bool) {
         if resting == self.host_rotary_resting.replace(resting) {return}
 
@@ -651,41 +664,45 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    #[inline]
+    fn handle_hook_state_change(&'lua self, on_hook: bool) {
+        use PbxState::*;
+        let state = self.state();
+        let hook_change_time = Instant::now();
+        if on_hook {
+            match state {
+                Idle | IdleRinging(_) => {}
+                _ => {
+                    info!("PBX: Host on-hook.");
+                    self.set_state(PbxState::Idle);
+                }
+            }
+        } else {
+            // Only process this signal if the line is inactive or ringing
+            match state {
+                // Picking up idle phone
+                Idle => {
+                    info!("PBX: Host off-hook.");
+                    self.set_state(PbxState::DialTone);
+                },
+                // Answering a call
+                IdleRinging(id) => {
+                    info!("PBX: Host off-hook, connecting call.");
+                    // Connect the call
+                    self.set_state(PbxState::Connected(id));
+                },
+                _ => {}
+            }
+        }
+    }
+
     /// Reads and handles pending input signals from the host device.
     fn process_input_signals(&'lua self) {
         if let Some(phone_input) = self.phone_input.borrow().as_ref() {
             while let Ok(signal) = phone_input.try_recv() {
-                let state = self.state();
                 use PhoneInputSignal::*;
-                use PbxState::*;
-                // TODO: Move switchhook dialing to PBX?
                 match signal {
-                    HookState(true) => {
-                        match state {
-                            Idle | IdleRinging(_) => {}
-                            _ => {
-                                info!("PBX: Host on-hook.");
-                                self.set_state(PbxState::Idle);
-                            }
-                        }
-                    },
-                    HookState(false) => {
-                        // Only process this signal if the line is inactive or ringing
-                        match state {
-                            // Picking up idle phone
-                            Idle => {
-                                info!("PBX: Host off-hook.");
-                                self.set_state(PbxState::DialTone);
-                            },
-                            // Answering a call
-                            IdleRinging(id) => {
-                                info!("PBX: Host off-hook, connecting call.");
-                                // Connect the call
-                                self.set_state(PbxState::Connected(id));
-                            },
-                            _ => {}
-                        }
-                    },
+                    HookState(on_hook) => self.handle_hook_state_change(on_hook),
                     RotaryDialRest(resting) => self.handle_rotary_rest_state(resting),
                     RotaryDialPulse => self.handle_rotary_pulse(),
                     Motion => {
