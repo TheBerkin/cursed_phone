@@ -29,6 +29,7 @@ pub enum PhoneOutputSignal {
 pub enum PhoneType {
     Rotary,
     TouchTone,
+    Payphone,
     Other
 }
 
@@ -50,6 +51,7 @@ impl PhoneType {
         match name {
             "rotary" => Rotary,
             "touchtone" => TouchTone,
+            "payphone" => Payphone,
             "other" | _ => Other
         }
     }

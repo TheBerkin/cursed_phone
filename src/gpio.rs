@@ -1,7 +1,7 @@
 #![cfg(feature = "rpi")]
 #![allow(dead_code)]
 
-use std::sync::{mpsc, Mutex, Arc};
+use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
@@ -24,13 +24,16 @@ trait Debounced {
 
     fn is_low(&self) -> bool;
 
+    fn is_debouncing(&self) -> bool;
+
     fn set_bounce_time(&mut self, time: Duration);
 }
 
 /// Simple wrapper around `rppal::gpio::pin::InputPin` to add debouncing.
 struct SoftInputPin {
     pin: Arc<Mutex<InputPin>>,
-    state: Arc<Mutex<SoftInputState>>
+    state: Arc<Mutex<SoftInputState>>,
+    debounce_flag: Arc<AtomicBool>
 }
 
 struct SoftInputState {
@@ -60,7 +63,8 @@ impl SoftInputPin {
 
         Self {
             pin: Arc::new(Mutex::new(pin)),
-            state: Arc::new(Mutex::new(state))
+            state: Arc::new(Mutex::new(state)),
+            debounce_flag: Arc::new(AtomicBool::new(false))
         }
     }
 }
@@ -76,25 +80,48 @@ impl Debounced for SoftInputPin {
     where C: FnMut(bool) + Send + 'static {
         let state = Arc::clone(&self.state);
         let pin = Arc::clone(&self.pin);
+        let debounce_flag = Arc::clone(&self.debounce_flag);
         self.pin.lock().unwrap().set_async_interrupt(Trigger::Both, move |level| {
+            // If the pin is currently debouncing, ignore this event entirely.
+            if debounce_flag.load(Ordering::SeqCst) {
+                return;
+            }
+            
+            // Pin value at time of event
             let mut new_value = level == Level::High;
+
+            // Acquire debounce state and pin
             let mut state = state.lock().unwrap();
             let pin = pin.lock().unwrap();
-            // If the bounce time has passed, raise the event
-            let elapsed = state.last_changed.elapsed();
-            if elapsed > state.bounce_time && new_value != state.last_value {
+            
+            // Ignore this event if the state hasn't changed
+            if new_value != state.last_value {
+                // Enable debounce flag
+                debounce_flag.store(true, Ordering::SeqCst);
+
+                // Inform user of value change
                 state.change_last_value(new_value);
                 callback(new_value);
-            } else if let Some(delay) = state.bounce_time.checked_sub(elapsed) { 
-                // If the bounce time hasn't passed, wait until it has and read the pin again
-                thread::sleep(delay);
+
+                // Sleep for bounce time
+                thread::sleep(state.bounce_time);
+
+                // Check if input has changed since debounce and inform user if so
                 new_value = pin.is_high();
                 if new_value != state.last_value {
                     state.change_last_value(new_value);
                     callback(new_value);
                 }
+
+                // End debounce
+                debounce_flag.store(false, Ordering::SeqCst);
             }
         })
+    }
+
+    #[inline]
+    fn is_debouncing(&self) -> bool {
+        self.debounce_flag.load(Ordering::SeqCst)
     }
 
     fn is_high(&self) -> bool {
