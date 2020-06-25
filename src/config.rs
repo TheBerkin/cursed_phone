@@ -103,8 +103,6 @@ pub struct GpioInputsConfig {
     pub motion: Option<InputPinConfig>,
     /// BCM pin numbers of keypad row inputs.
     pub pins_keypad_rows: Option<[u8; 4]>,
-    /// Bounce time (ms) of keypad row inputs.
-    pub pins_keypad_rows_bounce_ms: Option<ms>
 }
 
 #[serde(rename_all = "kebab-case")]

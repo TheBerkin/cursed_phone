@@ -5,13 +5,13 @@ use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
-use std::cell::RefCell;
-use log::{info, warn, trace};
+use log::{info, trace};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
 
-const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_millis(1);
+const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(50);
+const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(250);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
@@ -293,10 +293,10 @@ impl GpioInterface {
                 let pins_keypad_rows = inputs.pins_keypad_rows.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
                 let pins_keypad_cols = outputs.pins_keypad_cols.expect("gpio.outputs.pins-keypad-cols is required for this phone type, but was not defined");
                 let in_keypad_rows = [
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], inputs.pins_keypad_rows_bounce_ms, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], inputs.pins_keypad_rows_bounce_ms, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], inputs.pins_keypad_rows_bounce_ms, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], inputs.pins_keypad_rows_bounce_ms, Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], KEYPAD_ROW_BOUNCE, Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], KEYPAD_ROW_BOUNCE, Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], KEYPAD_ROW_BOUNCE, Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], KEYPAD_ROW_BOUNCE, Pull::Down))),
                 ];
                 let out_keypad_cols = Arc::new(Mutex::new([
                     gen_required_output(&gpio, pins_keypad_cols[0]),
@@ -442,6 +442,7 @@ impl GpioInterface {
                 rows[i].lock().unwrap().on_changed(move |state| {
                     let mut cols_lock = cols.lock().unwrap();
                     if state {
+                        trace!("[Keypad] Row {} is high", i + 1);
                         // Turn off each col in series until the row turns off
                         for j in 0..KEYPAD_COL_COUNT {
                             cols_lock[j].set_low();
@@ -455,6 +456,7 @@ impl GpioInterface {
                             }
                         }
                     } else {
+                        trace!("[Keypad] Row {} is low", i + 1);
                         // Turn the cols back on after reading the digit
                         for j in 0..KEYPAD_COL_COUNT {
                             cols_lock[j].set_high();
