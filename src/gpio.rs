@@ -444,24 +444,22 @@ impl GpioInterface {
                         // Turn off each col until row turns off
                         for col_index in 0..KEYPAD_COL_COUNT {
                             cols[col_index].set_low();
-                            thread::sleep(KEYPAD_SCAN_INTERVAL);
-                            if rx_keypad.try_recv() == Ok((row_index, false)) {
+                            if rx_keypad.recv_timeout(KEYPAD_SCAN_INTERVAL) == Ok((row_index, false)) {
                                 // Calculate digit from row/col indices
                                 let digit_index = row_index * KEYPAD_COL_COUNT + col_index;
                                 let digit = KEYPAD_DIGITS[digit_index] as char;
                                 sender.send(PhoneInputSignal::Digit(digit)).unwrap();
-
-                                // Turn cols back on
-                                suppress_row_events_cl.store(true, Ordering::SeqCst);
-                                for col_index in 0..KEYPAD_COL_COUNT {
-                                    cols[col_index].set_high();
-                                }
-                                thread::sleep(KEYPAD_SCAN_INTERVAL);
-                                suppress_row_events_cl.store(false, Ordering::SeqCst);
-
                                 break;
                             }
                         }
+
+                        // Turn cols back on
+                        suppress_row_events_cl.store(true, Ordering::SeqCst);
+                        for col_index in 0..KEYPAD_COL_COUNT {
+                            cols[col_index].set_high();
+                        }
+                        thread::sleep(KEYPAD_SCAN_INTERVAL);
+                        suppress_row_events_cl.store(false, Ordering::SeqCst);
                     }
                 }
             });
