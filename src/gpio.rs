@@ -440,12 +440,13 @@ impl GpioInterface {
                 let cols = Arc::clone(cols);
                 let row = Arc::downgrade(&Arc::clone(&rows[i]));
                 rows[i].lock().unwrap().on_changed(move |state| {
-                    let mut cols_lock = cols.lock().unwrap();
+                    info!("[Keypad] state change detected");
+                    let mut cols = cols.lock().unwrap();
                     if state {
-                        trace!("[Keypad] Row {} is high", i + 1);
+                        info!("[Keypad] Row {} is high", i + 1);
                         // Turn off each col in series until the row turns off
                         for j in 0..KEYPAD_COL_COUNT {
-                            cols_lock[j].set_low();
+                            cols[j].set_low();
                             thread::sleep(KEYPAD_SCAN_INTERVAL);
                             if let Some(row) = row.upgrade() {
                                 if row.lock().unwrap().is_low() {
@@ -456,16 +457,16 @@ impl GpioInterface {
                             }
                         }
                     } else {
-                        trace!("[Keypad] Row {} is low", i + 1);
+                        info!("[Keypad] Row {} is low", i + 1);
                         // Turn the cols back on after reading the digit
                         for j in 0..KEYPAD_COL_COUNT {
-                            cols_lock[j].set_high();
+                            cols[j].set_high();
                         }
                     }
                 }).unwrap();
             }
 
-            info!("Touch-tone enabled");
+            info!("Touch-tone enabled.");
         }
 
         info!("GPIO peripherals initialized.");
