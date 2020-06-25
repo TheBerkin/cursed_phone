@@ -10,8 +10,8 @@ use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
 
-const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(50);
-const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(250);
+const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(1000);
+const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
@@ -473,10 +473,10 @@ impl GpioInterface {
                 rows[i].lock().unwrap().on_changed(move |state| {
                     if suppress_row_events.load(Ordering::SeqCst) { return }
                     if state {
-                        info!("[Keypad] Row {} is high", i + 1);
+                        //info!("[Keypad] Row {} is high", i + 1);
                         tx_keypad.send((i, true)).expect("unable to communicate with keypad input handler thread");
                     } else {
-                        info!("[Keypad] Row {} is low", i + 1);
+                        //info!("[Keypad] Row {} is low", i + 1);
                         tx_keypad.send((i, false)).expect("unable to communicate with keypad input handler thread");
                     }
                 }).unwrap();
