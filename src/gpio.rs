@@ -5,10 +5,16 @@ use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
+use std::cell::RefCell;
 use log::{info, warn, trace};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
+
+const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(250);
+const KEYPAD_COL_COUNT: usize = 3;
+const KEYPAD_ROW_COUNT: usize = 4;
+const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
 
 /// Enables a digital input to be wrapped into a debounced input.
 trait Debounce<T> where T: Debounced {
@@ -158,9 +164,9 @@ pub struct GpioInterface {
     /// Pin for motion detector input.
     in_motion: Option<SoftInputPin>,
     /// Pins for keypad row inputs.
-    in_keypad_rows: Option<[SoftInputPin; 4]>,
+    in_keypad_rows: Option<[Arc<Mutex<SoftInputPin>>; KEYPAD_ROW_COUNT]>,
     /// Pins for keypad column outputs.
-    out_keypad_cols: Option<[OutputPin; 3]>,
+    out_keypad_cols: Option<Arc<Mutex<[OutputPin; KEYPAD_COL_COUNT]>>>,
     /// Pin for ringer output.
     out_ringer: Option<Arc<Mutex<OutputPin>>>,
     /// Pin for vibration motor output.
@@ -272,20 +278,20 @@ impl GpioInterface {
 
         // Register touch-tone dialing pins
         let (in_keypad_rows, out_keypad_cols) = match phone_type {
-            TouchTone => {
+            TouchTone | Payphone => {
                 let pins_keypad_rows = inputs.pins_keypad_rows.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
                 let pins_keypad_cols = outputs.pins_keypad_cols.expect("gpio.outputs.pins-keypad-cols is required for this phone type, but was not defined");
-                let in_keypad_rows: [SoftInputPin; 4] = [
-                    gen_required_soft_input(&gpio, pins_keypad_rows[0], inputs.pins_keypad_rows_bounce_ms),
-                    gen_required_soft_input(&gpio, pins_keypad_rows[1], inputs.pins_keypad_rows_bounce_ms),
-                    gen_required_soft_input(&gpio, pins_keypad_rows[2], inputs.pins_keypad_rows_bounce_ms),
-                    gen_required_soft_input(&gpio, pins_keypad_rows[3], inputs.pins_keypad_rows_bounce_ms)
+                let in_keypad_rows = [
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], inputs.pins_keypad_rows_bounce_ms))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], inputs.pins_keypad_rows_bounce_ms))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], inputs.pins_keypad_rows_bounce_ms))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], inputs.pins_keypad_rows_bounce_ms))),
                 ];
-                let out_keypad_cols: [OutputPin; 3] = [
+                let out_keypad_cols = Arc::new(Mutex::new([
                     gen_required_output(&gpio, pins_keypad_cols[0]),
                     gen_required_output(&gpio, pins_keypad_cols[1]),
-                    gen_required_output(&gpio, pins_keypad_cols[2])
-                ];
+                    gen_required_output(&gpio, pins_keypad_cols[2]),
+                ]));
                 (Some(in_keypad_rows), Some(out_keypad_cols))
             },
             _ => (None, None)
@@ -297,7 +303,7 @@ impl GpioInterface {
             let (tx, rx) = mpsc::channel();
             tx_ringer = Some(tx);
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
-            let ringer_thread = thread::spawn(move || {
+            thread::spawn(move || {
                 const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
                 const RINGER_FREQ: f64 = 20.0;
                 const RINGER_DUTY_CYCLE: f64 = 0.5;
@@ -306,7 +312,7 @@ impl GpioInterface {
 
                 loop {
                     // Stop any ringing that was interrupted
-                    ringer.lock().unwrap().clear_pwm();
+                    ringer.lock().unwrap().clear_pwm().unwrap();
 
                     'ring_check: while let Ok(true) = rx.recv() {
                         loop {
@@ -317,7 +323,7 @@ impl GpioInterface {
                             }
 
                             // Start ringing
-                            ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ, 0.5);
+                            ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ, 0.5).unwrap();
 
                             // Wait for on-time or cancel signal
                             while phase_start.elapsed() < ring_on_time {
@@ -329,7 +335,7 @@ impl GpioInterface {
                             let phase_start = Instant::now();
 
                             // Stop ringing
-                            ringer.lock().unwrap().clear_pwm();
+                            ringer.lock().unwrap().clear_pwm().unwrap();
 
                             if let Ok(false) = rx.try_recv() {
                                 break 'ring_check;
@@ -378,8 +384,8 @@ impl GpioInterface {
         })?;
 
         // Motion sensor
-        let sender = tx.clone();
         if let Some(in_motion) = &mut self.in_motion {
+            let sender = tx.clone();
             in_motion.on_changed(move |motion_detected| {
                 if motion_detected {
                      sender.send(PhoneInputSignal::Motion).unwrap();
@@ -388,23 +394,56 @@ impl GpioInterface {
         }
 
         // Rotary dial rest switch
-        let sender = tx.clone();
         if let Some(in_dial_switch) = &mut self.in_dial_switch {
+            let sender = tx.clone();
             in_dial_switch.on_changed(move |dial_resting| {
-                sender.send(PhoneInputSignal::RotaryDialRest(dial_resting));
+                sender.send(PhoneInputSignal::RotaryDialRest(dial_resting)).unwrap();
             })?;
         }
 
         // Rotary dial pulse switch
-        let sender = tx.clone();
         if let Some(in_dial_pulse) = &mut self.in_dial_pulse {
+            let sender = tx.clone();
             in_dial_pulse.on_changed(move |dial_pulse_state| {
                 // We're only interested in the closed state of the pulse,
                 // as the full pulse is implied to have happened for this state to be reached.
                 if dial_pulse_state {
-                    sender.send(PhoneInputSignal::RotaryDialPulse);
+                    sender.send(PhoneInputSignal::RotaryDialPulse).unwrap();
                 }
             })?;
+        }
+
+        // Touch-tone keypad
+        if let (Some(rows), Some(cols)) 
+            = (&mut self.in_keypad_rows, &mut self.out_keypad_cols) {
+            // Create input handler for each keypad row
+            for i in 0..KEYPAD_ROW_COUNT {
+                let sender = tx.clone();
+                let cols = Arc::clone(cols);
+                let row = Arc::downgrade(&Arc::clone(&rows[i]));
+                rows[i].lock().unwrap().on_changed(move |state| {
+                    let mut cols_lock = cols.lock().unwrap();
+                    if state {
+                        // Turn off each col in series until the row turns off
+                        for j in 0..KEYPAD_COL_COUNT {
+                            cols_lock[j].set_low();
+                            thread::sleep(KEYPAD_SCAN_INTERVAL);
+                            if let Some(row) = row.upgrade() {
+                                if row.lock().unwrap().is_low() {
+                                    let digit = KEYPAD_DIGITS[i * KEYPAD_COL_COUNT + j] as char;
+                                    sender.send(PhoneInputSignal::Digit(digit)).unwrap();
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        // Turn the cols back on after reading the digit
+                        for j in 0..KEYPAD_COL_COUNT {
+                            cols_lock[j].set_high();
+                        }
+                    }
+                }).unwrap();
+            }
         }
 
         info!("GPIO peripherals initialized.");

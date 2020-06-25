@@ -10,7 +10,7 @@
     ],
     "Lua.runtime.version": "LuaJIT",
     "rust-analyzer.updates.channel": "nightly",
-    "rust-analyzer.cargo.allFeatures": false,
+    "rust-analyzer.cargo.allFeatures": true,
     "rust.unstable_features": true,
     "todo-tree.general.enableFileWatcher": true,
     "todo-tree.filtering.includeGlobs": [
@@ -18,5 +18,8 @@
         "**/src/**/*.rs"
     ],
     "todo-tree.regex.regex": "(?:(?://|#|--|/\\*\\*?|\\*)\\s*($TAGS)|^\\s*- \\[ \\])",
-    "rust-client.engine": "rust-analyzer"
+    "rust-client.engine": "rust-analyzer",
+    "rust-analyzer.cargo.features": [
+        "rpi"
+    ]
 }
