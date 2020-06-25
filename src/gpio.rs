@@ -218,25 +218,25 @@ fn gen_required_soft_input_from(gpio: &Gpio, input_config: &InputPinConfig) -> S
     soft_input
 }
 
-fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, debounce: Option<u64>) -> Option<SoftInputPin> {
+fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, debounce: Option<Duration>) -> Option<SoftInputPin> {
     if enable.unwrap_or(false) {
         if let Some(pin) = pin {
             let input = gpio.get(pin).unwrap()
                 .into_input_pullup()
-                .debounce(Duration::from_millis(debounce.unwrap_or(0)));
+                .debounce(debounce.unwrap_or_default());
             return Some(input);
         }
     }
     None
 }
 
-fn gen_required_soft_input(gpio: &Gpio, pin: u8, debounce: Option<u64>, pull: Pull) -> SoftInputPin {
+fn gen_required_soft_input(gpio: &Gpio, pin: u8, debounce: Option<Duration>, pull: Pull) -> SoftInputPin {
     match pull {
         Pull::None => gpio.get(pin).unwrap().into_input(),
         Pull::Up => gpio.get(pin).unwrap().into_input_pullup(),
         Pull::Down => gpio.get(pin).unwrap().into_input_pulldown()
     }
-    .debounce(Duration::from_millis(debounce.unwrap_or(0)))
+    .debounce(debounce.unwrap_or_default())
 }
 
 fn gen_optional_output(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>) -> Option<OutputPin> {
@@ -293,10 +293,10 @@ impl GpioInterface {
                 let pins_keypad_rows = inputs.pins_keypad_rows.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
                 let pins_keypad_cols = outputs.pins_keypad_cols.expect("gpio.outputs.pins-keypad-cols is required for this phone type, but was not defined");
                 let in_keypad_rows = [
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], KEYPAD_ROW_BOUNCE, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], KEYPAD_ROW_BOUNCE, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], KEYPAD_ROW_BOUNCE, Pull::Down))),
-                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], KEYPAD_ROW_BOUNCE, Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
+                    Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
                 ];
                 let out_keypad_cols = Arc::new(Mutex::new([
                     gen_required_output(&gpio, pins_keypad_cols[0]),
