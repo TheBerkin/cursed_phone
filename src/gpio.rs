@@ -456,6 +456,7 @@ impl GpioInterface {
                                 for col_index in 0..KEYPAD_COL_COUNT {
                                     cols[col_index].set_high();
                                 }
+                                thread::sleep(KEYPAD_SCAN_INTERVAL);
                                 suppress_row_events_cl.store(false, Ordering::SeqCst);
 
                                 break;
