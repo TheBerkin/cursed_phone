@@ -440,22 +440,25 @@ impl GpioInterface {
                 let cols = Arc::clone(cols);
                 let row = Arc::downgrade(&Arc::clone(&rows[i]));
                 rows[i].lock().unwrap().on_changed(move |state| {
-                    info!("[Keypad] state change detected");
+                    info!("[Keypad] State change detected");
                     let mut cols = cols.lock().unwrap();
+                    let row = row.upgrade();
                     if state {
                         info!("[Keypad] Row {} is high", i + 1);
-                        // Turn off each col in series until the row turns off
-                        for j in 0..KEYPAD_COL_COUNT {
-                            cols[j].set_low();
-                            thread::sleep(KEYPAD_SCAN_INTERVAL);
-                            if let Some(row) = row.upgrade() {
-                                if row.lock().unwrap().is_low() {
-                                    let digit = KEYPAD_DIGITS[i * KEYPAD_COL_COUNT + j] as char;
-                                    sender.send(PhoneInputSignal::Digit(digit)).unwrap();
-                                    break;
+                        if let Some(row) = row {
+                            if let Ok(row) = row.try_lock() {
+                                // Turn off each col in series until the row turns off
+                                for j in 0..KEYPAD_COL_COUNT {
+                                    cols[j].set_low();
+                                    thread::sleep(KEYPAD_SCAN_INTERVAL);
+                                    if row.is_low() {
+                                        let digit = KEYPAD_DIGITS[i * KEYPAD_COL_COUNT + j] as char;
+                                        sender.send(PhoneInputSignal::Digit(digit)).unwrap();
+                                        break;
+                                    }
                                 }
                             }
-                        }
+                        }                        
                     } else {
                         info!("[Keypad] Row {} is low", i + 1);
                         // Turn the cols back on after reading the digit
