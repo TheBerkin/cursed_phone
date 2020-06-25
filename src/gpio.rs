@@ -464,6 +464,8 @@ impl GpioInterface {
                     }
                 }).unwrap();
             }
+
+            info!("Touch-tone enabled");
         }
 
         info!("GPIO peripherals initialized.");
