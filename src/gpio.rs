@@ -11,7 +11,7 @@ use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
 
-const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(250);
+const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_millis(1);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
@@ -415,7 +415,14 @@ impl GpioInterface {
 
         // Touch-tone keypad
         if let (Some(rows), Some(cols)) 
-            = (&mut self.in_keypad_rows, &mut self.out_keypad_cols) {
+        = (&mut self.in_keypad_rows, &mut self.out_keypad_cols) {
+
+            // Set the cols initially high
+            let mut cols_lock = cols.lock().unwrap();
+            for j in 0..KEYPAD_COL_COUNT {
+                cols_lock[j].set_high();
+            }
+
             // Create input handler for each keypad row
             for i in 0..KEYPAD_ROW_COUNT {
                 let sender = tx.clone();
