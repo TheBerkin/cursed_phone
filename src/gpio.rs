@@ -131,14 +131,7 @@ impl Debounced for SoftInputPin {
     }
 
     fn is_high(&self) -> bool {
-        let mut state = self.state.lock().unwrap();
-        if state.last_changed.elapsed() < state.bounce_time {
-            return state.last_value;
-        }
-        let new_state = self.pin.lock().unwrap().is_high();
-        state.last_value = new_state;
-        state.last_changed = Instant::now();
-        new_state
+        self.state.lock().unwrap().last_value
     }
 
     #[inline]
@@ -258,6 +251,7 @@ impl GpioInterface {
         let gpio = Gpio::new().expect("Unable to initialize GPIO interface");
         let inputs = &config.gpio.inputs;
         let outputs = &config.gpio.outputs;
+        let mut tx_ringer = None;
 
         // Register standard GPIO pins
         let in_hook = gen_required_soft_input_from(&gpio, &inputs.hook);
@@ -298,22 +292,24 @@ impl GpioInterface {
                     Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[2], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
                     Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[3], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
                 ];
+
                 let out_keypad_cols = Arc::new(Mutex::new([
                     gen_required_output(&gpio, pins_keypad_cols[0]),
                     gen_required_output(&gpio, pins_keypad_cols[1]),
                     gen_required_output(&gpio, pins_keypad_cols[2]),
                 ]));
+
                 (Some(in_keypad_rows), Some(out_keypad_cols))
             },
             _ => (None, None)
         };
 
-        // Ringer fields
-        let mut tx_ringer = None;
+        // Ringer PWM thread
         if config.enable_ringer.unwrap_or(true) {
             let (tx, rx) = mpsc::channel();
             tx_ringer = Some(tx);
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
+
             thread::spawn(move || {
                 const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
                 const RINGER_FREQ: f64 = 20.0;
@@ -366,7 +362,6 @@ impl GpioInterface {
 
         // Vibration fields
         // TODO: Set up vibration output
-        
 
         GpioInterface {
             gpio,
@@ -434,37 +429,54 @@ impl GpioInterface {
                 cols_lock[j].set_high();
             }
 
+            let (tx_keypad, rx_keypad) = mpsc::channel();
+            let cols = Arc::clone(cols);
+            let sender = tx.clone();
+            let suppress_row_events = Arc::new(AtomicBool::new(false));
+            
+            let suppress_row_events_cl = Arc::clone(&suppress_row_events);
+
+            // Create keypad input handler thread
+            thread::spawn(move || {
+                while let Ok((row_index, row_high)) = rx_keypad.recv() {
+                    let mut cols = cols.lock().unwrap();
+                    if row_high {
+                        // Turn off each col until row turns off
+                        for col_index in 0..KEYPAD_COL_COUNT {
+                            cols[col_index].set_low();
+                            thread::sleep(KEYPAD_SCAN_INTERVAL);
+                            if rx_keypad.try_recv() == Ok((row_index, false)) {
+                                // Calculate digit from row/col indices
+                                let digit_index = row_index * KEYPAD_COL_COUNT + col_index;
+                                let digit = KEYPAD_DIGITS[digit_index] as char;
+                                sender.send(PhoneInputSignal::Digit(digit)).unwrap();
+
+                                // Turn cols back on
+                                suppress_row_events_cl.store(true, Ordering::SeqCst);
+                                for col_index in 0..KEYPAD_COL_COUNT {
+                                    cols[col_index].set_high();
+                                }
+                                suppress_row_events_cl.store(false, Ordering::SeqCst);
+
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+
             // Create input handler for each keypad row
             for i in 0..KEYPAD_ROW_COUNT {
-                let sender = tx.clone();
-                let cols = Arc::clone(cols);
-                let row = Arc::downgrade(&Arc::clone(&rows[i]));
+                let tx_keypad = tx_keypad.clone();
+                let suppress_row_events = Arc::clone(&suppress_row_events);
                 rows[i].lock().unwrap().on_changed(move |state| {
-                    info!("[Keypad] State change detected");
-                    let mut cols = cols.lock().unwrap();
-                    let row = row.upgrade();
+                    if suppress_row_events.load(Ordering::SeqCst) { return }
                     if state {
                         info!("[Keypad] Row {} is high", i + 1);
-                        if let Some(row) = row {
-                            if let Ok(row) = row.try_lock() {
-                                // Turn off each col in series until the row turns off
-                                for j in 0..KEYPAD_COL_COUNT {
-                                    cols[j].set_low();
-                                    thread::sleep(KEYPAD_SCAN_INTERVAL);
-                                    if row.is_low() {
-                                        let digit = KEYPAD_DIGITS[i * KEYPAD_COL_COUNT + j] as char;
-                                        sender.send(PhoneInputSignal::Digit(digit)).unwrap();
-                                        break;
-                                    }
-                                }
-                            }
-                        }                        
+                        tx_keypad.send((i, true)).expect("unable to communicate with keypad input handler thread");
                     } else {
                         info!("[Keypad] Row {} is low", i + 1);
-                        // Turn the cols back on after reading the digit
-                        for j in 0..KEYPAD_COL_COUNT {
-                            cols[j].set_high();
-                        }
+                        tx_keypad.send((i, false)).expect("unable to communicate with keypad input handler thread");
                     }
                 }).unwrap();
             }
