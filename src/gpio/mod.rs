@@ -1,154 +1,80 @@
 #![cfg(feature = "rpi")]
 #![allow(dead_code)]
 
+mod debounce;
+
 use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
+use std::thread::JoinHandle;
 use std::rc::Rc;
 use log::{info, trace};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
+use debounce::*;
 
-const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(1000);
+const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(250);
 const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
 
-/// Enables a digital input to be wrapped into a debounced input.
-trait Debounce<T> where T: Debounced {
-    fn debounce(self, time: Duration) -> T;
-}
-
-/// Represents a debounced digital input.
-trait Debounced {
-    fn on_changed<C>(&mut self, callback: C) -> Result<()> 
-        where C: FnMut(bool) + Send + 'static;
-
-    fn is_high(&self) -> bool;
-
-    fn is_low(&self) -> bool;
-
-    fn is_debouncing(&self) -> bool;
-
-    fn set_bounce_time(&mut self, time: Duration);
-}
-
-/// Simple wrapper around `rppal::gpio::pin::InputPin` to add debouncing.
-struct SoftInputPin {
-    pin: Arc<Mutex<InputPin>>,
-    state: Arc<Mutex<SoftInputState>>,
-    debounce_flag: Arc<AtomicBool>
-}
-
-struct SoftInputState {
-    bounce_time: Duration,
-    last_changed: Instant,
-    last_value: bool
-}
-
-impl SoftInputState {
-    fn change_last_value(&mut self, new_value: bool) {
-        self.last_changed = Instant::now();
-        self.last_value = new_value;
-    }
-}
-
-impl SoftInputPin {
-    fn new(mut pin: InputPin, bounce_time: Duration) -> Self {
-        pin.set_interrupt(Trigger::Both).unwrap();
-        let last_changed = Instant::now();
-        let last_value = pin.is_high();
-
-        let state = SoftInputState {
-            last_changed,
-            bounce_time,
-            last_value
-        };
-
-        Self {
-            pin: Arc::new(Mutex::new(pin)),
-            state: Arc::new(Mutex::new(state)),
-            debounce_flag: Arc::new(AtomicBool::new(false))
-        }
-    }
-}
-
-impl Debounce<SoftInputPin> for InputPin {
-    fn debounce(self, time: Duration) -> SoftInputPin {
-        SoftInputPin::new(self, time)
-    }
-}
-
-impl Debounced for SoftInputPin {
-    fn on_changed<C>(&mut self, mut callback: C) -> Result<()> 
-    where C: FnMut(bool) + Send + 'static {
-        let state = Arc::clone(&self.state);
-        let pin = Arc::clone(&self.pin);
-        let debounce_flag = Arc::clone(&self.debounce_flag);
-        self.pin.lock().unwrap().set_async_interrupt(Trigger::Both, move |level| {
-            // If the pin is currently debouncing, ignore this event entirely.
-            if debounce_flag.load(Ordering::SeqCst) {
-                return;
-            }
-            
-            // Pin value at time of event
-            let mut new_value = level == Level::High;
-
-            // Acquire debounce state and pin
-            let mut state = state.lock().unwrap();
-            let pin = pin.lock().unwrap();
-            
-            // Ignore this event if the state hasn't changed
-            if new_value != state.last_value {
-                // Enable debounce flag
-                debounce_flag.store(true, Ordering::SeqCst);
-
-                // Inform user of value change
-                state.change_last_value(new_value);
-                callback(new_value);
-
-                // Sleep for bounce time
-                thread::sleep(state.bounce_time);
-
-                // Check if input has changed since debounce and inform user if so
-                new_value = pin.is_high();
-                if new_value != state.last_value {
-                    state.change_last_value(new_value);
-                    callback(new_value);
-                }
-
-                // End debounce
-                debounce_flag.store(false, Ordering::SeqCst);
-            }
-        })
-    }
-
-    #[inline]
-    fn is_debouncing(&self) -> bool {
-        self.debounce_flag.load(Ordering::SeqCst)
-    }
-
-    fn is_high(&self) -> bool {
-        self.state.lock().unwrap().last_value
-    }
-
-    #[inline]
-    fn is_low(&self) -> bool {
-        !self.is_high()
-    }
-
-    fn set_bounce_time(&mut self, time: Duration) {
-        let mut state = self.state.lock().unwrap();
-        state.bounce_time = time;
-    }
-}
-
 enum Pull {
     None,
     Up,
     Down
+}
+
+impl From<&'static str> for Pull {
+    fn from(name: &'static str) -> Self {
+        match name.to_ascii_lowercase().as_str() {
+            "up" => Pull::Up,
+            "down" => Pull::Down,
+            "none" | _ => Pull::None
+        }
+    }
+}
+
+impl From<String> for Pull {
+    fn from(name: String) -> Self {
+        match name.to_ascii_lowercase().as_str() {
+            "up" => Pull::Up,
+            "down" => Pull::Down,
+            "none" | _ => Pull::None
+        }
+    }
+}
+
+impl From<&String> for Pull {
+    fn from(name: &String) -> Self {
+        match name.to_ascii_lowercase().as_str() {
+            "up" => Pull::Up,
+            "down" => Pull::Down,
+            "none" | _ => Pull::None
+        }
+    }
+}
+
+impl From<&Option<String>> for Pull {
+    fn from(name: &Option<String>) -> Self {
+        if let Some(name) = name {
+            return match name.to_ascii_lowercase().as_str() {
+                "up" => Pull::Up,
+                "down" => Pull::Down,
+                "none" | _ => Pull::None
+            }
+        }
+        Pull::None
+    }
+}
+
+fn make_input_pin(pin: Pin, pull: Pull) -> InputPin {
+    match pull {
+        Pull::Up => pin.into_input_pullup(),
+        Pull::Down => pin.into_input_pulldown(),
+        Pull::None => pin.into_input()
+    }
 }
 
 /// Provides an interface for phone-related GPIO pins.
@@ -178,18 +104,10 @@ pub struct GpioInterface {
 
 fn gen_optional_soft_input_from(gpio: &Gpio, enable: Option<bool>, input_config: &Option<InputPinConfig>) -> Option<SoftInputPin> {
     if enable.unwrap_or(false) {
-        if let Some(input) = input_config {
-            let raw_pin = gpio.get(input.pin).unwrap();
-            let raw_input = if let Some(pull_name) = &input.pull {
-                match pull_name.to_ascii_lowercase().as_str() {
-                    "up" => raw_pin.into_input_pullup(),
-                    "down" => raw_pin.into_input_pulldown(),
-                    "none" | _ => raw_pin.into_input()
-                }
-            } else {
-                raw_pin.into_input()
-            };
-            let soft_input = raw_input.debounce(Duration::from_millis(input.bounce_ms.unwrap_or(0)));
+        if let Some(input_config) = input_config {
+            let pin = gpio.get(input_config.pin).unwrap();
+            let input = make_input_pin(pin, Pull::from(&input_config.pull));
+            let soft_input = input.debounce(Duration::from_millis(input_config.bounce_ms.unwrap_or(0)));
             return Some(soft_input);
         }
     }
@@ -197,16 +115,8 @@ fn gen_optional_soft_input_from(gpio: &Gpio, enable: Option<bool>, input_config:
 }
 
 fn gen_required_soft_input_from(gpio: &Gpio, input_config: &InputPinConfig) -> SoftInputPin {
-    let raw_pin = gpio.get(input_config.pin).unwrap();
-    let raw_input = if let Some(pull_name) = &input_config.pull {
-        match pull_name.to_ascii_lowercase().as_str() {
-            "up" => raw_pin.into_input_pullup(),
-            "down" => raw_pin.into_input_pulldown(),
-            "none" | _ => raw_pin.into_input()
-        }
-    } else {
-        raw_pin.into_input()
-    };
+    let pin = gpio.get(input_config.pin).unwrap();
+    let raw_input = make_input_pin(pin, Pull::from(&input_config.pull));
     let soft_input = raw_input.debounce(Duration::from_millis(input_config.bounce_ms.unwrap_or(0)));
     soft_input
 }
@@ -224,12 +134,7 @@ fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, d
 }
 
 fn gen_required_soft_input(gpio: &Gpio, pin: u8, debounce: Option<Duration>, pull: Pull) -> SoftInputPin {
-    match pull {
-        Pull::None => gpio.get(pin).unwrap().into_input(),
-        Pull::Up => gpio.get(pin).unwrap().into_input_pullup(),
-        Pull::Down => gpio.get(pin).unwrap().into_input_pulldown()
-    }
-    .debounce(debounce.unwrap_or_default())
+    make_input_pin(gpio.get(pin).unwrap(), pull).debounce(debounce.unwrap_or_default())
 }
 
 fn gen_optional_output(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>) -> Option<OutputPin> {
@@ -387,7 +292,7 @@ impl GpioInterface {
         let sender = tx.clone();
         self.in_hook.on_changed(move |state| {
             sender.send(PhoneInputSignal::HookState(state)).unwrap();
-        })?;
+        });
 
         // Motion sensor
         if let Some(in_motion) = &mut self.in_motion {
@@ -396,7 +301,7 @@ impl GpioInterface {
                 if motion_detected {
                      sender.send(PhoneInputSignal::Motion).unwrap();
                 }
-            })?;
+            });
         }
 
         // Rotary dial rest switch
@@ -404,7 +309,7 @@ impl GpioInterface {
             let sender = tx.clone();
             in_dial_switch.on_changed(move |dial_resting| {
                 sender.send(PhoneInputSignal::RotaryDialRest(dial_resting)).unwrap();
-            })?;
+            });
         }
 
         // Rotary dial pulse switch
@@ -416,7 +321,7 @@ impl GpioInterface {
                 if dial_pulse_state {
                     sender.send(PhoneInputSignal::RotaryDialPulse).unwrap();
                 }
-            })?;
+            });
         }
 
         // Touch-tone keypad
@@ -477,7 +382,7 @@ impl GpioInterface {
                         //info!("[Keypad] Row {} is low", i + 1);
                         tx_keypad.send((i, false)).expect("unable to communicate with keypad input handler thread");
                     }
-                }).unwrap();
+                });
             }
 
             info!("Touch-tone enabled.");
