@@ -348,7 +348,7 @@ impl GpioInterface {
                 while let Ok((row_index, row_high)) = rx_keypad.recv() {
                     let mut cols = cols.lock().unwrap();
                     let current_press_time = Instant::now();
-                    if row_high && current_press_time.checked_duration_since(last_digit_time).unwrap_or_default() < KEYPAD_MIN_DIGIT_INTERVAL {
+                    if row_high && current_press_time.checked_duration_since(last_digit_time).unwrap_or_default() >= KEYPAD_MIN_DIGIT_INTERVAL {
                         // Turn off each col until row turns off
                         for col_index in 0..KEYPAD_COL_COUNT {
                             cols[col_index].set_low();
