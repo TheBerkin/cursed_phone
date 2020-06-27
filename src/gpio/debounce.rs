@@ -11,7 +11,7 @@ pub trait Debounce<T> where T: Debounced {
 
 /// Represents a debounced digital input.
 pub trait Debounced {
-    fn on_changed<C>(&mut self, callback: C) 
+    fn set_on_changed<C>(&mut self, callback: C) 
         where C: FnMut(bool) + Send + 'static;
 
     fn is_high(&self) -> bool;
@@ -128,7 +128,7 @@ impl Debounce<SoftInputPin> for InputPin {
 }
 
 impl Debounced for SoftInputPin {
-    fn on_changed<C>(&mut self, mut callback: C)
+    fn set_on_changed<C>(&mut self, mut callback: C)
     where C: FnMut(bool) + Send + 'static {
         let mut state = self.state.lock().unwrap();
         state.change_callback = Some(Box::new(callback));

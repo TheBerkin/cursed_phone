@@ -13,7 +13,7 @@ use crate::config::*;
 use crate::phone::*;
 use debounce::*;
 
-const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(250);
+const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(500);
 const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
@@ -209,7 +209,7 @@ impl GpioInterface {
         };
 
         // Ringer PWM thread
-        if config.enable_ringer.unwrap_or(true) {
+        if config.enable_ringer.unwrap_or(false) {
             let (tx, rx) = mpsc::channel();
             tx_ringer = Some(tx);
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
@@ -289,14 +289,14 @@ impl GpioInterface {
         
         // On/Off-hook GPIO events
         let sender = tx.clone();
-        self.in_hook.on_changed(move |state| {
+        self.in_hook.set_on_changed(move |state| {
             sender.send(PhoneInputSignal::HookState(state)).unwrap();
         });
 
         // Motion sensor
         if let Some(in_motion) = &mut self.in_motion {
             let sender = tx.clone();
-            in_motion.on_changed(move |motion_detected| {
+            in_motion.set_on_changed(move |motion_detected| {
                 if motion_detected {
                      sender.send(PhoneInputSignal::Motion).unwrap();
                 }
@@ -306,7 +306,7 @@ impl GpioInterface {
         // Rotary dial rest switch
         if let Some(in_dial_switch) = &mut self.in_dial_switch {
             let sender = tx.clone();
-            in_dial_switch.on_changed(move |dial_resting| {
+            in_dial_switch.set_on_changed(move |dial_resting| {
                 sender.send(PhoneInputSignal::RotaryDialRest(dial_resting)).unwrap();
             });
         }
@@ -314,7 +314,7 @@ impl GpioInterface {
         // Rotary dial pulse switch
         if let Some(in_dial_pulse) = &mut self.in_dial_pulse {
             let sender = tx.clone();
-            in_dial_pulse.on_changed(move |dial_pulse_state| {
+            in_dial_pulse.set_on_changed(move |dial_pulse_state| {
                 // We're only interested in the closed state of the pulse,
                 // as the full pulse is implied to have happened for this state to be reached.
                 if dial_pulse_state {
@@ -372,7 +372,7 @@ impl GpioInterface {
             for i in 0..KEYPAD_ROW_COUNT {
                 let tx_keypad = tx_keypad.clone();
                 let suppress_row_events = Arc::clone(&suppress_row_events);
-                rows[i].lock().unwrap().on_changed(move |state| {
+                rows[i].lock().unwrap().set_on_changed(move |state| {
                     if suppress_row_events.load(Ordering::SeqCst) { return }
                     if state {
                         //info!("[Keypad] Row {} is high", i + 1);
