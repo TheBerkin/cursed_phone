@@ -173,6 +173,7 @@ impl PhoneEngine {
             use PhoneInputSignal::*;
 
             // Perform any additional processing here before passing on the signal
+            #[allow(unused_variables)]
             match signal {
                 HookState(on_hook) => {
                     #[cfg(not(feature = "rpi"))]
@@ -224,7 +225,7 @@ impl PhoneEngine {
                         }
                     },
                     Vibrate { on, duty_cycle, time_seconds } => {
-                        trace!("Vibration = {}", on);
+                        trace!("Vibration = {}: duty_cycle = {}, time_seconds = {}", on, duty_cycle, time_seconds);
                         // TODO: Pass vibration to GPIO
                     }
                 }

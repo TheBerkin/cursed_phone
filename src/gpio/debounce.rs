@@ -1,5 +1,5 @@
 use std::thread::{self, JoinHandle};
-use std::sync::{Mutex, Arc, atomic::{Ordering, AtomicBool}, mpsc};
+use std::sync::{Mutex, Arc, Condvar};
 use std::time::{Instant, Duration};
 use rppal::gpio::*;
 
@@ -17,8 +17,6 @@ pub trait Debounced {
 
     fn is_low(&self) -> bool;
 
-    fn is_debouncing(&self) -> bool;
-
     fn set_bounce_time(&mut self, time: Duration);
 }
 
@@ -26,8 +24,7 @@ pub trait Debounced {
 pub struct SoftInputPin {
     pin: InputPin,
     state: Arc<Mutex<SoftInputState>>,
-    debounce_flag: Arc<AtomicBool>,
-    tx_handler: mpsc::Sender<bool>,
+    pin_status: Arc<(Mutex<bool>, Condvar)>,
     handler_thread: Option<JoinHandle<()>>,
 }
 
@@ -50,8 +47,7 @@ impl SoftInputPin {
         pin.set_interrupt(Trigger::Both).unwrap();
         let last_changed = Instant::now();
         let last_value = pin.is_high();
-
-        let (tx_handler, rx) = mpsc::channel();
+        let pin_status = Arc::new((Mutex::new(last_value), Condvar::new()));
 
         let state = SoftInputState {
             last_changed,
@@ -62,31 +58,32 @@ impl SoftInputPin {
 
         let mut s = Self {
             pin,
-            tx_handler,
             state: Arc::new(Mutex::new(state)),
-            debounce_flag: Arc::new(AtomicBool::new(false)),
+            pin_status,
             handler_thread: None
         };
-        s.start_handler_thread(rx);
-        s        
+        s.start_handler_thread();
+        s
     }
 
-    fn start_handler_thread(&mut self, rx: mpsc::Receiver<bool>) {
-        let debounce_flag = Arc::clone(&self.debounce_flag);
+    fn start_handler_thread(&mut self) {
+        let pin_status = Arc::clone(&self.pin_status);
         let state = Arc::clone(&self.state);
 
         self.handler_thread = Some(thread::spawn(move || {
-            while let Ok(new_value) = rx.recv() {
-                // If the pin is currently debouncing, ignore this event entirely.
-                if debounce_flag.load(Ordering::SeqCst) { return }
+            let (status_mutex, cvar) = &*pin_status;
+            let mut status_lock = status_mutex.lock().unwrap();
+            loop {
+                // Wait for notification from interrupt
+                status_lock = cvar.wait(status_lock).unwrap();
+
+                let new_value = *status_lock;
 
                 // Acquire debounce state and pin
                 let mut state = state.lock().unwrap();
                 
                 // Ignore this event if the state hasn't changed
                 if new_value != state.last_value {
-                    // Enable debounce flag
-                    debounce_flag.store(true, Ordering::SeqCst);
 
                     // Inform user of value change
                     state.change_last_value(new_value);
@@ -97,30 +94,24 @@ impl SoftInputPin {
                     // Sleep for bounce time
                     thread::sleep(state.bounce_time);
 
-                    // Check if input has changed since debounce and inform user if so
-                    let next_value = match rx.try_recv() {
-                        Ok(is_high) => is_high,
-                        _ => new_value
-                    };
-
+                    // Check if value has changed; if so, notify user again
+                    let next_value = *status_lock;
                     if next_value != state.last_value {
                         state.change_last_value(next_value);
                         if let Some(callback) = state.change_callback.as_mut() {
                             callback(next_value);
                         }
                     }
-
-                    // End debounce
-                    debounce_flag.store(false, Ordering::SeqCst);
                 }
             }
         }));
 
-        let debounce_flag2 = Arc::clone(&self.debounce_flag);
-        let tx_handler = self.tx_handler.clone();
+        let pin_status = Arc::clone(&self.pin_status);
         self.pin.set_async_interrupt(Trigger::Both, move |level| {
-            if debounce_flag2.load(Ordering::SeqCst) { return }
-            tx_handler.send(level == Level::High).unwrap();
+            let (status_mutex, cvar) = &*pin_status;
+            let mut status_lock = status_mutex.lock().unwrap();
+            *status_lock = level == Level::High;
+            cvar.notify_one();
         }).unwrap();
     }
 }
@@ -136,11 +127,6 @@ impl Debounced for SoftInputPin {
     where C: FnMut(bool) + Send + 'static {
         let mut state = self.state.lock().unwrap();
         state.change_callback = Some(Box::new(callback));
-    }
-
-    #[inline]
-    fn is_debouncing(&self) -> bool {
-        self.debounce_flag.load(Ordering::SeqCst)
     }
 
     fn is_high(&self) -> bool {
