@@ -26,6 +26,7 @@ indexmap = "1.4.0"
 ref-portals = "1.0.0-beta.1"
 serde = { version = "1.0.111", features = ["derive"] }
 thread-priority = "0.2.0"
+take_mut = "0.2.2"
 toml = "0.5.6"
 rppal = { version = "0.11.3", optional = true }
 mlua = { version = "0.4.1", default-features = false, features = ["vendored", "luajit"] }

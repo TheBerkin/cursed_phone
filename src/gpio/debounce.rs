@@ -1,6 +1,7 @@
 use std::thread::{self, JoinHandle};
 use std::sync::{Mutex, Arc, Condvar};
 use std::time::{Instant, Duration};
+use take_mut;
 use rppal::gpio::*;
 
 /// Enables a digital input to be wrapped into a debounced input.
@@ -91,8 +92,12 @@ impl SoftInputPin {
                         callback(new_value);
                     }
 
-                    // Sleep for bounce time
-                    thread::sleep(state.bounce_time);
+                    // Sleep for bounce time, but allow input interrupts to acquire lock on status_mutex
+                    take_mut::take(&mut status_lock, |status_lock| {
+                        drop(status_lock);
+                        thread::sleep(state.bounce_time);
+                        status_mutex.lock().unwrap()
+                    });
 
                     // Check if value has changed; if so, notify user again
                     let next_value = *status_lock;
