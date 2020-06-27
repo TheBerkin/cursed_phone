@@ -13,6 +13,7 @@ use crate::config::*;
 use crate::phone::*;
 use debounce::*;
 
+const KEYPAD_MIN_DIGIT_INTERVAL: Duration = Duration::from_millis(80);
 const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(850);
 const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
@@ -342,9 +343,12 @@ impl GpioInterface {
 
             // Create keypad input handler thread
             thread::spawn(move || {
+                let mut last_digit_time = Instant::now();
+
                 while let Ok((row_index, row_high)) = rx_keypad.recv() {
                     let mut cols = cols.lock().unwrap();
-                    if row_high {
+                    let current_press_time = Instant::now();
+                    if row_high && current_press_time.checked_duration_since(last_digit_time).unwrap_or_default() < KEYPAD_MIN_DIGIT_INTERVAL {
                         // Turn off each col until row turns off
                         for col_index in 0..KEYPAD_COL_COUNT {
                             cols[col_index].set_low();
@@ -353,6 +357,7 @@ impl GpioInterface {
                                 let digit_index = row_index * KEYPAD_COL_COUNT + col_index;
                                 let digit = KEYPAD_DIGITS[digit_index] as char;
                                 sender.send(PhoneInputSignal::Digit(digit)).unwrap();
+                                last_digit_time = current_press_time;
                                 break;
                             }
                         }
