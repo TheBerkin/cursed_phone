@@ -422,7 +422,7 @@ impl SoundEngine {
         }
     }
 
-    pub fn play_dtmf(&self, key: char, duration: f32, volume: f32) -> bool {
+    pub fn play_dtmf(&self, key: char, dur: Duration, volume: f32) -> bool {
         let index = DTMF_DIGITS.iter().position(|&c| c == key);
         let f_row = match index {
             Some(index) => DTMF_ROW_FREQUENCIES[index / 4],
@@ -432,7 +432,7 @@ impl SoundEngine {
             Some(index) => DTMF_COLUMN_FREQUENCIES[index % 4],
             None => return false
         };
-        self.channels.borrow()[Channel::SignalOut.as_index()].queue_dtmf(f_row, f_col, duration, volume * self.config.sound.dtmf_volume);
+        self.channels.borrow()[Channel::SignalOut.as_index()].queue_dtmf(f_row, f_col, dur, volume * self.config.sound.dtmf_volume);
         true
     }
 
@@ -536,12 +536,12 @@ impl SoundChannel {
         }
     }
 
-    fn queue_dtmf(&self, f1: u32, f2: u32, duration: f32, volume: f32) {
+    fn queue_dtmf(&self, f1: u32, f2: u32, dur: Duration, volume: f32) {
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(f1);
         let sine2 = rodio::source::SineWave::new(f2);
         let dtmf_tone = sine1.mix(sine2)
-        .take_duration(Duration::from_secs_f32(duration))
+        .take_duration(dur)
         .amplify(half_volume);
         self.sink.append(dtmf_tone);
     }

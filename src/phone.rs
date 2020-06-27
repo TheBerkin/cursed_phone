@@ -10,6 +10,7 @@ use crate::sound::*;
 
 #[cfg(feature = "rpi")]
 use crate::gpio::*;
+use time::Duration;
 
 #[derive(Copy, Clone, Debug)]
 pub enum PhoneInputSignal {
@@ -60,6 +61,7 @@ impl PhoneType {
 /// Provides I/O handling and state management for host phone peripherals.
 pub struct PhoneEngine {
     phone_type: PhoneType,
+    dtmf_tone_duration: Duration,
     sound_engine: Rc<RefCell<SoundEngine>>,
     input_from_gpio: mpsc::Receiver<PhoneInputSignal>,
     output_to_pbx: RefCell<Option<Rc<mpsc::Sender<PhoneInputSignal>>>>,
@@ -92,6 +94,7 @@ impl PhoneEngine {
             hook_state: true,
             ring_state: false,
             vibe_state: false,
+            dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default(),
             tx_ringer,
@@ -187,7 +190,7 @@ impl PhoneEngine {
                         1.0);
                 },
                 Digit(digit) => {
-                    self.sound_engine.borrow().play_dtmf(digit, 0.1, 1.0);
+                    self.sound_engine.borrow().play_dtmf(digit, self.dtmf_tone_duration, 1.0);
                 },
                 _ => {}
             }

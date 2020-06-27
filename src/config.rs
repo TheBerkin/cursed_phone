@@ -72,6 +72,7 @@ pub struct SoundConfig {
     /// Initial master volume.
     pub master_volume: f32,
     pub dtmf_volume: f32,
+    pub dtmf_tone_duration_ms: ms,
     pub dial_tone_gain: f32,
     pub ringback_tone_gain: f32,
     pub busy_tone_gain: f32,

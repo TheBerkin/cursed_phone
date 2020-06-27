@@ -156,7 +156,7 @@ impl<'lua> PbxEngine<'lua> {
     
         // sound.play_dtmf_digit(digit, duration, volume)
         tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
-            self.sound_engine.borrow().play_dtmf(digit as char, duration, volume);
+            self.sound_engine.borrow().play_dtmf(digit as char, Duration::from_secs_f32(duration), volume);
             Ok(())
         }).unwrap());
     
