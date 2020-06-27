@@ -13,7 +13,7 @@ use crate::config::*;
 use crate::phone::*;
 use debounce::*;
 
-const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(500);
+const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(850);
 const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
