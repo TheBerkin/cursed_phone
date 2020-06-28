@@ -232,12 +232,21 @@ impl GpioInterface {
                     _ => true
                 };
 
-                let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
-                    .iter()
-                    .zip(coin_trigger_bounce_ms.iter())
-                    .zip(coin_values.iter())
-                    .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
-                    .collect();
+                // let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
+                //     .iter()
+                //     .zip(coin_trigger_bounce_ms.iter())
+                //     .zip(coin_values.iter())
+                //     .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
+                //     .collect();
+
+                let mut in_coin_triggers = Vec::new();
+
+                for i in 0..coin_values.len() {
+                    let cents = coin_values[i];
+                    let bounce = Some(Duration::from_millis(coin_trigger_bounce_ms[i]));
+                    let pin_num = coin_trigger_pins[i];
+                    in_coin_triggers.push((cents, gen_required_soft_input(&gpio, pin_num, bounce, pull)));
+                }
 
                 info!("Coin triggers initialized ({}).", in_coin_triggers.len());
 
