@@ -241,6 +241,8 @@ impl GpioInterface {
                         .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
                         .collect();
 
+                    info!("Coin triggers initialized ({}).", in_coin_triggers.len());
+
                     Some(in_coin_triggers);
                 }
                 None
