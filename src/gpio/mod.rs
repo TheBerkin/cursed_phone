@@ -7,7 +7,6 @@ mod pull;
 use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
-use std::cell::RefCell;
 use std::rc::Rc;
 use log::{info, warn};
 use rppal::gpio::*;
@@ -204,49 +203,46 @@ impl GpioInterface {
         // Register coin trigger pins
         let mut coin_trigger_active_state = false;
         let in_coin_triggers = match phone_type {
-            Payphone if config.enable_coin_mech.unwrap_or(false) => (|| {
-                if let Some(coin_values) = config.coin_values.as_ref() {
-                    if coin_values.len() == 0 {
-                        warn!("coin-values is empty; disabling coin mechanism.");
-                        return None
-                    }
-
-                    let coin_trigger_pins = inputs.coin_trigger_pins.as_ref()
-                        .expect("gpio.inputs.coin-trigger-pins is not defined, but is required for this phone type");
-                    let coin_trigger_bounce_ms = inputs.coin_trigger_bounce_ms.as_ref()
-                        .expect("gpio.inputs.coin-trigger-bounce-ms is not defined, but is required for this phone type");
-
-                    if coin_trigger_pins.len() != coin_values.len() {
-                        warn!("gpio.inputs.coin-trigger-pins length doesn't match coin-values length; disabling coin mechanism.");
-                        return None
-                    }
-
-                    if coin_trigger_bounce_ms.len() != coin_values.len() {
-                        warn!("gpio.inputs.coin-trigger-bounce-ms length doesn't match coin-values length; disabling coin mechanism.");
-                        return None
-                    }
-
-                    let pull = Pull::from(&inputs.coin_trigger_pull);
-
-                    coin_trigger_active_state = match pull {
-                        Pull::Down => true,
-                        Pull::Up => false,
-                        _ => true
-                    };
-
-                    let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
-                        .iter()
-                        .zip(coin_trigger_bounce_ms.iter())
-                        .zip(coin_values.iter())
-                        .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
-                        .collect();
-
-                    info!("Coin triggers initialized ({}).", in_coin_triggers.len());
-
-                    return Some(in_coin_triggers)
+            Payphone if config.enable_coin_mech.unwrap_or(false) => config.coin_values.as_ref().map(|coin_values| {
+                if coin_values.len() == 0 {
+                    warn!("coin-values is empty; disabling coin mechanism.");
+                    return None
                 }
-                None
-            })(),
+
+                let coin_trigger_pins = inputs.coin_trigger_pins.as_ref()
+                    .expect("gpio.inputs.coin-trigger-pins is not defined, but is required for this phone type");
+                let coin_trigger_bounce_ms = inputs.coin_trigger_bounce_ms.as_ref()
+                    .expect("gpio.inputs.coin-trigger-bounce-ms is not defined, but is required for this phone type");
+
+                if coin_trigger_pins.len() != coin_values.len() {
+                    warn!("gpio.inputs.coin-trigger-pins length doesn't match coin-values length; disabling coin mechanism.");
+                    return None
+                }
+
+                if coin_trigger_bounce_ms.len() != coin_values.len() {
+                    warn!("gpio.inputs.coin-trigger-bounce-ms length doesn't match coin-values length; disabling coin mechanism.");
+                    return None
+                }
+
+                let pull = Pull::from(&inputs.coin_trigger_pull);
+
+                coin_trigger_active_state = match pull {
+                    Pull::Down => true,
+                    Pull::Up => false,
+                    _ => true
+                };
+
+                let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
+                    .iter()
+                    .zip(coin_trigger_bounce_ms.iter())
+                    .zip(coin_values.iter())
+                    .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
+                    .collect();
+
+                info!("Coin triggers initialized ({}).", in_coin_triggers.len());
+
+                return Some(in_coin_triggers)
+            }).flatten(),
             _ => None
         };
 
@@ -382,7 +378,6 @@ impl GpioInterface {
                 let sender = tx.clone();
                 input.set_on_changed(move |state| {
                     if state == active_state {
-                        info!("{}¢ inserted.", cents);
                         sender.send(PhoneInputSignal::Coin(cents)).unwrap();
                     }
                 });

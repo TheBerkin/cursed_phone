@@ -1,4 +1,5 @@
 use rppal::gpio::{InputPin, Pin};
+use log::warn;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Pull {
@@ -9,44 +10,37 @@ pub enum Pull {
 
 impl From<&'static str> for Pull {
     fn from(name: &'static str) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
+        str_to_pull(name.to_ascii_lowercase().as_str())
     }
 }
 
 impl From<String> for Pull {
     fn from(name: String) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
+        str_to_pull(name.to_ascii_lowercase().as_str())
     }
 }
 
 impl From<&String> for Pull {
     fn from(name: &String) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
+        str_to_pull(name.to_ascii_lowercase().as_str())
     }
 }
 
 impl From<&Option<String>> for Pull {
     fn from(name: &Option<String>) -> Self {
         if let Some(name) = name {
-            return match name.to_ascii_lowercase().as_str() {
-                "up" => Pull::Up,
-                "down" => Pull::Down,
-                "none" | _ => Pull::None
-            }
+            return str_to_pull(name.to_ascii_lowercase().as_str())
         }
         Pull::None
+    }
+}
+
+#[inline(always)]
+fn str_to_pull(name: &str) -> Pull {
+    match name {
+        "up" => Pull::Up,
+        "down" => Pull::Down,
+        "none" | _ => Pull::None
     }
 }
 
@@ -54,6 +48,9 @@ pub fn make_input_pin(pin: Pin, pull: Pull) -> InputPin {
     match pull {
         Pull::Up => pin.into_input_pullup(),
         Pull::Down => pin.into_input_pulldown(),
-        Pull::None => pin.into_input()
+        Pull::None => {
+            warn!("Pin {} is floating. Consider using internal pull resistor instead.", pin.pin());
+            pin.into_input()
+        }
     }
 }
