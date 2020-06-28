@@ -204,7 +204,7 @@ impl GpioInterface {
         // Register coin trigger pins
         let mut coin_trigger_active_state = false;
         let in_coin_triggers = match phone_type {
-            Payphone => (|| {
+            Payphone if config.enable_coin_mech.unwrap_or(false) => (|| {
                 if let Some(coin_values) = config.coin_values.as_ref() {
                     if coin_values.len() == 0 {
                         warn!("coin-values is empty; disabling coin mechanism.");
@@ -382,6 +382,7 @@ impl GpioInterface {
                 let sender = tx.clone();
                 input.set_on_changed(move |state| {
                     if state == active_state {
+                        info!("{}¢ inserted.", cents);
                         sender.send(PhoneInputSignal::Coin(cents)).unwrap();
                     }
                 });
