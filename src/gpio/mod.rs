@@ -2,16 +2,19 @@
 #![allow(dead_code)]
 
 mod debounce;
+mod pull;
 
 use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
 use std::time::{Instant, Duration};
 use std::thread;
+use std::cell::RefCell;
 use std::rc::Rc;
-use log::{info};
+use log::{info, warn};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
 use debounce::*;
+use pull::*;
 
 const KEYPAD_MIN_DIGIT_INTERVAL: Duration = Duration::from_millis(80);
 const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(850);
@@ -19,63 +22,6 @@ const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
-
-enum Pull {
-    None,
-    Up,
-    Down
-}
-
-impl From<&'static str> for Pull {
-    fn from(name: &'static str) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
-    }
-}
-
-impl From<String> for Pull {
-    fn from(name: String) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
-    }
-}
-
-impl From<&String> for Pull {
-    fn from(name: &String) -> Self {
-        match name.to_ascii_lowercase().as_str() {
-            "up" => Pull::Up,
-            "down" => Pull::Down,
-            "none" | _ => Pull::None
-        }
-    }
-}
-
-impl From<&Option<String>> for Pull {
-    fn from(name: &Option<String>) -> Self {
-        if let Some(name) = name {
-            return match name.to_ascii_lowercase().as_str() {
-                "up" => Pull::Up,
-                "down" => Pull::Down,
-                "none" | _ => Pull::None
-            }
-        }
-        Pull::None
-    }
-}
-
-fn make_input_pin(pin: Pin, pull: Pull) -> InputPin {
-    match pull {
-        Pull::Up => pin.into_input_pullup(),
-        Pull::Down => pin.into_input_pulldown(),
-        Pull::None => pin.into_input()
-    }
-}
 
 /// Provides an interface for phone-related GPIO pins.
 pub struct GpioInterface {
@@ -90,6 +36,8 @@ pub struct GpioInterface {
     in_motion: Option<SoftInputPin>,
     /// Pins for keypad row inputs.
     in_keypad_rows: Option<[Arc<Mutex<SoftInputPin>>; KEYPAD_ROW_COUNT]>,
+    /// Pins for coin trigger switch inputs.
+    in_coin_triggers: Option<Vec<(u32, SoftInputPin)>>,
     /// Pins for keypad column outputs.
     out_keypad_cols: Option<Arc<Mutex<[OutputPin; KEYPAD_COL_COUNT]>>>,
     /// Pin for ringer output.
@@ -162,17 +110,11 @@ impl GpioInterface {
         let in_hook = gen_required_soft_input_from(&gpio, &inputs.hook);
         let in_motion = gen_optional_soft_input_from(&gpio, config.enable_motion_sensor, &inputs.motion);
 
-        let out_ringer = if let Some(output) = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer) {
-            Some(Arc::new(Mutex::new(output)))
-        } else {
-            None
-        };
+        let out_ringer = gen_optional_output(&gpio, config.enable_ringer, outputs.pin_ringer)
+            .map(|o| Arc::new(Mutex::new(o)));
 
-        let out_vibe = if let Some(output) = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate) {
-            Some(Arc::new(Mutex::new(output)))
-        } else {
-            None
-        };
+        let out_vibe = gen_optional_output(&gpio, config.enable_vibration, outputs.pin_vibrate)
+            .map(|o| Arc::new(Mutex::new(o)));
 
         // Register pulse-dialing pins
         let (in_dial_switch, in_dial_pulse) = match phone_type {
@@ -189,7 +131,7 @@ impl GpioInterface {
         // Register touch-tone dialing pins
         let (in_keypad_rows, out_keypad_cols) = match phone_type {
             TouchTone | Payphone => {
-                let pins_keypad_rows = inputs.pins_keypad_rows.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
+                let pins_keypad_rows = inputs.keypad_row_pins.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
                 let pins_keypad_cols = outputs.pins_keypad_cols.expect("gpio.outputs.pins-keypad-cols is required for this phone type, but was not defined");
                 let in_keypad_rows = [
                     Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
@@ -230,18 +172,14 @@ impl GpioInterface {
                         loop {
                             let phase_start = Instant::now();
 
-                            if let Ok(false) = rx.try_recv() {
-                                break 'ring_check;
-                            }
+                            if let Ok(false) = rx.try_recv() { break 'ring_check }
 
                             // Start ringing
                             ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ, 0.5).unwrap();
 
                             // Wait for on-time or cancel signal
                             while phase_start.elapsed() < ring_on_time {
-                                if let Ok(false) = rx.try_recv() {
-                                    break 'ring_check;
-                                }
+                                if let Ok(false) = rx.try_recv() { break 'ring_check }
                             }
 
                             let phase_start = Instant::now();
@@ -249,21 +187,57 @@ impl GpioInterface {
                             // Stop ringing
                             ringer.lock().unwrap().clear_pwm().unwrap();
 
-                            if let Ok(false) = rx.try_recv() {
-                                break 'ring_check;
-                            }
+                            if let Ok(false) = rx.try_recv() { break 'ring_check }
 
                             // Wait for off-time or cancel signal
                             while phase_start.elapsed() < ring_off_time {
-                                if let Ok(false) = rx.try_recv() {
-                                    break 'ring_check;
-                                }
+                                if let Ok(false) = rx.try_recv() { break 'ring_check }
                             }
                         }
                     }
                 }
             });
         }
+
+        // Register coin trigger pins
+        let in_coin_triggers = match phone_type {
+            Payphone => (|| {
+                if let Some(coin_values) = config.coin_values.as_ref() {
+                    if coin_values.len() == 0 {
+                        warn!("coin-values is empty; disabling coin mechanism.");
+                        return None
+                    }
+
+                    let coin_trigger_pins = inputs.coin_trigger_pins.as_ref()
+                        .expect("gpio.inputs.coin-trigger-pins is not defined, but is required for this phone type");
+                    let coin_trigger_bounce_ms = inputs.coin_trigger_bounce_ms.as_ref()
+                        .expect("gpio.inputs.coin-trigger-bounce-ms is not defined, but is required for this phone type");
+
+                    if coin_trigger_pins.len() != coin_values.len() {
+                        warn!("gpio.inputs.coin-trigger-pins length doesn't match coin-values length; disabling coin mechanism.");
+                        return None
+                    }
+
+                    if coin_trigger_bounce_ms.len() != coin_values.len() {
+                        warn!("gpio.inputs.coin-trigger-bounce-ms length doesn't match coin-values length; disabling coin mechanism.");
+                        return None
+                    }
+
+                    let pull = Pull::from(&inputs.coin_trigger_pull);
+
+                    let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
+                        .iter()
+                        .zip(coin_trigger_bounce_ms.iter())
+                        .zip(coin_values.iter())
+                        .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
+                        .collect();
+
+                    Some(in_coin_triggers);
+                }
+                None
+            })(),
+            _ => None
+        };
 
         // Vibration fields
         // TODO: Set up vibration output
@@ -275,6 +249,7 @@ impl GpioInterface {
             in_dial_pulse,
             in_motion,
             in_keypad_rows,
+            in_coin_triggers,
             out_keypad_cols,
             out_ringer,
             out_vibe,
@@ -327,7 +302,6 @@ impl GpioInterface {
         // Touch-tone keypad
         if let (Some(rows), Some(cols)) 
         = (&mut self.in_keypad_rows, &mut self.out_keypad_cols) {
-
             // Set the cols initially high
             let mut cols_lock = cols.lock().unwrap();
             for j in 0..KEYPAD_COL_COUNT {
@@ -337,8 +311,7 @@ impl GpioInterface {
             let (tx_keypad, rx_keypad) = mpsc::channel();
             let cols = Arc::clone(cols);
             let sender = tx.clone();
-            let suppress_row_events = Arc::new(AtomicBool::new(false));
-            
+            let suppress_row_events = Arc::new(AtomicBool::new(false));            
             let suppress_row_events_cl = Arc::clone(&suppress_row_events);
 
             // Create keypad input handler thread
@@ -380,20 +353,29 @@ impl GpioInterface {
                 rows[i].lock().unwrap().set_on_changed(move |state| {
                     if suppress_row_events.load(Ordering::SeqCst) { return }
                     if state {
-                        //info!("[Keypad] Row {} is high", i + 1);
                         tx_keypad.send((i, true)).expect("unable to communicate with keypad input handler thread");
                     } else {
-                        //info!("[Keypad] Row {} is low", i + 1);
                         tx_keypad.send((i, false)).expect("unable to communicate with keypad input handler thread");
                     }
                 });
             }
+        }
 
-            info!("Touch-tone enabled.");
+        // Coin mechanism
+        if let Some(in_coin_triggers) = self.in_coin_triggers.as_mut() {
+            let coin_triggers_iter = in_coin_triggers.iter_mut();
+            for (cents, input) in coin_triggers_iter {
+                let cents = *cents;
+                let sender = tx.clone();
+                input.set_on_changed(move |state| {
+                    if state {
+                        sender.send(PhoneInputSignal::Coin(cents)).unwrap();
+                    }
+                });
+            }
         }
 
         info!("GPIO peripherals initialized.");
-
         Ok(rx)
     }
 

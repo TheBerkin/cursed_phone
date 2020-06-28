@@ -707,9 +707,14 @@ impl<'lua> PbxEngine<'lua> {
                     RotaryDialPulse => self.handle_rotary_pulse(),
                     Motion => {
                         info!("PBX: Detected motion.");
+                        // TODO: Process motion sensor inputs
                     },
                     Digit(digit) => {
                         self.handle_host_digit(digit);
+                    },
+                    Coin(cents) => {
+                        info!("PBX: Inserted {}¢.", cents);
+                        // TODO: Process coin deposits
                     }
                 }
             }

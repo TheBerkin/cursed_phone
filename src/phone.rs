@@ -18,6 +18,7 @@ pub enum PhoneInputSignal {
     RotaryDialRest(bool),
     RotaryDialPulse,
     Motion,
+    Coin(u32),
     Digit(char),
 }
 

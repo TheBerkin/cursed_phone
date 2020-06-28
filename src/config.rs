@@ -56,6 +56,13 @@ pub struct CursedConfig {
     /// Enables switch-hook dialing.
     pub enable_switch_hook_dialing: Option<bool>,
 
+    /// Enables the coin mechanism as well as payment requirements for calls when in payphone mode.
+    pub enable_coin_mech: Option<bool>,
+
+    /// Monetary value constants for coin triggers.
+    /// Set values in terms of the smallest unit of your currency.
+    pub coin_values: Option<Vec<u32>>,
+
     /// Sound configuration.
     pub sound: SoundConfig,
 
@@ -103,7 +110,15 @@ pub struct GpioInputsConfig {
     /// Input configuration for the motion sensor.
     pub motion: Option<InputPinConfig>,
     /// BCM pin numbers of keypad row inputs.
-    pub pins_keypad_rows: Option<[u8; 4]>,
+    pub keypad_row_pins: Option<[u8; 4]>,
+    /// Input pins for the coin trigger switches.
+    /// Must be the same length as `coin_values`.
+    pub coin_trigger_pins: Option<Vec<u8>>,
+    /// Bounce times for the coin trigger switch pins.
+    /// Must be the same length as `coin_values`.
+    pub coin_trigger_bounce_ms: Option<Vec<ms>>,
+    /// Pull type for the coin trigger switch pins.
+    pub coin_trigger_pull: Option<String>
 }
 
 #[serde(rename_all = "kebab-case")]
