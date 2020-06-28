@@ -243,7 +243,7 @@ impl GpioInterface {
 
                     info!("Coin triggers initialized ({}).", in_coin_triggers.len());
 
-                    Some(in_coin_triggers)
+                    return Some(in_coin_triggers)
                 }
                 None
             })(),
