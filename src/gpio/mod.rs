@@ -38,6 +38,8 @@ pub struct GpioInterface {
     in_keypad_rows: Option<[Arc<Mutex<SoftInputPin>>; KEYPAD_ROW_COUNT]>,
     /// Pins for coin trigger switch inputs.
     in_coin_triggers: Option<Vec<(u32, SoftInputPin)>>,
+    /// Active state for coin trigger switch inputs.
+    coin_trigger_active_state: bool,
     /// Pins for keypad column outputs.
     out_keypad_cols: Option<Arc<Mutex<[OutputPin; KEYPAD_COL_COUNT]>>>,
     /// Pin for ringer output.
@@ -200,6 +202,7 @@ impl GpioInterface {
         }
 
         // Register coin trigger pins
+        let mut coin_trigger_active_state = false;
         let in_coin_triggers = match phone_type {
             Payphone => (|| {
                 if let Some(coin_values) = config.coin_values.as_ref() {
@@ -224,6 +227,12 @@ impl GpioInterface {
                     }
 
                     let pull = Pull::from(&inputs.coin_trigger_pull);
+
+                    coin_trigger_active_state = match pull {
+                        Pull::Down => true,
+                        Pull::Up => false,
+                        _ => true
+                    };
 
                     let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
                         .iter()
@@ -250,6 +259,7 @@ impl GpioInterface {
             in_motion,
             in_keypad_rows,
             in_coin_triggers,
+            coin_trigger_active_state,
             out_keypad_cols,
             out_ringer,
             out_vibe,
@@ -366,9 +376,10 @@ impl GpioInterface {
             let coin_triggers_iter = in_coin_triggers.iter_mut();
             for (cents, input) in coin_triggers_iter {
                 let cents = *cents;
+                let active_state = self.coin_trigger_active_state;
                 let sender = tx.clone();
                 input.set_on_changed(move |state| {
-                    if state {
+                    if state == active_state {
                         sender.send(PhoneInputSignal::Coin(cents)).unwrap();
                     }
                 });
