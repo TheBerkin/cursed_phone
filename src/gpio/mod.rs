@@ -51,11 +51,22 @@ pub struct GpioInterface {
     config: Rc<CursedConfig>
 }
 
+pub fn gen_input_pin(pin: Pin, pull: Pull) -> InputPin {
+    match pull {
+        Pull::Up => pin.into_input_pullup(),
+        Pull::Down => pin.into_input_pulldown(),
+        Pull::None => {
+            warn!("Pin {} is floating. Consider using internal pull resistor instead.", pin.pin());
+            pin.into_input()
+        }
+    }
+}
+
 fn gen_optional_soft_input_from(gpio: &Gpio, enable: Option<bool>, input_config: &Option<InputPinConfig>) -> Option<SoftInputPin> {
     if enable.unwrap_or(false) {
         if let Some(input_config) = input_config {
             let pin = gpio.get(input_config.pin).unwrap();
-            let input = make_input_pin(pin, Pull::from(&input_config.pull));
+            let input = gen_input_pin(pin, Pull::from(&input_config.pull));
             let soft_input = input.debounce(Duration::from_millis(input_config.bounce_ms.unwrap_or(0)));
             return Some(soft_input);
         }
@@ -65,7 +76,7 @@ fn gen_optional_soft_input_from(gpio: &Gpio, enable: Option<bool>, input_config:
 
 fn gen_required_soft_input_from(gpio: &Gpio, input_config: &InputPinConfig) -> SoftInputPin {
     let pin = gpio.get(input_config.pin).unwrap();
-    let raw_input = make_input_pin(pin, Pull::from(&input_config.pull));
+    let raw_input = gen_input_pin(pin, Pull::from(&input_config.pull));
     let soft_input = raw_input.debounce(Duration::from_millis(input_config.bounce_ms.unwrap_or(0)));
     soft_input
 }
@@ -83,7 +94,7 @@ fn gen_optional_soft_input(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>, d
 }
 
 fn gen_required_soft_input(gpio: &Gpio, pin: u8, debounce: Option<Duration>, pull: Pull) -> SoftInputPin {
-    make_input_pin(gpio.get(pin).unwrap(), pull).debounce(debounce.unwrap_or_default())
+    gen_input_pin(gpio.get(pin).unwrap(), pull).debounce(debounce.unwrap_or_default())
 }
 
 fn gen_optional_output(gpio: &Gpio, enable: Option<bool>, pin: Option<u8>) -> Option<OutputPin> {
@@ -232,21 +243,12 @@ impl GpioInterface {
                     _ => true
                 };
 
-                // let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
-                //     .iter()
-                //     .zip(coin_trigger_bounce_ms.iter())
-                //     .zip(coin_values.iter())
-                //     .map(|((pin, bounce_ms), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(Duration::from_millis(*bounce_ms)), pull)))
-                //     .collect();
-
-                let mut in_coin_triggers = Vec::new();
-
-                for i in 0..coin_values.len() {
-                    let cents = coin_values[i];
-                    let bounce = Some(Duration::from_millis(coin_trigger_bounce_ms[i]));
-                    let pin_num = coin_trigger_pins[i];
-                    in_coin_triggers.push((cents, gen_required_soft_input(&gpio, pin_num, bounce, pull)));
-                }
+                let in_coin_triggers: Vec<(u32, SoftInputPin)> = coin_trigger_pins
+                    .iter()
+                    .zip(coin_trigger_bounce_ms.iter().map(|ms| Duration::from_millis(*ms)))
+                    .zip(coin_values.iter())
+                    .map(|((pin, bounce), cents)| (*cents, gen_required_soft_input(&gpio, *pin, Some(bounce), pull)))
+                    .collect();
 
                 info!("Coin triggers initialized ({}).", in_coin_triggers.len());
 

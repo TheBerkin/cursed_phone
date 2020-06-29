@@ -43,14 +43,3 @@ fn str_to_pull(name: &str) -> Pull {
         "none" | _ => Pull::None
     }
 }
-
-pub fn make_input_pin(pin: Pin, pull: Pull) -> InputPin {
-    match pull {
-        Pull::Up => pin.into_input_pullup(),
-        Pull::Down => pin.into_input_pulldown(),
-        Pull::None => {
-            warn!("Pin {} is floating. Consider using internal pull resistor instead.", pin.pin());
-            pin.into_input()
-        }
-    }
-}
