@@ -45,24 +45,25 @@ pub struct CursedConfig {
     /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
     pub rotary_first_pulse_delay_ms: Option<ms>,
 
-    /// Enables ringer.
-    pub enable_ringer: Option<bool>,
+    /// Payphone configuration.
+    pub payphone: Option<PayphoneConfig>,
 
-    /// Enables vibration.
-    pub enable_vibration: Option<bool>,
+    /// Optional features configuration.
+    pub features: FeaturesConfig,
 
-    /// Enables motion sensor.
-    pub enable_motion_sensor: Option<bool>,
+    /// Sound configuration.
+    pub sound: SoundConfig,
 
-    /// Enables switch-hook dialing.
-    pub enable_switch_hook_dialing: Option<bool>,
+    /// GPIO configuration.
+    pub gpio: GpioConfig,
 
-    /// Enables the coin mechanism as well as payment requirements for calls when in payphone mode.
-    pub enable_coin_mech: Option<bool>,
+    /// Debug feature configuration.
+    pub debug: Option<DebugConfig>
+}
 
-    /// Allows the host device to receive calls.
-    pub enable_incoming_calls: Option<bool>,
-
+#[serde(rename_all = "kebab-case")]
+#[derive(Deserialize, Clone, Debug)]
+pub struct PayphoneConfig {
     /// Monetary value constants for coin triggers.
     /// Set values in terms of the smallest unit of your currency.
     pub coin_values: Option<Vec<u32>>,
@@ -76,14 +77,31 @@ pub struct CursedConfig {
     /// ```
     pub standard_call_rate: Option<u32>,
 
-    /// Sound configuration.
-    pub sound: SoundConfig,
+    /// The delay (in milliseconds) between an outgoing call being accepted and the coin deposit being consumed.
+    /// Defaults to 0 (instant).
+    pub coin_consume_delay_ms: Option<ms>,
 
-    /// GPIO configuration.
-    pub gpio: GpioConfig,
+    /// Allows services to set their own prices. (default: `true`)
+    pub enable_custom_service_rates: Option<bool>
+}
 
-    /// Debug feature configuration.
-    pub debug: Option<DebugConfig>
+#[serde(rename_all = "kebab-case")]
+#[derive(Deserialize, Clone, Debug)]
+pub struct FeaturesConfig {
+    /// Enables ringer.
+    pub enable_ringer: Option<bool>,
+
+    /// Enables vibration.
+    pub enable_vibration: Option<bool>,
+
+    /// Enables motion sensor.
+    pub enable_motion_sensor: Option<bool>,
+
+    /// Enables switch-hook dialing.
+    pub enable_switch_hook_dialing: Option<bool>,
+
+    /// Allows the host device to receive calls.
+    pub enable_incoming_calls: Option<bool>,
 }
 
 #[serde(rename_all = "kebab-case")]

@@ -94,7 +94,15 @@ pub struct PbxEngine<'lua> {
     switch_hook_dialing_enabled: bool,
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
     /// > _"Kajhiit has calls, if you have coin."_
-    credit: RefCell<u32>,
+    coin_deposit: RefCell<u32>,
+    /// Indicates whether the initial coin deposit for the call has been consumed
+    initial_deposit_consumed: RefCell<bool>,
+    /// Delay before coins get eaten after call is accepted
+    coin_consume_delay: Duration,
+    /// Allows services to set their own prices.
+    enable_custom_service_rates: bool,
+    /// The default rate applied to calls.
+    standard_call_rate: u32,
     /// Last known state of the host's hookswitch.
     host_on_hook: RefCell<bool>,
     /// Time of the last staet change of the host's hookswitch.
@@ -115,6 +123,16 @@ impl<'lua> PbxEngine<'lua> {
         let lua = Lua::new();
         let now = Instant::now();
         let host_phone_type = PhoneType::from_name(config.phone_type.as_str());
+        let (coin_consume_delay_ms, standard_call_rate, enable_custom_service_rates) 
+        = if let Some(ppcfg) = config.payphone.as_ref() {
+            (
+                ppcfg.coin_consume_delay_ms.unwrap_or(0),
+                ppcfg.standard_call_rate.unwrap_or(0),
+                ppcfg.enable_custom_service_rates.unwrap_or(true)
+            )
+        } else {
+            (0, 0, true)
+        };
         Self {
             host_phone_type,
             lua,
@@ -134,8 +152,12 @@ impl<'lua> PbxEngine<'lua> {
             post_dial_delay: Duration::from_secs_f32(config.pdd),
             other_party: Default::default(),
             dialed_number: Default::default(),
-            switch_hook_dialing_enabled: config.enable_switch_hook_dialing.unwrap_or(false),
-            credit: RefCell::new(0),
+            switch_hook_dialing_enabled: config.features.enable_switch_hook_dialing.unwrap_or(false),
+            coin_deposit: RefCell::new(0),
+            coin_consume_delay: Duration::from_millis(coin_consume_delay_ms),
+            enable_custom_service_rates,
+            standard_call_rate,
+            initial_deposit_consumed: RefCell::new(false),
             host_hook_change_time: RefCell::new(now),
             host_on_hook: RefCell::new(true),
             host_rotary_pulses: Default::default(),
@@ -435,8 +457,7 @@ impl<'lua> PbxEngine<'lua> {
                 }
             },
             (_, Connected) => {
-                // TODO: Allow user to configure when the coin credit is consumed
-                self.consume_credit();
+                self.initial_deposit_consumed.replace(false);
                 self.clear_dialed_number();
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
@@ -510,21 +531,26 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    fn add_credit(&self, cents: u32) {
+    fn add_coin_deposit(&self, cents: u32) {
         let mut total = 0;
-        self.credit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
+        self.coin_deposit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
         info!("PBX: Deposited {}¢ (total: {}¢)", cents, total);
     }
 
-    fn consume_credit(&self) {
-        self.credit.replace(0);
+    fn consume_coin_deposit(&self) {
+        self.coin_deposit.replace(0);
+        self.initial_deposit_consumed.replace(true);
         info!("PBX: Coin deposit cleared.");
+    }
+
+    fn initial_deposit_consumed(&self) -> bool {
+        *self.initial_deposit_consumed.borrow()
     }
 
     /// Called when the user deposits a coin.
     #[inline]
     fn handle_coin_deposit(&self, cents: u32) {
-        self.add_credit(cents);
+        self.add_coin_deposit(cents);
     }
 
     /// Called when the resting state of the host's rotary dial changes.
@@ -635,16 +661,17 @@ impl<'lua> PbxEngine<'lua> {
 
                             // Figure out how much the call costs
                             let price = match self.lookup_service(number_to_dial.as_str()) {
-                                Some(service_to_call) => match service_to_call.custom_price() {
+                                Some(service_to_call) if self.enable_custom_service_rates => 
+                                match service_to_call.custom_price() {
                                     Some(cents) => cents,
-                                    None => self.config.standard_call_rate.unwrap_or(0)
+                                    None => self.standard_call_rate
                                 },
-                                None => self.config.standard_call_rate.unwrap_or(0)
+                                _ => self.standard_call_rate
                             };
 
                             // If the user has deposited enough money, call the number. Otherwise, do nothing.
                             // TODO: Play a message if the user has not deposited enough coins.
-                            if *self.credit.borrow() >= price {
+                            if *self.coin_deposit.borrow() >= price {
                                 self.call_number(number_to_dial.as_str());
                             }
                         },
@@ -655,6 +682,13 @@ impl<'lua> PbxEngine<'lua> {
                     }
                 }
             },
+            Connected => {
+                // Wait for user-configured delay and eat coin deposit
+                // TODO: Add support for "charge-per-minute" calls
+                if !self.initial_deposit_consumed() && self.current_state_time() >= self.coin_consume_delay {
+                    self.consume_coin_deposit();
+                }
+            }
             _ => {}
         }
     }
@@ -682,7 +716,7 @@ impl<'lua> PbxEngine<'lua> {
                     Ok(CallUser) => {
                         // First, check that there's nobody on the line and the user's on-hook.
                         // Also make sure that the config allows incoming calls.
-                        if self.config.enable_incoming_calls.unwrap_or(false) 
+                        if self.config.features.enable_incoming_calls.unwrap_or(false) 
                         && self.state() == PbxState::Idle 
                         && self.other_party.borrow().is_none() {
                             service.set_reason(CallReason::ServiceInit);

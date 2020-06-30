@@ -34,7 +34,7 @@ S:state(SERVICE_STATE_CALL, {
                 sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), CHAN_PHONE3, { volume = 0.25 })
             end
         end
-        sound.play_wait("$philosophers/speeches/*", CHAN_PHONE1, { volume = 0.9 })
+        sound.play_wait("$philosophers/speeches/*", CHAN_PHONE1)
         service.end_call()
     end
 })
