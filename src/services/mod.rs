@@ -586,6 +586,7 @@ impl<'lua> PbxEngine<'lua> {
 
     pub fn is_time_credit_low(&self) -> bool {
         self.state() == PbxState::Connected 
+        && self.config.payphone.time_credit_seconds > 0
         && self.initial_deposit_consumed()
         && !self.is_current_call_free()
         && self.remaining_time_credit().as_secs() <= self.config.payphone.time_credit_warn_seconds
