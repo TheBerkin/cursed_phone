@@ -92,7 +92,9 @@ pub struct PbxEngine<'lua> {
     off_hook_delay: Duration,
     /// Enable switchhook dialing?
     switch_hook_dialing_enabled: bool,
-    deposit: RefCell<u32>,
+    /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
+    /// > _"Kajhiit has calls, if you have coin."_
+    credit: RefCell<u32>,
     /// Last known state of the host's hookswitch.
     host_on_hook: RefCell<bool>,
     /// Time of the last staet change of the host's hookswitch.
@@ -133,7 +135,7 @@ impl<'lua> PbxEngine<'lua> {
             other_party: Default::default(),
             dialed_number: Default::default(),
             switch_hook_dialing_enabled: config.enable_switch_hook_dialing.unwrap_or(false),
-            deposit: RefCell::new(0),
+            credit: RefCell::new(0),
             host_hook_change_time: RefCell::new(now),
             host_on_hook: RefCell::new(true),
             host_rotary_pulses: Default::default(),
@@ -379,9 +381,6 @@ impl<'lua> PbxEngine<'lua> {
             PbxState::IdleRinging => {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
-            PbxState::Connected => {
-                self.clear_coin_deposit();
-            }
             _ => {}
         }
 
@@ -436,6 +435,8 @@ impl<'lua> PbxEngine<'lua> {
                 }
             },
             (_, Connected) => {
+                // TODO: Allow user to configure when the coin credit is consumed
+                self.consume_credit();
                 self.clear_dialed_number();
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
@@ -509,21 +510,21 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    fn add_coin_deposit(&self, cents: u32) {
+    fn add_credit(&self, cents: u32) {
         let mut total = 0;
-        self.deposit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
+        self.credit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
         info!("PBX: Deposited {}¢ (total: {}¢)", cents, total);
     }
 
-    fn clear_coin_deposit(&self) {
-        self.deposit.replace(0);
+    fn consume_credit(&self) {
+        self.credit.replace(0);
         info!("PBX: Coin deposit cleared.");
     }
 
     /// Called when the user deposits a coin.
     #[inline]
     fn handle_coin_deposit(&self, cents: u32) {
-        self.add_coin_deposit(cents);
+        self.add_credit(cents);
     }
 
     /// Called when the resting state of the host's rotary dial changes.
@@ -643,7 +644,7 @@ impl<'lua> PbxEngine<'lua> {
 
                             // If the user has deposited enough money, call the number. Otherwise, do nothing.
                             // TODO: Play a message if the user has not deposited enough coins.
-                            if *self.deposit.borrow() >= price {
+                            if *self.credit.borrow() >= price {
                                 self.call_number(number_to_dial.as_str());
                             }
                         },
