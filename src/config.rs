@@ -67,7 +67,7 @@ pub struct CursedConfig {
     /// Set values in terms of the smallest unit of your currency.
     pub coin_values: Option<Vec<u32>>,
 
-    /// # The default rate (in cents) applied to calls.
+    /// The default rate (in cents) applied to calls.
     /// Certain services may opt to override this with their own rate.
     pub standard_call_rate: Option<u32>,
 

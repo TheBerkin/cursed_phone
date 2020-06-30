@@ -626,16 +626,20 @@ impl<'lua> PbxEngine<'lua> {
                     match self.host_phone_type {
                         PhoneType::Payphone => {
                             let number_to_dial = self.get_dialed_number();
-                            if let Some(service_to_call) = self.lookup_service(number_to_dial.as_str()) {
-                                let price = match service_to_call.custom_price() {
+
+                            // Figure out how much the call costs
+                            let price = match self.lookup_service(number_to_dial.as_str()) {
+                                Some(service_to_call) => match service_to_call.custom_price() {
                                     Some(cents) => cents,
                                     None => self.config.standard_call_rate.unwrap_or(0)
-                                };
-                                // If the user has deposited enough money, call the number. Otherwise, do nothing.
-                                // TODO: Play a message if the user has not deposited enough coins.
-                                if *self.deposit.borrow() >= price {
-                                    self.call_service(service_to_call);
-                                }
+                                },
+                                None => self.config.standard_call_rate.unwrap_or(0)
+                            };
+
+                            // If the user has deposited enough money, call the number. Otherwise, do nothing.
+                            // TODO: Play a message if the user has not deposited enough coins.
+                            if *self.deposit.borrow() >= price {
+                                self.call_number(number_to_dial.as_str());
                             }
                         },
                         _ => {
