@@ -567,7 +567,10 @@ impl<'lua> PbxEngine<'lua> {
             // Check rate of currently connected service
             PhoneType::Payphone => {
                 if let Some(service) = self.get_other_party_service().as_ref() {
-                    service.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
+                    match service.role() {
+                        ServiceRole::Intercept => true,
+                        _ => service.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
+                    }
                 } else {
                     false
                 }
