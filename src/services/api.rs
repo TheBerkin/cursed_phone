@@ -12,6 +12,7 @@ impl<'lua> PbxEngine<'lua> {
         let globals = &lua.globals();
         let tbl_sound = lua.create_table().unwrap();
         // let tbl_service = lua.create_table().unwrap();
+        let tbl_toll = lua.create_table().unwrap();
 
         // Override print()
         globals.set("print", lua.create_function(PbxEngine::lua_print).unwrap());
@@ -163,8 +164,35 @@ impl<'lua> PbxEngine<'lua> {
         globals.set("sound", tbl_sound);
 
         // ====================================================
-        // =================== SERVICE API ====================
+        // ===================== TOLL API =====================
         // ====================================================
+
+        // toll.is_time_low()
+        tbl_toll.set("is_time_low", lua.create_function(move |_, ()| {
+            Ok(self.is_time_credit_low())
+        }).unwrap());
+
+        // toll.time_left()
+        tbl_toll.set("time_left", lua.create_function(move |_, ()| {
+            Ok(self.remaining_time_credit().as_secs_f64())
+        }).unwrap());
+
+        // toll.current_call_rate()
+        tbl_toll.set("current_call_rate", lua.create_function(move |_, ()| {
+            Ok(self.current_call_rate())
+        }).unwrap());
+
+        // toll.is_current_call_free()
+        tbl_toll.set("is_current_call_free", lua.create_function(move |_, ()| {
+            Ok(self.is_current_call_free())
+        }).unwrap());
+
+        // toll.is_awaiting_deposit()
+        tbl_toll.set("is_awaiting_deposit", lua.create_function(move |_, ()| {
+            Ok(self.awaiting_initial_deposit())
+        }).unwrap());
+
+        globals.set("toll", tbl_toll);
     
         // Run API scripts
         self.run_scripts_in_glob(API_GLOB)?;

@@ -1,12 +1,13 @@
 use mlua::prelude::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ServiceRole {
     Normal = 0,
-    Intercept = 1
+    Intercept = 1,
+    Tollmaster = 2
 }
 
-const ALL_SERVICE_ROLES: &[ServiceRole] = { use ServiceRole::*; &[Normal, Intercept] };
+const ALL_SERVICE_ROLES: &[ServiceRole] = { use ServiceRole::*; &[Normal, Intercept, Tollmaster] };
 
 impl From<usize> for ServiceRole {
     fn from(value: usize) -> ServiceRole {

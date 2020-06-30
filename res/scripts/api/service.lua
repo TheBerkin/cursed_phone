@@ -87,6 +87,9 @@ SERVICE_ROLE_NORMAL = 0
 --- @type ServiceRole
 --- Designates a service as an intercept system.
 SERVICE_ROLE_INTERCEPT = 1
+--- @type ServiceRole
+--- Designates a service as the Tollmaster.
+SERVICE_ROLE_TOLLMASTER = 2
 
 --- @class PhoneServiceModule
 local _PhoneServiceModule_MEMBERS = {

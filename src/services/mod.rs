@@ -95,14 +95,14 @@ pub struct PbxEngine<'lua> {
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
     /// > _"Kajhiit has calls, if you have coin."_
     coin_deposit: RefCell<u32>,
-    /// Indicates whether the initial coin deposit for the call has been consumed
+    /// Indicates whether the initial coin deposit for the call has been consumed.
     initial_deposit_consumed: RefCell<bool>,
+    /// Indicates whether the PBX is waiting for the initial deposit to start the call.
+    awaiting_initial_deposit: RefCell<bool>,
+    /// Amount of time credited for the current (or next) call.
+    time_credit: RefCell<Duration>,
     /// Delay before coins get eaten after call is accepted
     coin_consume_delay: Duration,
-    /// Allows services to set their own prices.
-    enable_custom_service_rates: bool,
-    /// The default rate applied to calls.
-    standard_call_rate: u32,
     /// Last known state of the host's hookswitch.
     host_on_hook: RefCell<bool>,
     /// Time of the last staet change of the host's hookswitch.
@@ -123,16 +123,7 @@ impl<'lua> PbxEngine<'lua> {
         let lua = Lua::new();
         let now = Instant::now();
         let host_phone_type = PhoneType::from_name(config.phone_type.as_str());
-        let (coin_consume_delay_ms, standard_call_rate, enable_custom_service_rates) 
-        = if let Some(ppcfg) = config.payphone.as_ref() {
-            (
-                ppcfg.coin_consume_delay_ms.unwrap_or(0),
-                ppcfg.standard_call_rate.unwrap_or(0),
-                ppcfg.enable_custom_service_rates.unwrap_or(true)
-            )
-        } else {
-            (0, 0, true)
-        };
+
         Self {
             host_phone_type,
             lua,
@@ -154,10 +145,10 @@ impl<'lua> PbxEngine<'lua> {
             dialed_number: Default::default(),
             switch_hook_dialing_enabled: config.features.enable_switch_hook_dialing.unwrap_or(false),
             coin_deposit: RefCell::new(0),
-            coin_consume_delay: Duration::from_millis(coin_consume_delay_ms),
-            enable_custom_service_rates,
-            standard_call_rate,
+            coin_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
             initial_deposit_consumed: RefCell::new(false),
+            awaiting_initial_deposit: RefCell::new(false),
+            time_credit: Default::default(),
             host_hook_change_time: RefCell::new(now),
             host_on_hook: RefCell::new(true),
             host_rotary_pulses: Default::default(),
@@ -317,6 +308,12 @@ impl<'lua> PbxEngine<'lua> {
                         // Register service
                         let service_name = service.name().to_owned();
                         let service_role = service.role();
+
+                        // Don't load Tollmasters if this isn't a payphone
+                        if service_role == ServiceRole::Tollmaster && self.host_phone_type != PhoneType::Payphone {
+                            continue
+                        }
+
                         let service_phone_number = service.phone_number().clone();
                         let service = Rc::new(service);
                         let (service_id, _) = services.insert_full(service_name, Rc::clone(&service));
@@ -386,23 +383,38 @@ impl<'lua> PbxEngine<'lua> {
         );
     }
 
+    #[inline(always)]
+    fn is_payphone(&self) -> bool {
+        self.host_phone_type == PhoneType::Payphone
+    }
+
     /// Sets the current state of the engine.
     fn set_state(&'lua self, state: PbxState) {
         use PbxState::*;
         if *self.state.borrow() == state {
             return;
         }
-
+        
         let prev_state = self.state.replace(state);
         let state_start = Instant::now();
         let last_state_start = self.state_start.replace(state_start);
         let state_time = state_start.saturating_duration_since(last_state_start);
+
+        // Make sure that canceled unpaid call doesn't keep pinging Tollmaster
+        self.awaiting_initial_deposit.replace(false);
 
         // Run behavior for state we're leaving
         match prev_state {
             PbxState::IdleRinging => {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
+            PbxState::Connected => {
+                if self.is_payphone() {
+                    // When leaving the connected state, clear existing time credit
+                    self.initial_deposit_consumed.replace(false);
+                    self.clear_time_credit();
+                }
+            }
             _ => {}
         }
 
@@ -457,7 +469,6 @@ impl<'lua> PbxEngine<'lua> {
                 }
             },
             (_, Connected) => {
-                self.initial_deposit_consumed.replace(false);
                 self.clear_dialed_number();
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
@@ -531,18 +542,99 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    pub fn remaining_time_credit(&self) -> Duration {
+        match self.state() {
+            PbxState::Connected => self.time_credit.borrow().checked_sub(self.current_state_time()).unwrap_or_default(),
+            _ => *self.time_credit.borrow()
+        }
+    }
+
+    fn clear_time_credit(&self) {
+        self.time_credit.replace(Duration::default());
+        info!("PBX: Time credit cleared.");
+    }
+
+    #[inline]
+    fn has_time_credit(&self) -> bool {
+        self.remaining_time_credit().as_nanos() > 0
+    }
+
+    pub fn is_current_call_free(&self) -> bool {
+        match self.host_phone_type {
+            // If the payphone has a standard rate of 0 and custom rates are ignored, it's free
+            PhoneType::Payphone if !self.config.payphone.enable_custom_service_rates && self.config.payphone.standard_call_rate == 0
+            => true,
+            // Check rate of currently connected service
+            PhoneType::Payphone => {
+                if let Some(service) = self.get_other_party_service().as_ref() {
+                    service.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
+                } else {
+                    false
+                }
+            },
+            _ => false
+        }
+    }
+
+    pub fn current_call_rate(&self) -> u32 {
+        self.get_other_party_service()
+            .as_ref()
+            .map(|serv| serv.custom_price().filter(|_| self.config.payphone.enable_custom_service_rates))
+            .flatten()
+            .unwrap_or(self.config.payphone.standard_call_rate)
+    }
+
+    pub fn is_time_credit_low(&self) -> bool {
+        self.state() == PbxState::Connected 
+        && self.initial_deposit_consumed()
+        && !self.is_current_call_free()
+        && self.remaining_time_credit().as_secs() <= self.config.payphone.time_credit_warn_seconds
+    }
+
+    pub fn awaiting_initial_deposit(&self) -> bool {
+        *self.awaiting_initial_deposit.borrow()
+    }
+
     fn add_coin_deposit(&self, cents: u32) {
         let mut total = 0;
         self.coin_deposit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
         info!("PBX: Deposited {}¢ (total: {}¢)", cents, total);
+        self.convert_deposit_to_credit();
     }
 
-    fn consume_coin_deposit(&self) {
-        self.coin_deposit.replace(0);
+    /// Converts deposit into time credit for the current call.
+    /// Any leftover deposit will remain and count towards future credit.
+    fn convert_deposit_to_credit(&self) -> bool {
+        if self.state() == PbxState::Connected {
+            // Check if time credit can be added to the call
+            let mut deposit = self.coin_deposit.borrow_mut();
+            let rate = self.current_call_rate();
+            if rate > 0 && *deposit >= rate {
+                let rate_multiplier = *deposit / rate;
+                *deposit %= rate;
+                let time_credit = Duration::from_secs(self.config.payphone.time_credit_seconds.saturating_mul(rate_multiplier as u64));
+                self.add_time_credit(time_credit);
+                return true
+            }
+        }
+        false
+    }
+
+    /// Adds the specified amount of time to the call (payphone only).
+    fn add_time_credit(&self, credit: Duration) {
+        self.time_credit.replace_with(|cur| cur.checked_add(credit).unwrap_or_default());
+        info!("PBX: Added time credit: {:?}", credit);
+    }
+
+    /// Converts deposit into time credit and sets `initial_deposit_consumed` flag.
+    fn consume_initial_deposit(&self) {
+        self.convert_deposit_to_credit();
+        self.awaiting_initial_deposit.replace(false);
         self.initial_deposit_consumed.replace(true);
-        info!("PBX: Coin deposit cleared.");
+        info!("PBX: Initial deposit consumed.");
     }
 
+    /// Indicates whether the initial deposit for the current call was consumed.
     fn initial_deposit_consumed(&self) -> bool {
         *self.initial_deposit_consumed.borrow()
     }
@@ -661,18 +753,21 @@ impl<'lua> PbxEngine<'lua> {
 
                             // Figure out how much the call costs
                             let price = match self.lookup_service(number_to_dial.as_str()) {
-                                Some(service_to_call) if self.enable_custom_service_rates => 
+                                Some(service_to_call) if self.config.payphone.enable_custom_service_rates => 
                                 match service_to_call.custom_price() {
                                     Some(cents) => cents,
-                                    None => self.standard_call_rate
+                                    None => self.config.payphone.standard_call_rate
                                 },
-                                _ => self.standard_call_rate
+                                _ => self.config.payphone.standard_call_rate
                             };
 
                             // If the user has deposited enough money, call the number. Otherwise, do nothing.
                             // TODO: Play a message if the user has not deposited enough coins.
                             if *self.coin_deposit.borrow() >= price {
                                 self.call_number(number_to_dial.as_str());
+                                self.awaiting_initial_deposit.replace(false);
+                            } else {
+                                self.awaiting_initial_deposit.replace(true);
                             }
                         },
                         _ => {
@@ -683,11 +778,21 @@ impl<'lua> PbxEngine<'lua> {
                 }
             },
             Connected => {
-                // Wait for user-configured delay and eat coin deposit
-                // TODO: Add support for "charge-per-minute" calls
-                if !self.initial_deposit_consumed() && self.current_state_time() >= self.coin_consume_delay {
-                    self.consume_coin_deposit();
-                }
+                match self.host_phone_type {
+                    PhoneType::Payphone if !self.is_current_call_free() => {
+                        // Wait for user-configured delay and eat coin deposit
+                        if !self.initial_deposit_consumed() {
+                            if self.current_state_time() >= self.coin_consume_delay {
+                                self.consume_initial_deposit();
+                            }
+                        } else if !self.has_time_credit() {
+                            // Cut off call if time credit runs out
+                            info!("Out of time credit; ending call.");
+                            self.set_state(PbxState::Busy);
+                        }
+                    },
+                    _ => ()
+                }                
             }
             _ => {}
         }

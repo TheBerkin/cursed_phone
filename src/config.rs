@@ -46,7 +46,8 @@ pub struct CursedConfig {
     pub rotary_first_pulse_delay_ms: Option<ms>,
 
     /// Payphone configuration.
-    pub payphone: Option<PayphoneConfig>,
+    #[serde(default)]
+    pub payphone: PayphoneConfig,
 
     /// Optional features configuration.
     pub features: FeaturesConfig,
@@ -61,7 +62,7 @@ pub struct CursedConfig {
     pub debug: Option<DebugConfig>
 }
 
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", default)]
 #[derive(Deserialize, Clone, Debug)]
 pub struct PayphoneConfig {
     /// Monetary value constants for coin triggers.
@@ -75,14 +76,34 @@ pub struct PayphoneConfig {
     /// local S = SERVICE_MODULE("operator", "0")
     /// S:set_custom_price(0) -- Make calls to this number free
     /// ```
-    pub standard_call_rate: Option<u32>,
+    pub standard_call_rate: u32,
 
     /// The delay (in milliseconds) between an outgoing call being accepted and the coin deposit being consumed.
     /// Defaults to 0 (instant).
-    pub coin_consume_delay_ms: Option<ms>,
+    pub coin_consume_delay_ms: ms,
+
+    /// Amount of call time (as whole seconds) credited for the standard (or custom) call rate.
+    /// Defaults to 0 (no time limit).
+    pub time_credit_seconds: u64,
+
+    /// Amount of call time remaining (as whole seconds) before the Tollmaster alerts the user.
+    pub time_credit_warn_seconds: u64,
 
     /// Allows services to set their own prices. (default: `true`)
-    pub enable_custom_service_rates: Option<bool>
+    pub enable_custom_service_rates: bool,
+}
+
+impl Default for PayphoneConfig {
+    fn default() -> Self {
+        Self {
+            coin_values: None,
+            standard_call_rate: 0,
+            coin_consume_delay_ms: 0,
+            time_credit_seconds: 0,
+            time_credit_warn_seconds: 60,
+            enable_custom_service_rates: true,
+        }
+    }
 }
 
 #[serde(rename_all = "kebab-case")]

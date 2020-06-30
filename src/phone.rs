@@ -28,7 +28,7 @@ pub enum PhoneOutputSignal {
     Vibrate { on: bool, duty_cycle: f32, time_seconds: f32 }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PhoneType {
     Rotary,
     TouchTone,

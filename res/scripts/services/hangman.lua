@@ -41,7 +41,7 @@ S:state(SERVICE_STATE_CALL, {
         while true do
             service.wait(rand_float(1.5, 5.0))
             sound.set_channel_volume(CHAN_PHONE2, 0.5)
-            sound.play("$hangman/chainsaw_rev_*", CHAN_PHONE3, { speed = rand_float(0.9, 1.1), volume = 1.1 })
+            sound.play("$hangman/chainsaw_rev_*", CHAN_PHONE3, { speed = rand_float(0.9, 1.1) })
             sound.wait_max(CHAN_PHONE3, 0.8)
             sound.set_channel_volume(CHAN_PHONE2, 1)
         end
