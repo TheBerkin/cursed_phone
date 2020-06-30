@@ -14,7 +14,8 @@
     "todo-tree.general.enableFileWatcher": true,
     "todo-tree.filtering.includeGlobs": [
         "**/res/scripts/**/*.lua",
-        "**/src/**/*.rs"
+        "**/src/**/*.rs",
+        "**/cursed_phone.conf"
     ],
     "todo-tree.regex.regex": "(?:(?://|#|--|/\\*\\*?|\\*)\\s*($TAGS)|^\\s*- \\[ \\])",
     "rust-client.engine": "rust-analyzer"

@@ -1,4 +1,3 @@
-use rppal::gpio::{InputPin, Pin};
 use log::warn;
 
 #[derive(Copy, Clone, Debug)]

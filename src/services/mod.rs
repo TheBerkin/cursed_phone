@@ -761,9 +761,7 @@ impl<'lua> PbxEngine<'lua> {
                             _ => {}
                         }
                     },
-                    Ok(intent) => {
-                        warn!("Service '{:?}' signalling unhandled intent '{:?}'", service.name(), intent);
-                    },
+                    Ok(_) => (),
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
                         match err {
