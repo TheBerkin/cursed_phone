@@ -684,7 +684,6 @@ impl<'lua> PbxEngine<'lua> {
                         if self.config.enable_incoming_calls.unwrap_or(false) 
                         && self.state() == PbxState::Idle 
                         && self.other_party.borrow().is_none() {
-                            let id = service.id().unwrap();
                             service.set_reason(CallReason::ServiceInit);
                             service.transition_state(ServiceState::OutgoingCall);
                             self.load_other_party(Rc::clone(service));
@@ -697,7 +696,6 @@ impl<'lua> PbxEngine<'lua> {
                     },
                     // Service wants to accept incoming call
                     Ok(AcceptCall) => {
-                        let id = service.id().unwrap();
                         if state == CallingOut { 
                             self.set_state(Connected);
                         }
@@ -729,7 +727,7 @@ impl<'lua> PbxEngine<'lua> {
                         }
                     },
                     Ok(intent) => {
-                        
+                        warn!("Service '{:?}' signalling unhandled intent '{:?}'", service.name(), intent);
                     },
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();

@@ -3,7 +3,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{time, sync::mpsc, thread, io::{stdin, Read}};
-use log::{info, warn, trace};
+use log::{info, trace};
 use crate::config::*;
 use crate::sound::*;
 

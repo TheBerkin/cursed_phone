@@ -1,7 +1,7 @@
 
 use super::*;
 use std::cmp;
-use log::{info, warn};
+use log::{info};
 
 #[allow(unused_must_use)]
 impl<'lua> PbxEngine<'lua> {    

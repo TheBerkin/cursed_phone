@@ -16,7 +16,7 @@ use globwalk;
 use globset;
 use rand;
 use rand::Rng;
-use log::{info, warn, trace};
+use log::{info, warn};
 
 /// Represents a playback channel for sounds.
 #[derive(IntoEnumIterator, Copy, Clone, Debug, PartialEq)]

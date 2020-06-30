@@ -21,6 +21,7 @@ const CONFIG_PATH: &str = "./cursed_phone.conf";
 const SOUNDS_PATH: &str = "./res/sounds";
 const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 
+#[allow(unreachable_code)]
 fn main() -> Result<(), String> {
     // Set up logger
     TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed).unwrap();
