@@ -375,6 +375,9 @@ impl<'lua> PbxEngine<'lua> {
             PbxState::IdleRinging(_) => {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
+            PbxState::Connected(_) => {
+                self.clear_coin_deposit();
+            }
             _ => {}
         }
 
@@ -554,7 +557,6 @@ impl<'lua> PbxEngine<'lua> {
                 Idle | IdleRinging(_) => {}
                 _ => {
                     info!("PBX: Host on-hook.");
-                    self.clear_coin_deposit();
                     self.set_state(PbxState::Idle);
                 }
             }
