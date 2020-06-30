@@ -53,7 +53,7 @@ impl<'lua> PbxEngine<'lua> {
         // get_call_time()
         globals.set("get_call_time", lua.create_function(move |_, ()| {
             match self.state() {
-                PbxState::Connected(_) => {
+                PbxState::Connected => {
                     return Ok(self.current_state_time().as_secs_f64());
                 }
                 _ => Ok(0.0)

@@ -40,15 +40,14 @@ const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
 
 type ServiceId = usize;
 
-// TODO: Get rid of ServiceId fields in PbxState, as they're made redundant by PbxEngine.other_party
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PbxState {
     Idle,
-    IdleRinging(ServiceId),
+    IdleRinging,
     DialTone,
     PDD,
-    CallingOut(ServiceId),
-    Connected(ServiceId),
+    CallingOut,
+    Connected,
     Busy
 }
 
@@ -191,8 +190,13 @@ impl<'lua> PbxEngine<'lua> {
         match self.state() {
             DialTone | Busy | PDD => {
                 info!("PBX: Connecting call -> {} ({:?})", service.name(), service.phone_number());
+                // Inform the service state machine that the user initiated the call
                 service.set_reason(CallReason::UserInit);
-                self.set_state(CallingOut(service.id().unwrap()));
+                // Set other_party to requested service
+                let service = self.lookup_service_id(service.id().unwrap()).unwrap();
+                self.load_other_party(Rc::clone(&service));
+                // Set PBX to call-out state
+                self.set_state(CallingOut);
             },
             _ => {}
         }
@@ -372,10 +376,10 @@ impl<'lua> PbxEngine<'lua> {
 
         // Run behavior for state we're leaving
         match prev_state {
-            PbxState::IdleRinging(_) => {
+            PbxState::IdleRinging => {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
-            PbxState::Connected(_) => {
+            PbxState::Connected => {
                 self.clear_coin_deposit();
             }
             _ => {}
@@ -383,7 +387,7 @@ impl<'lua> PbxEngine<'lua> {
 
         // Run behavior for new state
         match state {
-            Idle | IdleRinging(_) => {},
+            Idle | IdleRinging => {},
             _ => {
                 self.play_comfort_noise();
             }
@@ -397,7 +401,7 @@ impl<'lua> PbxEngine<'lua> {
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
                 self.clear_dialed_number();
             },
-            (_, IdleRinging(_)) => {
+            (_, IdleRinging) => {
                 self.send_output(PhoneOutputSignal::Ring(true));
             },
             (_, DialTone) => {
@@ -414,23 +418,24 @@ impl<'lua> PbxEngine<'lua> {
                 self.sound_engine.borrow().stop(Channel::SignalIn);
                 self.update_pdd_start();
             },
-            (_, CallingOut(id)) => {
-                self.clear_dialed_number();
-                self.sound_engine.borrow().stop(Channel::SignalIn);
+            (_, CallingOut) => {
+                if let Some(service) = self.get_other_party_service() {
+                    self.clear_dialed_number();
+                    self.sound_engine.borrow().stop(Channel::SignalIn);
 
-                // Set other_party to requested service
-                let service = self.lookup_service_id(id).unwrap();
-                self.load_other_party(Rc::clone(&service));
+                    // Tell service that we're calling it
+                    service.transition_state(ServiceState::IncomingCall);
 
-                // Tell service that we're calling it
-                service.transition_state(ServiceState::IncomingCall);
-
-                // Finally, play the ringback tone (if we're allowed to)
-                if service.ringback_enabled() {
-                    self.sound_engine.borrow().play_ringback_tone();
+                    // Finally, play the ringback tone (if we're allowed to)
+                    if service.ringback_enabled() {
+                        self.sound_engine.borrow().play_ringback_tone();
+                    }
+                } else {
+                    warn!("No remote party specified when calling out.");
+                    self.call_intercept(CallReason::NumberDisconnected);
                 }
             },
-            (_, Connected(_)) => {
+            (_, Connected) => {
                 self.clear_dialed_number();
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
@@ -461,7 +466,7 @@ impl<'lua> PbxEngine<'lua> {
         // Perform special digit-triggered behaviors
         match self.state() {
             // Ignore digits dialed while the phone is on the hook
-            Idle | IdleRinging(_) => return,
+            Idle | IdleRinging => return,
 
             // Transition from dial tone to PDD once the first digit is dialed
             DialTone => {
@@ -485,7 +490,7 @@ impl<'lua> PbxEngine<'lua> {
     #[inline]
     fn handle_rotary_pulse(&self) {
         match self.state() {
-            PbxState::Idle | PbxState::IdleRinging(_) => return,
+            PbxState::Idle | PbxState::IdleRinging => return,
             _ => {
                 let current_rest_state = *self.host_rotary_resting.borrow();
                 if !current_rest_state {
@@ -529,7 +534,7 @@ impl<'lua> PbxEngine<'lua> {
         if resting {
             // Ignore 
             match self.state() {
-                PbxState::Idle | PbxState::IdleRinging(_) => {},
+                PbxState::Idle | PbxState::IdleRinging => {},
                 _ => {
                     // When dial moves to resting, dial digit according to pulse count
                     let digit_num = *self.host_rotary_pulses.borrow();
@@ -554,7 +559,7 @@ impl<'lua> PbxEngine<'lua> {
         let hook_change_time = Instant::now();
         if on_hook {
             match state {
-                Idle | IdleRinging(_) => {}
+                Idle | IdleRinging => {}
                 _ => {
                     info!("PBX: Host on-hook.");
                     self.set_state(PbxState::Idle);
@@ -569,10 +574,10 @@ impl<'lua> PbxEngine<'lua> {
                     self.set_state(PbxState::DialTone);
                 },
                 // Answering a call
-                IdleRinging(id) => {
+                IdleRinging => {
                     info!("PBX: Host off-hook, connecting call.");
                     // Connect the call
-                    self.set_state(PbxState::Connected(id));
+                    self.set_state(PbxState::Connected);
                 },
                 _ => {}
             }
@@ -683,7 +688,7 @@ impl<'lua> PbxEngine<'lua> {
                             service.set_reason(CallReason::ServiceInit);
                             service.transition_state(ServiceState::OutgoingCall);
                             self.load_other_party(Rc::clone(service));
-                            self.set_state(PbxState::IdleRinging(id));
+                            self.set_state(PbxState::IdleRinging);
                         } else {
                             // Tell the service they're busy
                             intent = service.tick(ServiceData::LineBusy);
@@ -693,19 +698,19 @@ impl<'lua> PbxEngine<'lua> {
                     // Service wants to accept incoming call
                     Ok(AcceptCall) => {
                         let id = service.id().unwrap();
-                        if state == CallingOut(id) { 
-                            self.set_state(Connected(id));
+                        if state == CallingOut { 
+                            self.set_state(Connected);
                         }
                     },
                     // Service wants to end current call
                     Ok(EndCall) => {
                         match state {
                             // Transition to idle (hangs up at end of CALL state)
-                            Connected(_) => {
+                            Connected => {
                                 service.transition_state(ServiceState::Idle);
                             },
                             // Caller has given up, disconnect immediately
-                            IdleRinging(_) => {
+                            IdleRinging => {
                                 service.transition_state(ServiceState::Idle);
                                 self.set_state(PbxState::Idle);
                             },
@@ -716,7 +721,8 @@ impl<'lua> PbxEngine<'lua> {
                     Ok(StateEnded(ServiceState::Call)) => {
                         // Don't affect PBX state if the call is already ended
                         match state {
-                            Connected(id) if id == service.id().unwrap() => {
+                            Connected => {
+                                // TODO: Allow user to customize behavior when service ends call
                                 self.set_state(Busy);
                             },
                             _ => {}

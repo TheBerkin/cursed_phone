@@ -68,7 +68,12 @@ pub struct CursedConfig {
     pub coin_values: Option<Vec<u32>>,
 
     /// The default rate (in cents) applied to calls.
-    /// Certain services may opt to override this with their own rate.
+    ///
+    /// Services may opt to override this with their own rate by using the `ServiceModule.set_custom_price()` Lua method:
+    /// ```lua
+    /// local S = SERVICE_MODULE("operator", "0")
+    /// S:set_custom_price(0) -- Make calls to this number free
+    /// ```
     pub standard_call_rate: Option<u32>,
 
     /// Sound configuration.
