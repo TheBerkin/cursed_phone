@@ -3,6 +3,7 @@
 
 mod props;
 mod api;
+mod sm;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -20,6 +21,7 @@ use crate::config::*;
 
 pub use self::api::*;
 pub use self::props::*;
+pub use self::sm::*;
 
 /// `Option<Rc<T>>`
 type Orc<T> = Option<Rc<T>>;
@@ -50,144 +52,11 @@ pub enum PbxState {
     Busy
 }
 
-pub struct ServiceModule<'lua> {
-    id: RefCell<Option<ServiceId>>,
-    name: String,
-    phone_number: Option<String>,
-    role: ServiceRole,
-    ringback_enabled: bool,
-    required_sound_banks: Vec<String>,
-    tbl_module: LuaTable<'lua>,
-    func_load: Option<LuaFunction<'lua>>,
-    func_unload: Option<LuaFunction<'lua>>,
-    func_tick: LuaFunction<'lua>
-}
-
-impl<'lua> ServiceModule<'lua> {
-    fn from_file(lua: &'lua Lua, path: &Path) -> Result<Self, String> {
-        let src = fs::read_to_string(path).expect("Unable to read Lua source file");
-        let module_chunk = lua.load(&src).set_name(path.to_str().unwrap()).unwrap();
-        let module = module_chunk.eval::<LuaTable>();
-        match module {
-            Ok(table) => {
-                let name = table.raw_get("_name").expect("Module requires a name");
-                let phone_number = table.raw_get("_phone_number").unwrap();
-                let role = ServiceRole::from(table.raw_get::<&'static str, usize>("_role").unwrap());
-                let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
-                let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
-                let func_unload = table.raw_get("unload").unwrap();
-                let func_tick = table.get("tick").expect("tick() function not found");
-                let mut required_sound_banks: Vec<String> = Default::default();
-
-                // Start state machine
-                table.call_method::<&str, _, ()>("start", ()).expect(format!("Unable to start state machine for {}", name).as_str());
-
-                // Call load() if available
-                if let Some(func_load) = &func_load {
-                    let load_args = lua.create_table().unwrap();
-                    load_args.set("path", path.to_str()).unwrap();
-                    if let Err(err) = func_load.call::<LuaTable, ()>(load_args) {
-                        return Err(format!("Error while calling service loader: {:#?}", err));
-                    }
-                }      
-                
-                // Get required sound banks
-                if let Ok(bank_name_table) = table.raw_get::<&'static str, LuaTable>("_required_sound_banks") {
-                    let pairs = bank_name_table.pairs::<String, bool>();
-                    for pair in pairs {
-                        if let Ok((bank_name, required)) = pair {
-                            if !required || bank_name.is_empty() { continue }
-                            required_sound_banks.push(bank_name);
-                        }
-                    }
-                }
-
-                Ok(Self {
-                    id: Default::default(),
-                    required_sound_banks,
-                    ringback_enabled,
-                    tbl_module: table,
-                    name,
-                    role,
-                    phone_number,
-                    func_load,
-                    func_unload,
-                    func_tick,
-                })
-            },
-            Err(err) => Err(format!("Unable to load service module: {:#?}", err))
-        }
-    }
-
-    fn load_sound_banks(&self, sound_engine: &Rc<RefCell<SoundEngine>>) {
-        let mut sound_engine = sound_engine.borrow_mut();
-        for bank_name in &self.required_sound_banks {
-            sound_engine.add_sound_bank_user(bank_name, SoundBankUser(self.id().unwrap()));
-        }
-    }
-
-    fn unload_sound_banks(&self, sound_engine: &Rc<RefCell<SoundEngine>>) {
-        let mut sound_engine = sound_engine.borrow_mut();
-        for bank_name in &self.required_sound_banks {
-            sound_engine.remove_sound_bank_user(bank_name, SoundBankUser(self.id().unwrap()), true);
-        }
-    }
-
-    fn register_id(&self, id: ServiceId) {
-        self.id.replace(Some(id));
-    }
-
-    pub fn id(&self) -> Option<ServiceId> {
-        *self.id.borrow()
-    }
-
-    pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    pub fn suspended(&self) -> bool {
-        self.tbl_module.get("_is_suspended").unwrap_or(false)
-    }
-
-    pub fn set_reason(&self, reason: CallReason) -> LuaResult<()> {
-        self.tbl_module.call_method("set_reason", reason.as_index())?;
-        Ok(())
-    }
-
-    pub fn state(&self) -> LuaResult<ServiceState> {
-        let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
-        Ok(ServiceState::from(raw_state))
-    }
-
-    #[inline]
-    fn tick(&self, data: ServiceData) -> LuaResult<ServiceIntent> {
-        if self.suspended() {
-            return Ok(ServiceIntent::Idle)
-        }
-
-        let service_table = self.tbl_module.clone();
-        let data_code = data.to_code();
-
-        // Tick service
-        let (intent_code, intent_data) = match data {
-            ServiceData::None => self.func_tick.call((service_table, data_code))?,
-            ServiceData::Digit(digit) => self.func_tick.call((service_table, data_code, digit.to_string()))?,
-            ServiceData::LineBusy => self.func_tick.call((service_table, data_code))?
-        };
-
-        let intent = ServiceIntent::from_lua_value(intent_code, intent_data);
-        Ok(intent)
-    }
-
-    fn transition_state(&self, state: ServiceState) -> LuaResult<()> {
-        self.tbl_module.call_method("transition", state.as_index())?;
-        Ok(())
-    }
-}
-
 /// A Lua-powered telephone exchange that loads,
 /// manages, and runs scripted phone services.
 pub struct PbxEngine<'lua> {
+    /// Type of the host phone.
+    host_phone_type: PhoneType,
     /// The Lua context associated with the engine.
     lua: Lua,
     /// The root directory from which Lua scripts are loaded.
@@ -224,6 +93,7 @@ pub struct PbxEngine<'lua> {
     off_hook_delay: Duration,
     /// Enable switchhook dialing?
     switch_hook_dialing_enabled: bool,
+    deposit: RefCell<u32>,
     /// Last known state of the host's hookswitch.
     host_on_hook: RefCell<bool>,
     /// Time of the last staet change of the host's hookswitch.
@@ -238,22 +108,14 @@ pub struct PbxEngine<'lua> {
     host_rotary_first_pulse_delay: Duration,
 }
 
-impl<'lua> Drop for ServiceModule<'lua> {
-    fn drop(&mut self) {
-        if let Some(unload) = &self.func_unload {
-            if let Err(error) = unload.call::<(), ()>(()) {
-                error!("Service module '{}' encountered error while unloading: {:?}", self.name, error);
-            }
-        }
-    }
-}
-
 #[allow(unused_must_use)]
 impl<'lua> PbxEngine<'lua> {
     pub fn new(scripts_root: impl Into<String>, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         let now = Instant::now();
+        let host_phone_type = PhoneType::from_name(config.phone_type.as_str());
         Self {
+            host_phone_type,
             lua,
             start_time: now,
             pdd_start: RefCell::new(now),
@@ -272,6 +134,7 @@ impl<'lua> PbxEngine<'lua> {
             other_party: Default::default(),
             dialed_number: Default::default(),
             switch_hook_dialing_enabled: config.enable_switch_hook_dialing.unwrap_or(false),
+            deposit: RefCell::new(0),
             host_hook_change_time: RefCell::new(now),
             host_on_hook: RefCell::new(true),
             host_rotary_pulses: Default::default(),
@@ -327,7 +190,7 @@ impl<'lua> PbxEngine<'lua> {
         use PbxState::*;
         match self.state() {
             DialTone | Busy | PDD => {
-                info!("PBX: Connecting call -> {} ({:?})", service.name, service.phone_number);
+                info!("PBX: Connecting call -> {} ({:?})", service.name(), service.phone_number());
                 service.set_reason(CallReason::UserInit);
                 self.set_state(CallingOut(service.id().unwrap()));
             },
@@ -424,9 +287,9 @@ impl<'lua> PbxEngine<'lua> {
                 match service {
                     Ok(service) => {
                         // Register service
-                        let service_name = service.name.clone();
-                        let service_role = service.role;
-                        let service_phone_number = service.phone_number.clone();
+                        let service_name = service.name().to_owned();
+                        let service_role = service.role();
+                        let service_phone_number = service.phone_number().clone();
                         let service = Rc::new(service);
                         let (service_id, _) = services.insert_full(service_name, Rc::clone(&service));
                         service.register_id(service_id);
@@ -446,7 +309,7 @@ impl<'lua> PbxEngine<'lua> {
                             _ => {}
                         }
 
-                        info!("Service loaded: {} (N = {:?}, ID = {:?})", service.name, service.phone_number, service.id());
+                        info!("Service loaded: {} (N = {:?}, ID = {:?})", service.name(), service.phone_number(), service.id());
                     },
                     Err(err) => {
                         error!("Failed to load service module '{:?}': {:#?}", module_path, err);
@@ -531,7 +394,7 @@ impl<'lua> PbxEngine<'lua> {
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
                 self.clear_dialed_number();
             },
-            (_, IdleRinging(id)) => {
+            (_, IdleRinging(_)) => {
                 self.send_output(PhoneOutputSignal::Ring(true));
             },
             (_, DialTone) => {
@@ -560,7 +423,7 @@ impl<'lua> PbxEngine<'lua> {
                 service.transition_state(ServiceState::IncomingCall);
 
                 // Finally, play the ringback tone (if we're allowed to)
-                if service.ringback_enabled {
+                if service.ringback_enabled() {
                     self.sound_engine.borrow().play_ringback_tone();
                 }
             },
@@ -638,6 +501,23 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
+    fn add_coin_deposit(&self, cents: u32) {
+        let mut total = 0;
+        self.deposit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
+        info!("PBX: Deposited {}¢ (total: {}¢)", cents, total);
+    }
+
+    fn clear_coin_deposit(&self) {
+        self.deposit.replace(0);
+        info!("PBX: Coin deposit cleared.");
+    }
+
+    /// Called when the user deposits a coin.
+    #[inline]
+    fn handle_coin_deposit(&self, cents: u32) {
+        self.add_coin_deposit(cents);
+    }
+
     /// Called when the resting state of the host's rotary dial changes.
     #[inline]
     fn handle_rotary_rest_state(&'lua self, resting: bool) {
@@ -674,6 +554,7 @@ impl<'lua> PbxEngine<'lua> {
                 Idle | IdleRinging(_) => {}
                 _ => {
                     info!("PBX: Host on-hook.");
+                    self.clear_coin_deposit();
                     self.set_state(PbxState::Idle);
                 }
             }
@@ -713,8 +594,7 @@ impl<'lua> PbxEngine<'lua> {
                         self.handle_host_digit(digit);
                     },
                     Coin(cents) => {
-                        info!("PBX: Inserted {}¢.", cents);
-                        // TODO: Process coin deposits
+                        self.handle_coin_deposit(cents);
                     }
                 }
             }
@@ -741,8 +621,26 @@ impl<'lua> PbxEngine<'lua> {
             }
             PDD => {
                 if self.pdd_time() >= self.post_dial_delay {
-                    let number_to_dial = self.get_dialed_number();
-                    self.call_number(number_to_dial.as_str());
+                    match self.host_phone_type {
+                        PhoneType::Payphone => {
+                            let number_to_dial = self.get_dialed_number();
+                            if let Some(service_to_call) = self.lookup_service(number_to_dial.as_str()) {
+                                let price = match service_to_call.custom_price() {
+                                    Some(cents) => cents,
+                                    None => self.config.standard_call_rate.unwrap_or(0)
+                                };
+                                // If the user has deposited enough money, call the number. Otherwise, do nothing.
+                                // TODO: Play a message if the user has not deposited enough coins.
+                                if *self.deposit.borrow() >= price {
+                                    self.call_service(service_to_call);
+                                }
+                            }
+                        },
+                        _ => {
+                            let number_to_dial = self.get_dialed_number();
+                            self.call_number(number_to_dial.as_str());
+                        }
+                    }
                 }
             },
             _ => {}
@@ -770,8 +668,11 @@ impl<'lua> PbxEngine<'lua> {
                     },
                     // Service wants to call the user
                     Ok(CallUser) => {
-                        // First, check that there's nobody on the line and the user's on-hook
-                        if self.state() == PbxState::Idle && self.other_party.borrow().is_none() {
+                        // First, check that there's nobody on the line and the user's on-hook.
+                        // Also make sure that the config allows incoming calls.
+                        if self.config.enable_incoming_calls.unwrap_or(false) 
+                        && self.state() == PbxState::Idle 
+                        && self.other_party.borrow().is_none() {
                             let id = service.id().unwrap();
                             service.set_reason(CallReason::ServiceInit);
                             service.transition_state(ServiceState::OutgoingCall);
@@ -792,14 +693,13 @@ impl<'lua> PbxEngine<'lua> {
                     },
                     // Service wants to end current call
                     Ok(EndCall) => {
-                        let id = service.id().unwrap();
                         match state {
                             // Transition to idle (hangs up at end of CALL state)
-                            Connected(id) => {
+                            Connected(_) => {
                                 service.transition_state(ServiceState::Idle);
                             },
                             // Caller has given up, disconnect immediately
-                            IdleRinging(id) => {
+                            IdleRinging(_) => {
                                 service.transition_state(ServiceState::Idle);
                                 self.set_state(PbxState::Idle);
                             },

@@ -1,4 +1,5 @@
 local S = SERVICE_MODULE("operator", "0")
+S:set_custom_price(0)
 
 S:state(SERVICE_STATE_CALL, {
     enter = function(self)

@@ -1,5 +1,5 @@
 local S = SERVICE_MODULE("emergency", "911")
-
+S:set_custom_price(0)
 S:set_ringback_enabled(false)
 
 -- Immediately answer calls

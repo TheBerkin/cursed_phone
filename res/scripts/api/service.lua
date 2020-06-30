@@ -163,11 +163,16 @@ local _PhoneServiceModule_MEMBERS = {
     --- Sets the call reason.
     --- @param reason CallReason
     set_reason = function(self, reason)
-        -- TODO: Expand CallReason to other kinds of reasons?
         self._reason = reason
     end,
     get_reason = function(self)
         return self._reason
+    end,
+    --- Sets the price to call the service in payphone mode.
+    set_custom_price = function(self, price)
+        assert(is_number(price), "Price must be a number.")
+        self._has_custom_price = true
+        self._custom_price = price
     end,
     --- Check if the service has pending messages.
     --- @return boolean
@@ -220,6 +225,8 @@ function SERVICE_MODULE(name, phone_number, role)
         _ringback_enabled = true,
         _reason = CALL_REASON_NONE,
         _required_sound_banks = {},
+        _has_custom_price = false,
+        _custom_price = 0,
         _is_suspended = false,
         _messages = messages
     }, M_PhoneServiceModule)

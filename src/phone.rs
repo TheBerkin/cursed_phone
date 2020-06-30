@@ -48,7 +48,7 @@ pub enum PhoneState {
 impl PhoneType {
     /// Converts a string to a `PhoneType`.
     /// Unsupported strings will return `Other`.
-    fn from_name(name: &str) -> PhoneType {
+    pub fn from_name(name: &str) -> PhoneType {
         use PhoneType::*;
         match name {
             "rotary" => Rotary,
@@ -117,6 +117,7 @@ impl PhoneEngine {
         info!("  - w/r: Dial rest open/close");
         info!("  - e: Rotary dial pulse (full cycle)");
         info!("  - m: Motion signal");
+        info!("  - f/g/h/j: Insert 1¢/5¢/10¢/25¢");
         info!("  - 0-9, A-D, #, *: Dial digit");
 
         Self {
@@ -129,6 +130,7 @@ impl PhoneEngine {
             ring_state: false,
             vibe_state: false,
             tx_ringer: None,
+            dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default()
         }
@@ -159,6 +161,10 @@ impl PhoneEngine {
                         thread::sleep(time::Duration::from_millis(200));
                         tx.send(PhoneInputSignal::Digit(digit.to_ascii_uppercase())).unwrap();
                     },
+                    'f' => tx.send(PhoneInputSignal::Coin(1)).unwrap(),
+                    'g' => tx.send(PhoneInputSignal::Coin(5)).unwrap(),
+                    'h' => tx.send(PhoneInputSignal::Coin(10)).unwrap(),
+                    'j' => tx.send(PhoneInputSignal::Coin(25)).unwrap(),
                     '-' => thread::sleep(time::Duration::from_millis(250)),
                     '_' => thread::sleep(time::Duration::from_millis(500)),
                     '.' => thread::sleep(time::Duration::from_millis(1000)),

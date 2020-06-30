@@ -15,6 +15,7 @@ pub struct CursedConfig {
     /// |:------------|:------------------------|
     /// |`"rotary"`   |Rotary phone (pulse dial)|
     /// |`"touchtone"`|Touch-tone (keypad dial) |
+    /// |`"payphone"` |Payphone (keypad dial)   |
     /// |`"other"`    |Other/unknown phone type |
     pub phone_type: String,
 
@@ -59,9 +60,16 @@ pub struct CursedConfig {
     /// Enables the coin mechanism as well as payment requirements for calls when in payphone mode.
     pub enable_coin_mech: Option<bool>,
 
+    /// Allows the host device to receive calls.
+    pub enable_incoming_calls: Option<bool>,
+
     /// Monetary value constants for coin triggers.
     /// Set values in terms of the smallest unit of your currency.
     pub coin_values: Option<Vec<u32>>,
+
+    /// # The default rate (in cents) applied to calls.
+    /// Certain services may opt to override this with their own rate.
+    pub standard_call_rate: Option<u32>,
 
     /// Sound configuration.
     pub sound: SoundConfig,
