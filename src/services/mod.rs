@@ -556,7 +556,7 @@ impl<'lua> PbxEngine<'lua> {
 
     #[inline]
     fn has_time_credit(&self) -> bool {
-        self.remaining_time_credit().as_nanos() > 0
+        self.config.payphone.time_credit_seconds == 0 || self.remaining_time_credit().as_nanos() > 0
     }
 
     pub fn is_current_call_free(&self) -> bool {
