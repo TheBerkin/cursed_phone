@@ -4,9 +4,26 @@ This repository houses code for a hobby project of mine, the Cursed Phone.
 
 ![](https://i.imgur.com/HMyeW6v.jpg)
 
-Unless you have a rotary phone on hand wired for use with a Raspberry Pi, you probably won't find this repo very useful. But if you do, boy do I have the program for you.
+Unless you have an old phone on hand that's wired for use with a Raspberry Pi, you probably won't find this repo very useful. But if you do, boy do I have the program for you.
 
-Details coming soon.
+## What even is this?
+
+It's a program that emulates various styles of telephones and allows you to write callable services. You can use it to implement anything from home automation to interactive art pieces. 
+
+Here's a short list of feature highlights:
+
+* Emulation of rotary, touch-tone, and pay phones via GPIO
+* Lua-based scripting system
+* Fully-configurable everything
+* Realistic call progress/DTMF tones
+* WAV/OGG audio playback support
+* Switchhook dialing
+* Vibration support
+* Motion sensing support
+* Intercept services
+* Comfort noise
+* Compatible with all Raspberry Pi models
+* Mock GPIO interface for desktop testing via stdin
 
 ## Building
 
@@ -51,3 +68,7 @@ If compiling on the target system, this step is unnecessary. However, be warned 
 ### Move the built executable
 
 If you'll be running this as a service, move the built executable (found somewhere in your `target` folder) to the project's root directory before use. 
+
+## Known issues
+
+Please note that the GPIO library used in this program is currently not fully compatible with the Raspberry Pi 4B.
