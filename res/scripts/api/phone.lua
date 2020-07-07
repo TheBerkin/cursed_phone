@@ -104,6 +104,34 @@ PHONE_STATE_RINGING = 5
 --- Indicates that the phone is playing a busy signal (for varying reasons).
 PHONE_STATE_BUSY_TONE = 6
 
+
+--- @alias SpecialInfoTone integer
+
+--- @type SpecialInfoTone
+--- Unassigned N11 ode, CLASS code, or prefix.
+SIT_VACANT_CODE = 0
+--- @type SpecialInfoTone
+--- Incomplete digits, internal office or feature failure (local office).
+SIT_REORDER_INTRA = 1
+--- @type SpecialInfoTone
+--- Call failure, no wink or partial digits received (distant office).
+SIT_REORDER_INTER = 2
+--- @type SpecialInfoTone
+--- All circuits busy (local office).
+SIT_NO_CIRCUIT_INTRA = 3
+--- @type SpecialInfoTone
+--- All circuits busy (distant office).
+SIT_NO_CIRCUIT_INTER = 4
+--- @type SpecialInfoTone
+--- Number changed or disconnected.
+SIT_INTERCEPT = 5
+--- @type SpecialInfoTone
+--- General misdialing, coin deposit required or other failure.
+SIT_INEFFECTIVE = 6
+--- @type SpecialInfoTone
+--- Reserved for future use.
+SIT_RESERVED = 7
+
 -- NATIVE PHONE FUNCTIONS
 NATIVE_API(function()
     phone = {}

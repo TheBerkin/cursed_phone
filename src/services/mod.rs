@@ -766,7 +766,6 @@ impl<'lua> PbxEngine<'lua> {
                             };
 
                             // If the user has deposited enough money, call the number. Otherwise, do nothing.
-                            // TODO: Play a message if the user has not deposited enough coins.
                             if *self.coin_deposit.borrow() >= price {
                                 self.call_number(number_to_dial.as_str());
                                 self.awaiting_initial_deposit.replace(false);

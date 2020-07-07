@@ -2,6 +2,7 @@
 use super::*;
 use std::cmp;
 use log::{info};
+use crate::sound::*;
 
 #[allow(unused_must_use)]
 impl<'lua> PbxEngine<'lua> {    
@@ -149,9 +150,10 @@ impl<'lua> PbxEngine<'lua> {
             Ok(())
         }).unwrap());
 
-        // sound.play_sit_disconnected()
-        tbl_sound.set("play_sit_disconnected", lua.create_function(move |_, ()| {
-            self.sound_engine.borrow().play_sit_disconnected();
+        // sound.play_special_info_tone(sit_type)
+        tbl_sound.set("play_special_info_tone", lua.create_function(move |_, sit_type: u8| {
+            let sit = SpecialInfoTone::from(sit_type);
+            self.sound_engine.borrow().play_special_info_tone(sit);
             Ok(())
         }).unwrap());
     

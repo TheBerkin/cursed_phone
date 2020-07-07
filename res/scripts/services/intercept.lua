@@ -7,7 +7,7 @@ S:set_ringback_enabled(false)
 local reason_handlers = {
     -- Number is disconnected
     [CALL_REASON_NUMBER_DISCONNECTED] = function(self)
-        sound.play_sit_disconnected()
+        sound.play_special_info_tone(SIT_INTERCEPT)
         sound.wait(CHAN_SIGIN)
         service.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)

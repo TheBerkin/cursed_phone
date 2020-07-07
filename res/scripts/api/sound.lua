@@ -134,8 +134,8 @@ NATIVE_API(function()
     --- Plays an off-hook tone on `CHAN_SIGIN`.
     function sound.play_off_hook_tone() end
 
-    --- Plays a "Number disconnected" Special Information Tone on `CHAN_SIGIN`.
-    function sound.play_sit_disconnected() end
+    --- Plays a Special Information Tone (SIT) on `CHAN_SIGIN`.
+    function sound.play_special_info_tone(sit_type) end
 
     --- Plays the specified DTMF digit on `CHAN_SIGOUT`.
     --- @param digit PhoneDigit

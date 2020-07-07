@@ -17,18 +17,17 @@ rpi = ["rppal"]
 no-log = ["log/release_max_level_off", "log/max_level_off"]
 
 [dependencies]
+enum-iterator = "0.6.0"
+globset = "0.4.5"
+globwalk = "0.8.0"
+indexmap = "1.4.0"
+log = { version = "0.4.8" }
+mlua = { version = "0.4.1", default-features = false, features = ["vendored", "luajit"] }
 rand = "0.7.3"
 rodio = { version = "0.11.0", default-features = false, features = ["wav", "vorbis"] }
-globwalk = "0.8.0"
-globset = "0.4.5"
-enum-iterator = "0.6.0"
-indexmap = "1.4.0"
-serde = { version = "1.0.111", features = ["derive"] }
-thread-priority = "0.2.0"
-take_mut = "0.2.2"
-toml = "0.5.6"
 rppal = { version = "0.11.3", optional = true }
-# rppal = { git = "https://github.com/TheBerkin/rppal", branch = "master", optional = true }
-mlua = { version = "0.4.1", default-features = false, features = ["vendored", "luajit"] }
-log = { version = "0.4.8" }
+serde = { version = "1.0.114", features = ["derive"] }
 simplelog = "0.8.0"
+take_mut = "0.2.2"
+thread-priority = "0.2.0"
+toml = "0.5.6"

@@ -78,15 +78,73 @@ const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, P
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
 
+// DTMF tone constants
 const DTMF_COLUMN_FREQUENCIES: &[u32] = &[1209, 1336, 1477, 1633];
 const DTMF_ROW_FREQUENCIES: &[u32] = &[697, 770, 852, 941];
 const DTMF_DIGITS: &[char] = &['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'];
 
+// Special Information Tone constants
 const SIT_FREQS_FIRST: (u32, u32) = (914, 985);
 const SIT_FREQS_SECOND: (u32, u32) = (1371, 1429);
 const SIT_FREQS_THIRD: (u32, u32) = (1777, 1777);
 const SIT_SHORT_SEG_MS: u64 = 276;
 const SIT_LONG_SEG_MS: u64 = 380;
+
+/// Special Information Tone (SIT) types.
+///
+/// Descriptions from [Wikipedia](https://en.wikipedia.org/wiki/Special_information_tone)
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum SpecialInfoTone {
+    /// Unassigned N11 ode, CLASS code, or prefix.
+    VacantCode = 0,
+    /// Incomplete digits, internal office or feature failure (local office).
+    ReorderIntra = 1,
+    /// Call failure, no wink or partial digits received (distant office).
+    ReorderInter = 2,
+    /// All circuits busy (local office).
+    NoCircuitIntra = 3,
+    /// All circuits busy (distant office).
+    NoCircuitInter = 4,
+    /// Number changed or disconnected.
+    Intercept = 5,
+    /// General misdialing, coin deposit required or other failure.
+    Ineffective = 6,
+    /// Reserved for future use.
+    Reserved = 7
+}
+
+impl SpecialInfoTone {
+    fn as_segments(self) -> (SitSegment, SitSegment, SitSegment) {
+        use SitSegment::*;
+        use SitSegmentLength::*;
+        match self {
+            SpecialInfoTone::VacantCode => (High(Long), Low(Short), Low(Long)),
+            SpecialInfoTone::ReorderIntra => (Low(Short), High(Long), Low(Long)),
+            SpecialInfoTone::ReorderInter => (High(Short), Low(Long), Low(Long)),
+            SpecialInfoTone::NoCircuitIntra => (High(Long), High(Long), Low(Long)),
+            SpecialInfoTone::NoCircuitInter => (Low(Long), Low(Long), Low(Long)),
+            SpecialInfoTone::Intercept => (Low(Short), Low(Short), Low(Long)),
+            SpecialInfoTone::Ineffective => (Low(Long), High(Short), Low(Long)),
+            SpecialInfoTone::Reserved => (High(Short), High(Short), Low(Long)),
+        }
+    }
+}
+
+impl From<u8> for SpecialInfoTone {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => SpecialInfoTone::VacantCode,
+            1 => SpecialInfoTone::ReorderIntra,
+            2 => SpecialInfoTone::ReorderInter,
+            3 => SpecialInfoTone::NoCircuitIntra,
+            4 => SpecialInfoTone::NoCircuitInter,
+            5 => SpecialInfoTone::Intercept,
+            6 => SpecialInfoTone::Ineffective,
+            7 | _ => SpecialInfoTone::Reserved
+        }
+    }
+}
 
 enum SitSegmentLength {
     Short,
@@ -466,6 +524,16 @@ impl SoundEngine {
     pub fn play_panic_tone(&self) {
         self.stop(Channel::SignalIn);
         self.channels.borrow()[Channel::SignalIn.as_index()].queue_panic_tone(1.0);
+    }
+
+    pub fn play_special_info_tone(&self, sit: SpecialInfoTone) {
+        let (first, second, third) = sit.as_segments();
+        self.stop(Channel::SignalIn);
+        self.channels.borrow()[Channel::SignalIn.as_index()].queue_special_info_tone(
+            first, 
+            second, 
+            third, 
+            db_to_amp(self.config.sound.special_info_tone_gain));
     }
 
     // TODO: Other SIT types as Lua-exposed enum?
