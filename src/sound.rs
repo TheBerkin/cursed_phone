@@ -535,17 +535,6 @@ impl SoundEngine {
             third, 
             db_to_amp(self.config.sound.special_info_tone_gain));
     }
-
-    // TODO: Other SIT types as Lua-exposed enum?
-    pub fn play_sit_disconnected(&self) {
-        use {SitSegment::*, SitSegmentLength::*};
-        self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_special_info_tone(
-            Low(Short), 
-            Low(Short), 
-            Low(Long),
-            db_to_amp(self.config.sound.special_info_tone_gain));
-    }
 }
 
 impl SoundChannel {
