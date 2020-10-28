@@ -46,7 +46,7 @@ S:state(SERVICE_STATE_CALL, {
             service.wait(rand_float(4.0, 7.0))
             sound.play("$mark/*", CHAN_PHONE1, { volume = 0.9 })
             self.talked_during_call = true
-            if i == 1 or chance(1) then                
+            if i == 1 or chance(0.7) then                
                 S:send('denise', i == 1 and 'mark_start' or 'mark_talk')
             end
         end
