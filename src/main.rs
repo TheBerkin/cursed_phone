@@ -13,7 +13,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::{thread, time};
 use log::{info, warn};
-use simplelog::{TermLogger, LevelFilter, TerminalMode};
+use simplelog::{TermLogger, LevelFilter, TerminalMode, ColorChoice};
 use thread_priority::*;
 
 const SCRIPTS_PATH: &str = "./res/scripts";
@@ -24,7 +24,7 @@ const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 #[allow(unreachable_code)]
 fn main() -> Result<(), String> {
     // Set up logger
-    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed).unwrap();
+    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
 
     // Set thread priority
     if let Err(err) = set_current_thread_priority(ThreadPriority::Max) {
