@@ -1,22 +1,22 @@
 # Quick Scripting Reference
 
-## Service modules
+## Agent modules
 
-Below is a skeleton for a basic phone service module.
+Below is a skeleton for a basic agent module.
 
 ```lua
 -- Module definition. Only the first argument, the name, is required.
-local S = SERVICE_MODULE("service_name", "1234567", SERVICE_ROLE_NORMAL)
+local S = AGENT_MODULE("agent_name", "1234567", AGENT_ROLE_NORMAL)
 
 -- Special behavior functions
 S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 
--- Called when service is first loaded
+-- Called when agent is first loaded
 function S.load(args)    
 end
 
 -- State machine definition
-S:state(SERVICE_STATE_IDLE, {
+S:state(AGENT_STATE_IDLE, {
     -- Called when state is entered
     enter = function(self)
     end,

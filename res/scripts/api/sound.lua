@@ -3,7 +3,7 @@
     /==========================================================================\
     |========================= CURSED PHONE API FILE ==========================|
     |==========================================================================|
-    | This script is required by phone services in order to function properly. |
+    | This script is required by the engine in order to function properly.     |
     | Unless you are making changes to the engine, do not modify this file.    |
     \==========================================================================/
     
@@ -144,7 +144,7 @@ NATIVE_API(function()
     function sound.play_dtmf_digit(digit, duration, volume) end
 end)
 
---- *(Service use only)*
+--- *(Agent use only)*
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
 ---
@@ -159,11 +159,11 @@ end)
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 
---- *(Service use only)*
+--- *(Agent use only)*
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end or until the specified predicate returns true.
 ---
@@ -181,23 +181,23 @@ function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)
     while not predicate() and sound.is_busy(channel) do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
     if not opts or opts.early_stop == nil or opts.early_stop == true then
         sound.stop(channel)
     end
 end
 
---- *(Service use only)*
+--- *(Agent use only)*
 ---
 --- Waits for the specified sound channel to finish playing.
 function sound.wait(channel)
     while sound.is_busy(channel) do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 
---- *(Service use only)*
+--- *(Agent use only)*
 ---
 --- Waits at least `duration` seconds for the specified sound channel to finish playing.
 ---
@@ -205,11 +205,11 @@ end
 function sound.wait_min(channel, duration)
     local start_time = get_run_time();
     while sound.is_busy(channel) or get_run_time() - start_time < duration do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 
---- *(Service use only)*
+--- *(Agent use only)*
 ---
 --- Waits at most `duration` seconds for the specified sound channel to finish playing.
 ---
@@ -217,6 +217,6 @@ end
 function sound.wait_max(channel, duration)
     local start_time = get_run_time();
     while sound.is_busy(channel) and get_run_time() - start_time < duration do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end

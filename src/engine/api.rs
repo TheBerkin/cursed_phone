@@ -5,46 +5,46 @@ use log::{info};
 use crate::sound::*;
 
 #[allow(unused_must_use)]
-impl<'lua> PbxEngine<'lua> {    
+impl<'lua> CursedEngine<'lua> {    
     pub fn load_cursed_api(&'static self) -> Result<(), String> {
-        info!("Bootstrapping Lua...");
+        info!("Setting up Lua...");
     
         let lua = &self.lua;
         let globals = &lua.globals();
         let tbl_sound = lua.create_table().unwrap();
-        // let tbl_service = lua.create_table().unwrap();
+        // let tbl_agent = lua.create_table().unwrap();
         let tbl_toll = lua.create_table().unwrap();
 
         // Override print()
-        globals.set("print", lua.create_function(PbxEngine::lua_print).unwrap());
+        globals.set("print", lua.create_function(CursedEngine::lua_print).unwrap());
 
-        // Run bootstrapper script
-        self.run_script(BOOTSTRAPPER_SCRIPT_NAME)?;
+        // Run setup script
+        self.run_script(SETUP_SCRIPT_NAME)?;
 
         // ====================================================
         // ============== GENERAL API FUNCTIONS ===============
         // ====================================================
     
         // sleep()
-        globals.set("sleep", lua.create_function(PbxEngine::lua_sleep).unwrap());
+        globals.set("sleep", lua.create_function(CursedEngine::lua_sleep).unwrap());
 
         // rand_int(min, max)
-        globals.set("rand_int", lua.create_function(PbxEngine::lua_rand_int).unwrap());
+        globals.set("rand_int", lua.create_function(CursedEngine::lua_rand_int).unwrap());
 
         // rand_int_skip(min, skip, max)
-        globals.set("rand_int_skip", lua.create_function(PbxEngine::lua_rand_int_skip).unwrap());
+        globals.set("rand_int_skip", lua.create_function(CursedEngine::lua_rand_int_skip).unwrap());
 
         // rand_int_bias_low(min, max)
-        globals.set("rand_int_bias_low", lua.create_function(PbxEngine::lua_rand_int_bias_low).unwrap());
+        globals.set("rand_int_bias_low", lua.create_function(CursedEngine::lua_rand_int_bias_low).unwrap());
 
         // rand_int_bias_high(min, max)
-        globals.set("rand_int_bias_high", lua.create_function(PbxEngine::lua_rand_int_bias_high).unwrap());
+        globals.set("rand_int_bias_high", lua.create_function(CursedEngine::lua_rand_int_bias_high).unwrap());
 
         // rand_float(min, max)
-        globals.set("rand_float", lua.create_function(PbxEngine::lua_rand_float).unwrap());
+        globals.set("rand_float", lua.create_function(CursedEngine::lua_rand_float).unwrap());
 
         // chance(p)
-        globals.set("chance", lua.create_function(PbxEngine::lua_chance).unwrap());
+        globals.set("chance", lua.create_function(CursedEngine::lua_chance).unwrap());
 
         // get_run_time()
         globals.set("get_run_time", lua.create_function(move |_, ()| {

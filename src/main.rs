@@ -1,10 +1,10 @@
 mod config;
-mod services;
+mod engine;
 mod phone;
 mod sound;
 mod gpio;
 
-use crate::services::PbxEngine;
+use crate::engine::CursedEngine;
 use crate::sound::SoundEngine;
 use crate::phone::PhoneEngine;
 use crate::config::*;
@@ -37,11 +37,11 @@ fn main() -> Result<(), String> {
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
-    let pbx = create_pbx(&config, sound_engine);
+    let pbx = create_cursed_engine(&config, sound_engine);
     pbx.listen_phone_input(phone.gen_phone_output());
     phone.listen_from_pbx(pbx.gen_pbx_output());
     pbx.load_cursed_api()?;
-    pbx.load_services();
+    pbx.load_agents();
 
     loop {
         // Update engine state
@@ -58,9 +58,9 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn create_pbx<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut PbxEngine<'a> {
-    let pbx = Box::new(PbxEngine::new(SCRIPTS_PATH, config, sound_engine));
-    let pbx: &'static mut PbxEngine = Box::leak(pbx);
+fn create_cursed_engine<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut CursedEngine<'a> {
+    let pbx = Box::new(CursedEngine::new(SCRIPTS_PATH, config, sound_engine));
+    let pbx: &'static mut CursedEngine = Box::leak(pbx);
     pbx
 }
 

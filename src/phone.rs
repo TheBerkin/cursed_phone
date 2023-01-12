@@ -13,16 +13,17 @@ use crate::sound::*;
 use crate::gpio::*;
 use time::Duration;
 
+/// Represents user signals produced by interacting with the physical phone interface.
 #[derive(Copy, Clone, Debug)]
 pub enum PhoneInputSignal {
     HookState(bool),
     RotaryDialRest(bool),
     RotaryDialPulse,
-    Motion,
     Coin(u32),
     Digit(char),
 }
 
+/// Represents signals produced by the phone.
 pub enum PhoneOutputSignal {
     Ring(bool), // TODO: Add cadence settings to ringer
     Vibrate { on: bool, duty_cycle: f32, time_seconds: f32 }
@@ -117,7 +118,6 @@ impl PhoneEngine {
         info!("  - o: On-hook signal");
         info!("  - w/r: Dial rest open/close");
         info!("  - e: Rotary dial pulse (full cycle)");
-        info!("  - m: Motion signal");
         info!("  - f/g/h/j: Insert 1¢/5¢/10¢/25¢");
         info!("  - 0-9, A-D, #, *: Dial digit");
 
@@ -148,7 +148,6 @@ impl PhoneEngine {
                 match (cbuf[0] as char).to_ascii_lowercase() {
                     'i' => tx.send(PhoneInputSignal::HookState(false)).unwrap(),
                     'o' => tx.send(PhoneInputSignal::HookState(true)).unwrap(),
-                    'm' => tx.send(PhoneInputSignal::Motion).unwrap(),
                     'w' => {                        
                         tx.send(PhoneInputSignal::RotaryDialRest(false)).unwrap();
                         thread::sleep(time::Duration::from_millis(350));

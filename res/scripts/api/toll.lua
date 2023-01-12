@@ -3,7 +3,7 @@
     /==========================================================================\
     |========================= CURSED PHONE API FILE ==========================|
     |==========================================================================|
-    | This script is required by phone services in order to function properly. |
+    | This script is required by the engine in order to function properly.     |
     | Unless you are making changes to the engine, do not modify this file.    |
     \==========================================================================/
     

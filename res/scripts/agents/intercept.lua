@@ -1,4 +1,4 @@
-local S = SERVICE_MODULE("intercept", nil, SERVICE_ROLE_INTERCEPT)
+local S = AGENT_MODULE("intercept", nil, AGENT_ROLE_INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 
@@ -9,11 +9,11 @@ local reason_handlers = {
     [CALL_REASON_NUMBER_DISCONNECTED] = function(self)
         sound.play_special_info_tone(SIT_INTERCEPT)
         sound.wait(CHAN_SIGIN)
-        service.wait(0.05)
+        agent.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
         sound.play_fast_busy_tone()
         while true do
-            service.intent(SERVICE_INTENT_WAIT)
+            agent.intent(AGENT_INTENT_WAIT)
         end
     end,
 
@@ -25,25 +25,25 @@ local reason_handlers = {
 
         while not cancel_func() do
             sound.play_wait_cancel("intercept/intercept_timeout_message_01", CHAN_PHONE1, cancel_func)
-            service.wait_cancel(10, cancel_func)
+            agent.wait_cancel(10, cancel_func)
         end
 
         sound.play_off_hook_tone()
         while true do
-            service.intent(SERVICE_INTENT_WAIT)
+            agent.intent(AGENT_INTENT_WAIT)
         end
     end
 }
 
 -- Immediately answer calls
-S:state(SERVICE_STATE_CALL_IN, {
+S:state(AGENT_STATE_CALL_IN, {
     enter = function(self)
-        service.accept_call()
+        agent.accept_call()
     end
 })
 
 -- Call handler for intercept reason
-S:state(SERVICE_STATE_CALL, {
+S:state(AGENT_STATE_CALL, {
     enter = function(self)
     end,
     tick = function(self)

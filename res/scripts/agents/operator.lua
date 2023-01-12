@@ -1,14 +1,14 @@
-local S = SERVICE_MODULE("operator", "0")
+local S = AGENT_MODULE("operator", "0")
 S:set_custom_price(0)
 
-S:state(SERVICE_STATE_CALL, {
+S:state(AGENT_STATE_CALL, {
     enter = function(self)
         print("Operator: call started")
     end,
     tick = function(self)
         -- TODO: Implement Operator
         while true do
-            local digit = service.read_digit()
+            local digit = agent.read_digit()
             print("Operator: Got digit '" .. digit .. "'")
         end
     end,
@@ -18,10 +18,10 @@ S:state(SERVICE_STATE_CALL, {
 })
 
 
-S:state(SERVICE_STATE_CALL_IN, {
+S:state(AGENT_STATE_CALL_IN, {
     tick = function(self)
-        service.wait(rand_float(1.0, 3.0))
-        service.accept_call()
+        agent.wait(rand_float(1.0, 3.0))
+        agent.accept_call()
     end
 })
 

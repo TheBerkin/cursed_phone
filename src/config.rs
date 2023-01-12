@@ -71,9 +71,9 @@ pub struct PayphoneConfig {
 
     /// The default rate (in cents) applied to calls.
     ///
-    /// Services may opt to override this with their own rate by using the `ServiceModule.set_custom_price()` Lua method:
+    /// Agents may opt to override this with their own rate by using the `AgentModule.set_custom_price()` Lua method:
     /// ```lua
-    /// local S = SERVICE_MODULE("operator", "0")
+    /// local S = AGENT_MODULE("operator", "0")
     /// S:set_custom_price(0) -- Make calls to this number free
     /// ```
     pub standard_call_rate: u32,
@@ -89,8 +89,8 @@ pub struct PayphoneConfig {
     /// Amount of call time remaining (as whole seconds) before the Tollmaster alerts the user.
     pub time_credit_warn_seconds: u64,
 
-    /// Allows services to set their own prices. (default: `true`)
-    pub enable_custom_service_rates: bool,
+    /// Allows agents to set their own prices. (default: `true`)
+    pub enable_custom_agent_rates: bool,
 }
 
 impl Default for PayphoneConfig {
@@ -101,7 +101,7 @@ impl Default for PayphoneConfig {
             coin_consume_delay_ms: 0,
             time_credit_seconds: 0,
             time_credit_warn_seconds: 60,
-            enable_custom_service_rates: true,
+            enable_custom_agent_rates: true,
         }
     }
 }

@@ -76,8 +76,8 @@ CALL_REASON_NUMBER_DISCONNECTED = 2
 --- Call was placed by the user.
 CALL_REASON_USER_INIT = 3
 --- @type CallReason
---- Call was placed by a service.
-CALL_REASON_SERVICE_INIT = 4
+--- Call was placed by an agent.
+CALL_REASON_AGENT_INIT = 4
 
 
 --- @alias PhoneStateCode integer

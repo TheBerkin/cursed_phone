@@ -13,7 +13,7 @@ dir="$HOME/cursed_phone"
 cmd="./cursed_phone"
 user="$USER"
 
-name=`basename $0`
+name=`cursed_phone $0`
 pid_file="/var/run/$name.pid"
 stdout_log="/var/log/$name.log"
 stderr_log="/var/log/$name.err"

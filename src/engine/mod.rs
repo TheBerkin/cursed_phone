@@ -3,7 +3,7 @@
 
 mod props;
 mod api;
-mod sm;
+mod agent;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -21,7 +21,7 @@ use crate::config::*;
 
 pub use self::api::*;
 pub use self::props::*;
-pub use self::sm::*;
+pub use self::agent::*;
 
 /// `Option<Rc<T>>`
 type Orc<T> = Option<Rc<T>>;
@@ -30,7 +30,8 @@ type Orc<T> = Option<Rc<T>>;
 type RcRefCell<T> = Rc<RefCell<T>>;
 
 // Script path constants
-const BOOTSTRAPPER_SCRIPT_NAME: &str = "bootstrapper";
+const SETUP_SCRIPT_NAME: &str = "setup";
+const AGENTS_PATH_NAME: &str = "agents";
 const API_GLOB: &str = "api/*";
 
 // Pulse dialing digits
@@ -38,7 +39,7 @@ const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
 
-type ServiceId = usize;
+type AgentId = usize;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PbxState {
@@ -52,8 +53,8 @@ pub enum PbxState {
 }
 
 /// A Lua-powered telephone exchange that loads,
-/// manages, and runs scripted phone services.
-pub struct PbxEngine<'lua> {
+/// manages, and runs scripted agents.
+pub struct CursedEngine<'lua> {
     /// Type of the host phone.
     host_phone_type: PhoneType,
     /// The Lua context associated with the engine.
@@ -62,20 +63,20 @@ pub struct PbxEngine<'lua> {
     scripts_root: PathBuf,
     /// The starting time of the engine.
     start_time: Instant,
-    /// The numbered services associated with the engine.
-    phone_book: RefCell<HashMap<String, ServiceId>>,
-    /// The services (both numbered and otherwise) associated with the engine.
-    services: RefCell<IndexMap<String, Rc<ServiceModule<'lua>>>>,
+    /// The numbered agents associated with the engine.
+    phone_book: RefCell<HashMap<String, AgentId>>,
+    /// The agents (both numbered and otherwise) associated with the engine.
+    agents: RefCell<IndexMap<String, Rc<AgentModule<'lua>>>>,
     /// The sound engine associated with the engine.
     sound_engine: RcRefCell<SoundEngine>,
-    /// The intercept service.
-    intercept_service: RefCell<Orc<ServiceModule<'lua>>>,
+    /// The intercept agent.
+    intercept_agent: RefCell<Orc<AgentModule<'lua>>>,
     /// Channel for sending output signals to the host phone.
     phone_output: RefCell<Option<mpsc::Sender<PhoneOutputSignal>>>,
     /// Channel for receiving input signals from the host phone.
     phone_input: RefCell<Option<mpsc::Receiver<PhoneInputSignal>>>,
-    /// The service to which the PBX is connecting/has connected the host.
-    other_party: RefCell<Orc<ServiceModule<'lua>>>,
+    /// The agent to which the engine is connecting/has connected the host.
+    other_party: RefCell<Orc<AgentModule<'lua>>>,
     /// The current state of the engine.
     state: RefCell<PbxState>,
     /// Time when PDD last started.
@@ -118,7 +119,7 @@ pub struct PbxEngine<'lua> {
 }
 
 #[allow(unused_must_use)]
-impl<'lua> PbxEngine<'lua> {
+impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: impl Into<String>, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         let now = Instant::now();
@@ -133,8 +134,8 @@ impl<'lua> PbxEngine<'lua> {
             config: Rc::clone(config),
             sound_engine: Rc::clone(sound_engine),
             phone_book: Default::default(),
-            services: Default::default(),
-            intercept_service: Default::default(),
+            agents: Default::default(),
+            intercept_agent: Default::default(),
             state: RefCell::new(PbxState::Idle),
             state_start: RefCell::new(now),
             phone_input: Default::default(),
@@ -175,14 +176,14 @@ impl<'lua> PbxEngine<'lua> {
         false
     }
 
-    fn lookup_service_id(&self, id: ServiceId) -> Orc<ServiceModule> {
-        self.services.borrow().get_index(id).map(|result| Rc::clone(result.1))
+    fn lookup_agent_id(&self, id: AgentId) -> Orc<AgentModule> {
+        self.agents.borrow().get_index(id).map(|result| Rc::clone(result.1))
     }
 
-    /// Searches the phone directory for the specified number and returns the service associated with it, or `None` if the number is unassigned.
-    fn lookup_service(&self, phone_number: &str) -> Orc<ServiceModule> {
+    /// Searches the phone directory for the specified number and returns the agent associated with it, or `None` if the number is unassigned.
+    fn lookup_agent(&self, phone_number: &str) -> Orc<AgentModule> {
         if let Some(id) = self.phone_book.borrow().get(phone_number) {
-            return self.lookup_service_id(*id);
+            return self.lookup_agent_id(*id);
         }
         None
     }
@@ -190,8 +191,8 @@ impl<'lua> PbxEngine<'lua> {
     /// Calls the specified phone number.
     fn call_number(&'lua self, number: &str) -> bool {
         info!("Placing call to: {}", number);
-        if let Some(service) = self.lookup_service(number) {
-            self.call_service(service);
+        if let Some(agent) = self.lookup_agent(number) {
+            self.call_agent(agent);
             return true;
         } else {
             self.call_intercept(CallReason::NumberDisconnected);
@@ -199,17 +200,17 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    /// Calls the specified service.
-    fn call_service(&'lua self, service: Rc<ServiceModule>) {
+    /// Calls the specified agent.
+    fn call_agent(&'lua self, agent: Rc<AgentModule>) {
         use PbxState::*;
         match self.state() {
             DialTone | Busy | PDD => {
-                info!("PBX: Connecting call -> {} ({:?})", service.name(), service.phone_number());
-                // Inform the service state machine that the user initiated the call
-                service.set_reason(CallReason::UserInit);
-                // Set other_party to requested service
-                let service = self.lookup_service_id(service.id().unwrap()).unwrap();
-                self.load_other_party(Rc::clone(&service));
+                info!("PBX: Connecting call -> {} ({:?})", agent.name(), agent.phone_number());
+                // Inform the agent state machine that the user initiated the call
+                agent.set_reason(CallReason::UserInit);
+                // Set other_party to requested agent
+                let agent = self.lookup_agent_id(agent.id().unwrap()).unwrap();
+                self.load_other_party(Rc::clone(&agent));
                 // Set PBX to call-out state
                 self.set_state(CallingOut);
             },
@@ -217,14 +218,14 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    /// Calls the intercept service, if available.
+    /// Calls the intercept agent, if available.
     fn call_intercept(&'lua self, reason: CallReason) {
-        if let Some(intercept_service) = self.intercept_service.borrow().as_ref() {
-            self.call_service(Rc::clone(intercept_service));
-            intercept_service.set_reason(reason);
+        if let Some(intercept_agent) = self.intercept_agent.borrow().as_ref() {
+            self.call_agent(Rc::clone(intercept_agent));
+            intercept_agent.set_reason(reason);
         } else {
-            // Default to busy signal if there is no intercept service
-            warn!("PBX: No intercept service; defaulting to busy signal.");
+            // Default to busy signal if there is no intercept agent
+            warn!("PBX: No intercept agent; defaulting to busy signal.");
             self.set_state(PbxState::Busy);
         }
     }
@@ -277,9 +278,9 @@ impl<'lua> PbxEngine<'lua> {
         let search_path_str = search_path.to_str().expect("Failed to create search pattern from glob");
         for entry in globwalk::glob(search_path_str).expect("Unable to read script search pattern") {
             if let Ok(dir) = entry {
-                let script_path = dir.path().canonicalize().expect("Unable to expand service module path");
+                let script_path = dir.path().canonicalize().expect("Unable to expand script path");
                 let script_path_str = script_path.to_str().unwrap();
-                info!("PBX: Loading Lua API: {:?}", script_path.file_name());
+                info!("PBX: Loading API script: {:?}", script_path.file_name().unwrap());
                 match fs::read_to_string(&script_path) {
                     Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec(),
                     Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", script_path_str, err))
@@ -293,51 +294,51 @@ impl<'lua> PbxEngine<'lua> {
         self.scripts_root.join(name).with_extension("lua")
     }
 
-    pub fn load_services(&'lua self) {
+    pub fn load_agents(&'lua self) {
         self.phone_book.borrow_mut().clear();
-        let search_path = self.scripts_root.join("services").join("**").join("*.lua");
-        let search_path_str = search_path.to_str().expect("Failed to create search pattern for service modules");
-        let mut services = self.services.borrow_mut();
-        let mut services_numbered = self.phone_book.borrow_mut();
-        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for service modules") {
+        let search_path = self.scripts_root.join(AGENTS_PATH_NAME).join("**").join("*.lua");
+        let search_path_str = search_path.to_str().expect("Failed to create search pattern for agent modules");
+        let mut agents = self.agents.borrow_mut();
+        let mut agents_numbered = self.phone_book.borrow_mut();
+        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for agent modules") {
             if let Ok(dir) = entry {
-                let module_path = dir.path().canonicalize().expect("Unable to expand service module path");
-                let service = ServiceModule::from_file(&self.lua, &module_path);
-                match service {
-                    Ok(service) => {
-                        // Register service
-                        let service_name = service.name().to_owned();
-                        let service_role = service.role();
+                let module_path = dir.path().canonicalize().expect("Unable to expand agent module path");
+                let agent = AgentModule::from_file(&self.lua, &module_path);
+                match agent {
+                    Ok(agent) => {
+                        // Register agent
+                        let agent_name = agent.name().to_owned();
+                        let agent_role = agent.role();
 
                         // Don't load Tollmasters if this isn't a payphone
-                        if service_role == ServiceRole::Tollmaster && self.host_phone_type != PhoneType::Payphone {
+                        if agent_role == AgentRole::Tollmaster && self.host_phone_type != PhoneType::Payphone {
                             continue
                         }
 
-                        let service_phone_number = service.phone_number().clone();
-                        let service = Rc::new(service);
-                        let (service_id, _) = services.insert_full(service_name, Rc::clone(&service));
-                        service.register_id(service_id);
+                        let agent_phone_number = agent.phone_number().clone();
+                        let agent = Rc::new(agent);
+                        let (agent_id, _) = agents.insert_full(agent_name, Rc::clone(&agent));
+                        agent.register_id(agent_id);
 
-                        // Register service number
-                        if let Some(phone_number) = service_phone_number {
+                        // Register agent number
+                        if let Some(phone_number) = agent_phone_number {
                             if !phone_number.is_empty() {
-                                services_numbered.insert(phone_number, service_id);
+                                agents_numbered.insert(phone_number, agent_id);
                             }
                         }
 
-                        // Register intercept service
-                        match service_role {
-                            ServiceRole::Intercept => {
-                                self.intercept_service.replace(Some(Rc::clone(&service)));
+                        // Register intercept agent
+                        match agent_role {
+                            AgentRole::Intercept => {
+                                self.intercept_agent.replace(Some(Rc::clone(&agent)));
                             },
                             _ => {}
                         }
 
-                        info!("Service loaded: {} (N = {:?}, ID = {:?})", service.name(), service.phone_number(), service.id());
+                        info!("Agent loaded: {} (num = {}, id = {:?})", agent.name(), agent.phone_number().as_deref().unwrap_or("[RESTRICTED]"), agent.id());
                     },
                     Err(err) => {
-                        error!("Failed to load service module '{:?}': {:#?}", module_path, err);
+                        error!("Failed to load agent module '{:?}': {:#?}", module_path, err);
                     }
                 }
             }
@@ -345,27 +346,27 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     /// Gets the other party associated with the active or pending call.
-    fn get_other_party_service(&self) -> Orc<ServiceModule> {
-        if let Some(service) = self.other_party.borrow().as_ref() {
-            return Some(Rc::clone(service));
+    fn get_other_party_agent(&self) -> Orc<AgentModule> {
+        if let Some(agent) = self.other_party.borrow().as_ref() {
+            return Some(Rc::clone(agent));
         }
         None
     }
 
     /// Removes the other party and unloads any associated non-static resources.
     fn unload_other_party(&self) {
-        if let Some(service) = self.other_party.borrow().as_ref() {
-            service.transition_state(ServiceState::Idle);
-            service.unload_sound_banks(&self.sound_engine);
+        if let Some(agent) = self.other_party.borrow().as_ref() {
+            agent.transition_state(AgentState::Idle);
+            agent.unload_sound_banks(&self.sound_engine);
         }
         self.other_party.replace(None);
     }
 
-    /// Sets the other party to the specified service.
-    fn load_other_party(&self, service: Rc<ServiceModule<'lua>>) {
-        service.load_sound_banks(&self.sound_engine);
-        if let Some(prev_service) = self.other_party.replace(Some(service)) {
-            prev_service.unload_sound_banks(&self.sound_engine);
+    /// Sets the other party to the specified agent.
+    fn load_other_party(&self, agent: Rc<AgentModule<'lua>>) {
+        agent.load_sound_banks(&self.sound_engine);
+        if let Some(prev_agent) = self.other_party.replace(Some(agent)) {
+            prev_agent.unload_sound_banks(&self.sound_engine);
         }
     }
 
@@ -452,15 +453,15 @@ impl<'lua> PbxEngine<'lua> {
                 self.update_pdd_start();
             },
             (_, CallingOut) => {
-                if let Some(service) = self.get_other_party_service() {
+                if let Some(agent) = self.get_other_party_agent() {
                     self.clear_dialed_number();
                     self.sound_engine.borrow().stop(Channel::SignalIn);
 
-                    // Tell service that we're calling it
-                    service.transition_state(ServiceState::IncomingCall);
+                    // Tell agent that we're calling it
+                    agent.transition_state(AgentState::IncomingCall);
 
                     // Finally, play the ringback tone (if we're allowed to)
-                    if service.ringback_enabled() {
+                    if agent.ringback_enabled() {
                         self.sound_engine.borrow().play_ringback_tone();
                     }
                 } else {
@@ -473,9 +474,9 @@ impl<'lua> PbxEngine<'lua> {
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
                 sound_engine.stop(Channel::SignalIn);
-                // Transition connecting service to call state
-                if let Some(service) = self.other_party.borrow().as_ref() {
-                    service.transition_state(ServiceState::Call);
+                // Transition connecting agent to call state
+                if let Some(agent) = self.other_party.borrow().as_ref() {
+                    agent.transition_state(AgentState::Call);
                 }
             }
             _ => {}
@@ -562,14 +563,14 @@ impl<'lua> PbxEngine<'lua> {
     pub fn is_current_call_free(&self) -> bool {
         match self.host_phone_type {
             // If the payphone has a standard rate of 0 and custom rates are ignored, it's free
-            PhoneType::Payphone if !self.config.payphone.enable_custom_service_rates && self.config.payphone.standard_call_rate == 0
+            PhoneType::Payphone if !self.config.payphone.enable_custom_agent_rates && self.config.payphone.standard_call_rate == 0
             => true,
-            // Check rate of currently connected service
+            // Check rate of currently connected agent
             PhoneType::Payphone => {
-                if let Some(service) = self.get_other_party_service().as_ref() {
-                    match service.role() {
-                        ServiceRole::Intercept => true,
-                        _ => service.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
+                if let Some(agent) = self.get_other_party_agent().as_ref() {
+                    match agent.role() {
+                        AgentRole::Intercept => true,
+                        _ => agent.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
                     }
                 } else {
                     false
@@ -580,9 +581,9 @@ impl<'lua> PbxEngine<'lua> {
     }
 
     pub fn current_call_rate(&self) -> u32 {
-        self.get_other_party_service()
+        self.get_other_party_agent()
             .as_ref()
-            .map(|serv| serv.custom_price().filter(|_| self.config.payphone.enable_custom_service_rates))
+            .map(|serv| serv.custom_price().filter(|_| self.config.payphone.enable_custom_agent_rates))
             .flatten()
             .unwrap_or(self.config.payphone.standard_call_rate)
     }
@@ -716,10 +717,6 @@ impl<'lua> PbxEngine<'lua> {
                     HookState(on_hook) => self.handle_hook_state_change(on_hook),
                     RotaryDialRest(resting) => self.handle_rotary_rest_state(resting),
                     RotaryDialPulse => self.handle_rotary_pulse(),
-                    Motion => {
-                        info!("PBX: Detected motion.");
-                        // TODO: Process motion sensor inputs
-                    },
                     Digit(digit) => {
                         self.handle_host_digit(digit);
                     },
@@ -756,9 +753,9 @@ impl<'lua> PbxEngine<'lua> {
                             let number_to_dial = self.get_dialed_number();
 
                             // Figure out how much the call costs
-                            let price = match self.lookup_service(number_to_dial.as_str()) {
-                                Some(service_to_call) if self.config.payphone.enable_custom_service_rates => 
-                                match service_to_call.custom_price() {
+                            let price = match self.lookup_agent(number_to_dial.as_str()) {
+                                Some(agent_to_call) if self.config.payphone.enable_custom_agent_rates => 
+                                match agent_to_call.custom_price() {
                                     Some(cents) => cents,
                                     None => self.config.payphone.standard_call_rate
                                 },
@@ -801,69 +798,69 @@ impl<'lua> PbxEngine<'lua> {
         }
     }
 
-    /// Updates the states of the services associated with the engine.
+    /// Updates the states of the agents associated with the engine.
     #[inline]
-    fn update_services(&'lua self) {
-        use ServiceIntent::*;
+    fn update_agents(&'lua self) {
+        use AgentIntent::*;
         use PbxState::*;
         let state = self.state();
-        let service_modules = self.services.borrow();
-        let service_iter = service_modules.iter();
-        for (_, service) in service_iter {
-            let mut intent = service.tick(ServiceData::None);
+        let agent_modules = self.agents.borrow();
+        let agent_iter = agent_modules.iter();
+        for (_, agent) in agent_iter {
+            let mut intent = agent.tick(AgentData::None);
             loop {
                 match intent {
-                    // Service requests a digit from the user
+                    // Agent requests a digit from the user
                     Ok(ReadDigit) => {
                         if let Some(digit) = self.consume_dialed_digit() {
-                            intent = service.tick(ServiceData::Digit(digit));
+                            intent = agent.tick(AgentData::Digit(digit));
                             continue;
                         }
                     },
-                    // Service wants to call the user
+                    // Agent wants to call the user
                     Ok(CallUser) => {
                         // First, check that there's nobody on the line and the user's on-hook.
                         // Also make sure that the config allows incoming calls.
                         if self.config.features.enable_incoming_calls.unwrap_or(false) 
                         && self.state() == PbxState::Idle 
                         && self.other_party.borrow().is_none() {
-                            service.set_reason(CallReason::ServiceInit);
-                            service.transition_state(ServiceState::OutgoingCall);
-                            self.load_other_party(Rc::clone(service));
+                            agent.set_reason(CallReason::AgentInit);
+                            agent.transition_state(AgentState::OutgoingCall);
+                            self.load_other_party(Rc::clone(agent));
                             self.set_state(PbxState::IdleRinging);
                         } else {
-                            // Tell the service they're busy
-                            intent = service.tick(ServiceData::LineBusy);
+                            // Tell the agent they're busy
+                            intent = agent.tick(AgentData::LineBusy);
                             continue;
                         }
                     },
-                    // Service wants to accept incoming call
+                    // Agent wants to accept incoming call
                     Ok(AcceptCall) => {
                         if state == CallingOut { 
                             self.set_state(Connected);
                         }
                     },
-                    // Service wants to end current call
+                    // Agent wants to end current call
                     Ok(EndCall) => {
                         match state {
                             // Transition to idle (hangs up at end of CALL state)
                             Connected => {
-                                service.transition_state(ServiceState::Idle);
+                                agent.transition_state(AgentState::Idle);
                             },
                             // Caller has given up, disconnect immediately
                             IdleRinging => {
-                                service.transition_state(ServiceState::Idle);
+                                agent.transition_state(AgentState::Idle);
                                 self.set_state(PbxState::Idle);
                             },
                             _ => {}
                         }
                     }
-                    // Service has just exited CALL state
-                    Ok(StateEnded(ServiceState::Call)) => {
+                    // Agent has just exited CALL state
+                    Ok(StateEnded(AgentState::Call)) => {
                         // Don't affect PBX state if the call is already ended
                         match state {
                             Connected => {
-                                // TODO: Allow user to customize behavior when service ends call
+                                // TODO: Allow user to customize behavior when agent ends call
                                 self.set_state(Busy);
                             },
                             _ => {}
@@ -887,6 +884,6 @@ impl<'lua> PbxEngine<'lua> {
     pub fn tick(&'lua self) {
         self.process_input_signals();
         self.update_pbx_state();
-        self.update_services();
+        self.update_agents();
     }
 }

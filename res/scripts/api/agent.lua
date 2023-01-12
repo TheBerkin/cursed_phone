@@ -3,133 +3,133 @@
     /==========================================================================\
     |========================= CURSED PHONE API FILE ==========================|
     |==========================================================================|
-    | This script is required by phone services in order to function properly. |
+    | This script is required by phone agents in order to function properly.   |
     | Unless you are making changes to the engine, do not modify this file.    |
     \==========================================================================/
     
 ]]
 
---- Exposes functions to interact with and control phone services.
-service = {}
+--- Exposes functions to interact with and control phone agents.
+agent = {}
 
-local service_messages = {}
-
--- ========================
--- SERVICE STATE CODE CONSTANTS
--- ========================
---- @alias ServiceStateCode integer
-
---- @type ServiceStateCode
---- Service is idle and not in a call.
-SERVICE_STATE_IDLE = 0
---- @type ServiceStateCode
---- Service is calling out.
-SERVICE_STATE_CALL_OUT = 1
---- @type ServiceStateCode
---- Service is being called.
-SERVICE_STATE_CALL_IN = 2
---- @type ServiceStateCode
---- Service is in a call.
-SERVICE_STATE_CALL = 3
+local agent_messages = {}
 
 -- ========================
--- SERVICE STATUS CODE CONSTANTS
+-- AGENT STATE CODE CONSTANTS
 -- ========================
---- @alias ServiceIntentCode integer
+--- @alias AgentStateCode integer
 
---- @type ServiceIntentCode
---- Service performed no action.
-SERVICE_INTENT_IDLE = 0
---- @type ServiceIntentCode
---- Service is accepting an incoming call.
-SERVICE_INTENT_ACCEPT_CALL = 1
---- @type ServiceIntentCode
---- Service is hanging up.
-SERVICE_INTENT_END_CALL = 2
---- @type ServiceIntentCode
---- Service is calling the user.
-SERVICE_INTENT_CALL_USER = 3
---- @type ServiceIntentCode
---- Service is waiting for an operation to complete.
-SERVICE_INTENT_WAIT = 4
---- @type ServiceIntentCode
---- Service is waiting for the user to dial a digit.
-SERVICE_INTENT_READ_DIGIT = 5
---- @type ServiceIntentCode
---- Service is forwarding the call.
-SERVICE_INTENT_FORWARD_CALL = 6
---- @type ServiceIntentCode
---- Service is finished with its current state and needs to transition to the next state.
-SERVICE_INTENT_STATE_END = 7
+--- @type AgentStateCode
+--- Agent is idle and not in a call.
+AGENT_STATE_IDLE = 0
+--- @type AgentStateCode
+--- Agent is calling out.
+AGENT_STATE_CALL_OUT = 1
+--- @type AgentStateCode
+--- Agent is being called.
+AGENT_STATE_CALL_IN = 2
+--- @type AgentStateCode
+--- Agent is in a call.
+AGENT_STATE_CALL = 3
 
 -- ========================
--- SERVICE DATA CODE CONSTANTS
+-- AGENT STATUS CODE CONSTANTS
 -- ========================
---- @alias ServiceDataCode integer
+--- @alias AgentIntentCode integer
 
---- @type ServiceDataCode
+--- @type AgentIntentCode
+--- Agent performed no action.
+AGENT_INTENT_IDLE = 0
+--- @type AgentIntentCode
+--- Agent is accepting an incoming call.
+AGENT_INTENT_ACCEPT_CALL = 1
+--- @type AgentIntentCode
+--- Agent is hanging up.
+AGENT_INTENT_END_CALL = 2
+--- @type AgentIntentCode
+--- Agent is calling the user.
+AGENT_INTENT_CALL_USER = 3
+--- @type AgentIntentCode
+--- Agent is waiting for an operation to complete.
+AGENT_INTENT_WAIT = 4
+--- @type AgentIntentCode
+--- Agent is waiting for the user to dial a digit.
+AGENT_INTENT_READ_DIGIT = 5
+--- @type AgentIntentCode
+--- Agent is forwarding the call.
+AGENT_INTENT_FORWARD_CALL = 6
+--- @type AgentIntentCode
+--- Agent is finished with its current state and needs to transition to the next state.
+AGENT_INTENT_STATE_END = 7
+
+-- ========================
+-- AGENT DATA CODE CONSTANTS
+-- ========================
+--- @alias AgentDataCode integer
+
+--- @type AgentDataCode
 --- Indicates no data was received.
-local SERVICE_DATA_NONE = 0
+local AGENT_DATA_NONE = 0
 --- Indicates that the user dialed a digit.
---- @type ServiceDataCode
-local SERVICE_DATA_DIGIT = 1
+--- @type AgentDataCode
+local AGENT_DATA_DIGIT = 1
 --- Indicates that the user line is busy.
-local SERVICE_DATA_LINE_BUSY = 2
+local AGENT_DATA_LINE_BUSY = 2
 
 -- ========================
--- SERVICE ROLE CONSTANTS
+-- AGENT ROLE CONSTANTS
 -- ========================
---- @alias ServiceRole integer
+--- @alias AgentRole integer
 
---- @type ServiceRole
---- A normal phone service.
-SERVICE_ROLE_NORMAL = 0
---- @type ServiceRole
---- Designates a service as an intercept system.
-SERVICE_ROLE_INTERCEPT = 1
---- @type ServiceRole
---- Designates a service as the Tollmaster.
-SERVICE_ROLE_TOLLMASTER = 2
+--- @type AgentRole
+--- A normal phone agent.
+AGENT_ROLE_NORMAL = 0
+--- @type AgentRole
+--- Designates an agent as an intercept system.
+AGENT_ROLE_INTERCEPT = 1
+--- @type AgentRole
+--- Designates an agent as the Tollmaster.
+AGENT_ROLE_TOLLMASTER = 2
 
---- @class PhoneServiceModule
-local _PhoneServiceModule_MEMBERS = {
+--- @class AgentModule
+local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)        
-        local status, state = tick_service_state(self, data_code, data)
+        local status, state = tick_agent_state(self, data_code, data)
         return status, state
     end,
     transition = function(self, state)
         if state == self._state then return end
-        transition_service_state(self, state)
+        transition_agent_state(self, state)
     end,
     get_state = function(self) return self._state end,
     --- Sets the phone states during whick the idle tick will be executed.
     ---
-    --- If this function is not called on a service module, idle ticks will be allowed during all phone states.
+    --- If this function is not called on a agent module, idle ticks will be allowed during all phone states.
     --- @vararg PhoneStateCode
     set_idle_tick_during = function(self, ...) -- TODO: Implement set_idle_tick_during()
         local states = {...}
         -- (Is it even really worth doing any sanity checks here?)
         self._idle_tick_phone_states = states
     end,
-    --- Enables or disables the ringback tone when calling the service.
+    --- Enables or disables the ringback tone when calling the agent.
     --- @param enabled boolean
     set_ringback_enabled = function(self, enabled)
         self._ringback_enabled = (not not enabled)
     end,
-    --- Prints a message prefixed with the service name.
+    --- Prints a message prefixed with the agent name.
     --- @param msg any
     log = function(self, msg)
         print("[" .. self._name .. "] " .. msg)
     end,
     start = function(self)
-        transition_service_state(self, SERVICE_STATE_IDLE)
+        transition_agent_state(self, AGENT_STATE_IDLE)
     end,
-    --- Sends a message to another service.
+    --- Sends a message to another agent.
     --- @param dest_name string
     --- @param msg_type string|integer
     --- @param msg_data any
     send = function(self, dest_name, msg_type, msg_data)
-        local dest_messages = service_messages[dest_name]
+        local dest_messages = agent_messages[dest_name]
 
         if dest_messages == nil then 
             print("WARN: Tried to write to nonexistent message queue: '" .. dest_name .. "'")
@@ -144,8 +144,8 @@ local _PhoneServiceModule_MEMBERS = {
         table.insert(dest_messages, msg)
     end,
     --- Adds a function table for the specified state code.
-    --- @param self PhoneServiceModule
-    --- @param state ServiceStateCode
+    --- @param self AgentModule
+    --- @param state AgentStateCode
     --- @param func_table table
     state = function(self, state, func_table)
         self._state_func_tables[state] = func_table
@@ -171,13 +171,13 @@ local _PhoneServiceModule_MEMBERS = {
     get_reason = function(self)
         return self._reason
     end,
-    --- Sets the price to call the service in payphone mode.
+    --- Sets the price to call the agent in payphone mode.
     set_custom_price = function(self, price)
         assert(is_number(price), "Price must be a number.")
         self._has_custom_price = true
         self._custom_price = price
     end,
-    --- Check if the service has pending messages.
+    --- Check if the agent has pending messages.
     --- @return boolean
     has_messages = function(self)
         return #self._messages > 0
@@ -198,31 +198,31 @@ local _PhoneServiceModule_MEMBERS = {
     end
 }
 
-local M_PhoneServiceModule = {
+local M_AgentModule = {
     __index = function(self, index)
-        return _PhoneServiceModule_MEMBERS[index]
+        return _AgentModule_MEMBERS[index]
     end
 }
 
---- Returns an empty phone service module.
---- @param name string @The display name of the phone service
---- @param phone_number string | nil @The number associated with the phone service
---- @param role ServiceRole|nil
---- @return PhoneServiceModule
-function SERVICE_MODULE(name, phone_number, role)
-    assert(type(name) == 'string', "Invalid service name: expected string, but found " .. type(name))
+--- Returns an empty phone agent module.
+--- @param name string @The display name of the phone agent
+--- @param phone_number string | nil @The number associated with the phone agent
+--- @param role AgentRole|nil
+--- @return AgentModule
+function AGENT_MODULE(name, phone_number, role)
+    assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
 
-    -- Create message queue for service
+    -- Create message queue for agent
     local messages = {}
-    service_messages[name] = messages
+    agent_messages[name] = messages
 
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
-        _role = role or SERVICE_ROLE_NORMAL,
+        _role = role or AGENT_ROLE_NORMAL,
         _state_coroutine = nil,
         _message_coroutine = nil,
-        _state = SERVICE_STATE_IDLE,
+        _state = AGENT_STATE_IDLE,
         _state_func_tables = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
@@ -232,91 +232,91 @@ function SERVICE_MODULE(name, phone_number, role)
         _custom_price = 0,
         _is_suspended = false,
         _messages = messages
-    }, M_PhoneServiceModule)
+    }, M_AgentModule)
 
     return module
 end
 
---- Wrapper around coroutine.yield() specifically for passing service intent to the host.
---- @param intent ServiceIntentCode
+--- Wrapper around coroutine.yield() specifically for passing agent intent to the host.
+--- @param intent AgentIntentCode
 --- @param intent_data any
---- @return ServiceDataCode, any
-function service.intent(intent, intent_data)
+--- @return AgentDataCode, any
+function agent.intent(intent, intent_data)
     local data_code, response_data = coroutine.yield(intent, intent_data)
-    return (data_code or SERVICE_DATA_NONE), response_data
+    return (data_code or AGENT_DATA_NONE), response_data
 end
 
 --- Asynchronously waits the specified number of seconds.
 --- @param seconds number
-function service.wait(seconds)
+function agent.wait(seconds)
     local start_time = get_run_time()
     while get_run_time() - start_time < seconds do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 
 --- Asynchronously waits the specified number of seconds or until the specified function returns true.
 --- @param seconds number
 --- @param predicate function
-function service.wait_cancel(seconds, predicate)
+function agent.wait_cancel(seconds, predicate)
     if predicate == nil or predicate() then return end
     local start_time = get_run_time()
     while not predicate() and get_run_time() - start_time < seconds do
-        service.intent(SERVICE_INTENT_WAIT)
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 
 --- Forwards the call to the specified number.
 --- @param number string
-function service.forward_call(number)
-    service.intent(SERVICE_INTENT_FORWARD_CALL, number)
+function agent.forward_call(number)
+    agent.intent(AGENT_INTENT_FORWARD_CALL, number)
 end
 
 --- Starts a call with the user, if the line is open.
 --- @return boolean
-function service.start_call()
-    local data_code = service.intent(SERVICE_INTENT_CALL_USER)
-    return data_code ~= SERVICE_DATA_LINE_BUSY
+function agent.start_call()
+    local data_code = agent.intent(AGENT_INTENT_CALL_USER)
+    return data_code ~= AGENT_DATA_LINE_BUSY
 end
 
 --- Accepts a pending call.
-function service.accept_call()
-    coroutine.yield(SERVICE_INTENT_ACCEPT_CALL)
+function agent.accept_call()
+    coroutine.yield(AGENT_INTENT_ACCEPT_CALL)
 end
 
 --- Ends the call.
-function service.end_call()
-    coroutine.yield(SERVICE_INTENT_END_CALL)
+function agent.end_call()
+    coroutine.yield(AGENT_INTENT_END_CALL)
 end
 
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
 --- @param max_seconds number|nil
 --- @return string|nil
-function service.read_digit(max_seconds)
+function agent.read_digit(max_seconds)
     local timed = is_number(max_seconds) and max_seconds > 0
     if timed then
         local start_time = get_run_time()
         while get_run_time() - start_time < max_seconds do
-            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
-            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
+            local data_code, data = agent.intent(AGENT_INTENT_READ_DIGIT)
+            if data_code == AGENT_DATA_DIGIT and type(data) == "string" then
                 return data
             end
         end
         return nil
     else
         while true do
-            local data_code, data = service.intent(SERVICE_INTENT_READ_DIGIT)
-            if data_code == SERVICE_DATA_DIGIT and type(data) == "string" then
+            local data_code, data = agent.intent(AGENT_INTENT_READ_DIGIT)
+            if data_code == AGENT_DATA_DIGIT and type(data) == "string" then
                 return data
             end
         end
     end
 end
 
---- Generates a service state machine coroutine.
---- @param s PhoneServiceModule
---- @param new_state ServiceStateCode
+--- Generates a agent state machine coroutine.
+--- @param s AgentModule
+--- @param new_state AgentStateCode
 --- @param old_state PhoneStateCode
 --- @return thread
 local function gen_state_coroutine(s, new_state, old_state)
@@ -330,21 +330,21 @@ local function gen_state_coroutine(s, new_state, old_state)
 
         prev_on_exit(s)
 
-        -- Emit SERVICE_INTENT_STATE_END
+        -- Emit AGENT_INTENT_STATE_END
         if old_state then
-            coroutine.yield(SERVICE_INTENT_STATE_END, old_state)
+            coroutine.yield(AGENT_INTENT_STATE_END, old_state)
         end
 
         on_enter(s)
         while true do
             on_tick(s)
-            service.intent(SERVICE_INTENT_IDLE)
+            agent.intent(AGENT_INTENT_IDLE)
         end
     end)
     return state_coroutine
 end
 
---- @param s PhoneServiceModule
+--- @param s AgentModule
 --- @return thread
 local function gen_msg_handler_coroutine(s, msg)
     local state_table = s._state_func_tables[s._state]
@@ -359,12 +359,12 @@ local function gen_msg_handler_coroutine(s, msg)
     return msg_coroutine
 end
 
---- Transitions to the specified state on a service.
+--- Transitions to the specified state on a agent.
 --- Returns true if the transition was successful; otherwise, returns false.
---- @param s PhoneServiceModule
---- @param state ServiceStateCode
+--- @param s AgentModule
+--- @param state AgentStateCode
 --- @return boolean
-function transition_service_state(s, state)
+function transition_agent_state(s, state)
     local prev_state = s._state
     local state_coroutine = gen_state_coroutine(s, state, prev_state)
     
@@ -373,9 +373,9 @@ function transition_service_state(s, state)
     return state_coroutine ~= nil
 end
 
---- @param s PhoneServiceModule
---- @return ServiceIntentCode, any
-function tick_service_state(s, data_code, data)
+--- @param s AgentModule
+--- @return AgentIntentCode, any
+function tick_agent_state(s, data_code, data)
     -- Check if a state machine is even running
     local state_coroutine = s._state_coroutine
     local message_coroutine = s._message_coroutine
@@ -385,12 +385,12 @@ function tick_service_state(s, data_code, data)
 
     -- If no state is active, there's no need to tick anything
     if active_coroutine == nil then
-        return SERVICE_INTENT_IDLE, nil
+        return AGENT_INTENT_IDLE, nil
     end
 
     -- If the state has finished, inform the caller that we need to transition
     if coroutine.status(state_coroutine) == 'dead' then
-        return SERVICE_INTENT_STATE_END, s._state
+        return AGENT_INTENT_STATE_END, s._state
     end
 
     -- Handle messages
@@ -408,16 +408,16 @@ function tick_service_state(s, data_code, data)
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
         error(intent)
-        return SERVICE_INTENT_STATE_END, s._state
+        return AGENT_INTENT_STATE_END, s._state
     end
 
     -- Return latest status and any associated data
-    return intent or SERVICE_INTENT_IDLE, intent_data
+    return intent or AGENT_INTENT_IDLE, intent_data
 end
 
---- Gets the current state of a service.
---- @param s PhoneServiceModule
---- @return ServiceStateCode
-function get_service_state(s)
-    return s._state or SERVICE_STATE_IDLE
+--- Gets the current state of a agent.
+--- @param s AgentModule
+--- @return AgentStateCode
+function get_agent_state(s)
+    return s._state or AGENT_STATE_IDLE
 end

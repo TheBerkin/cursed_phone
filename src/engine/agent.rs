@@ -1,10 +1,10 @@
 use super::*;
 
-pub struct ServiceModule<'lua> {
-    id: RefCell<Option<ServiceId>>,
+pub struct AgentModule<'lua> {
+    id: RefCell<Option<AgentId>>,
     name: String,
     phone_number: Option<String>,
-    role: ServiceRole,
+    role: AgentRole,
     custom_price: Option<u32>,
     ringback_enabled: bool,
     required_sound_banks: Vec<String>,
@@ -14,16 +14,16 @@ pub struct ServiceModule<'lua> {
     func_tick: LuaFunction<'lua>
 }
 
-impl<'lua> ServiceModule<'lua> {
+impl<'lua> AgentModule<'lua> {
     pub fn from_file(lua: &'lua Lua, path: &Path) -> Result<Self, String> {
         let src = fs::read_to_string(path).expect("Unable to read Lua source file");
         let module_chunk = lua.load(&src).set_name(path.to_str().unwrap()).unwrap();
         let module = module_chunk.eval::<LuaTable>();
         match module {
             Ok(table) => {
-                let name = table.raw_get("_name").expect("Module requires a name");
+                let name = table.raw_get("_name").expect(format!("Agent module '{:?}' requires a name", path).as_ref());
                 let phone_number = table.raw_get("_phone_number").unwrap();
-                let role = ServiceRole::from(table.raw_get::<&'static str, usize>("_role").unwrap());
+                let role = AgentRole::from(table.raw_get::<&'static str, usize>("_role").unwrap());
                 let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
                 let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
                 let func_unload = table.raw_get("unload").unwrap();
@@ -45,7 +45,7 @@ impl<'lua> ServiceModule<'lua> {
                     let load_args = lua.create_table().unwrap();
                     load_args.set("path", path.to_str()).unwrap();
                     if let Err(err) = func_load.call::<LuaTable, ()>(load_args) {
-                        return Err(format!("Error while calling service loader: {:#?}", err));
+                        return Err(format!("Error while calling agent loader: {:#?}", err));
                     }
                 }      
                 
@@ -74,7 +74,7 @@ impl<'lua> ServiceModule<'lua> {
                     func_tick,
                 })
             },
-            Err(err) => Err(format!("Unable to load service module: {:#?}", err))
+            Err(err) => Err(format!("Unable to load agent module: {:#?}", err))
         }
     }
 
@@ -92,15 +92,15 @@ impl<'lua> ServiceModule<'lua> {
         }
     }
 
-    pub fn register_id(&self, id: ServiceId) {
+    pub fn register_id(&self, id: AgentId) {
         self.id.replace(Some(id));
     }
 
-    pub fn id(&self) -> Option<ServiceId> {
+    pub fn id(&self) -> Option<AgentId> {
         *self.id.borrow()
     }
 
-    pub fn role(&self) -> ServiceRole {
+    pub fn role(&self) -> AgentRole {
         self.role
     }
 
@@ -129,42 +129,42 @@ impl<'lua> ServiceModule<'lua> {
         Ok(())
     }
 
-    pub fn state(&self) -> LuaResult<ServiceState> {
+    pub fn state(&self) -> LuaResult<AgentState> {
         let raw_state = self.tbl_module.get::<&str, usize>("_state")?;
-        Ok(ServiceState::from(raw_state))
+        Ok(AgentState::from(raw_state))
     }
 
     #[inline]
-    pub fn tick(&self, data: ServiceData) -> LuaResult<ServiceIntent> {
+    pub fn tick(&self, data: AgentData) -> LuaResult<AgentIntent> {
         if self.suspended() {
-            return Ok(ServiceIntent::Idle)
+            return Ok(AgentIntent::Idle)
         }
 
-        let service_table = self.tbl_module.clone();
+        let agent_table = self.tbl_module.clone();
         let data_code = data.to_code();
 
-        // Tick service
+        // Tick agent
         let (intent_code, intent_data) = match data {
-            ServiceData::None => self.func_tick.call((service_table, data_code))?,
-            ServiceData::Digit(digit) => self.func_tick.call((service_table, data_code, digit.to_string()))?,
-            ServiceData::LineBusy => self.func_tick.call((service_table, data_code))?
+            AgentData::None => self.func_tick.call((agent_table, data_code))?,
+            AgentData::Digit(digit) => self.func_tick.call((agent_table, data_code, digit.to_string()))?,
+            AgentData::LineBusy => self.func_tick.call((agent_table, data_code))?
         };
 
-        let intent = ServiceIntent::from_lua_value(intent_code, intent_data);
+        let intent = AgentIntent::from_lua_value(intent_code, intent_data);
         Ok(intent)
     }
 
-    pub fn transition_state(&self, state: ServiceState) -> LuaResult<()> {
+    pub fn transition_state(&self, state: AgentState) -> LuaResult<()> {
         self.tbl_module.call_method("transition", state.as_index())?;
         Ok(())
     }
 }
 
-impl<'lua> Drop for ServiceModule<'lua> {
+impl<'lua> Drop for AgentModule<'lua> {
     fn drop(&mut self) {
         if let Some(unload) = &self.func_unload {
             if let Err(error) = unload.call::<(), ()>(()) {
-                error!("Service module '{}' encountered error while unloading: {:?}", self.name, error);
+                error!("Agent module '{}' encountered error while unloading: {:?}", self.name, error);
             }
         }
     }

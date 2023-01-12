@@ -1,8 +1,8 @@
-local S = SERVICE_MODULE('toll', nil, SERVICE_ROLE_TOLLMASTER)
+local S = AGENT_MODULE('toll', nil, AGENT_ROLE_TOLLMASTER)
 
 local NAG_TONE_VOLUME = 0.5
 
-S:state(SERVICE_STATE_IDLE, {
+S:state(AGENT_STATE_IDLE, {
     tick = function(self)
         if toll.is_awaiting_deposit() then
             print("Tollmaster: Insert " .. toll.current_call_rate() .. "¢ now!")
@@ -16,7 +16,7 @@ S:state(SERVICE_STATE_IDLE, {
             sound.play("toll/nag_extend_call", CHAN_BG1)
             sound.wait_min(CHAN_BG1, 10.0)
         end
-        service.wait(1)
+        agent.wait(1)
     end
 })
 
