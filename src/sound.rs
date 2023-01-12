@@ -79,8 +79,8 @@ const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
 
 // DTMF tone constants
-const DTMF_COLUMN_FREQUENCIES: &[u32] = &[1209, 1336, 1477, 1633];
-const DTMF_ROW_FREQUENCIES: &[u32] = &[697, 770, 852, 941];
+const DTMF_COLUMN_FREQUENCIES: &[f32] = &[1209.0, 1336.0, 1477.0, 1633.0];
+const DTMF_ROW_FREQUENCIES: &[f32] = &[697.0, 770.0, 852.0, 941.0];
 const DTMF_DIGITS: &[char] = &['1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'];
 
 // Special Information Tone constants
@@ -174,7 +174,8 @@ fn db_to_amp(db: f32) -> f32 {
 pub struct SoundEngine {
     sounds_root_path: PathBuf,
     sound_banks_root_path: PathBuf,
-    device: rodio::Device,
+    stream: rodio::OutputStream,
+    stream_handle: rodio::OutputStreamHandle,
     channels: RefCell<Vec<SoundChannel>>,
     config: Rc<CursedConfig>,
     static_sounds: SoundBank,
@@ -308,7 +309,7 @@ impl SoundBank {
 impl SoundEngine {
     pub fn new(sounds_root_path: &str, sound_banks_root_path: &str, config: &Rc<CursedConfig>) -> Self {
         // Load output device
-        let device = rodio::default_output_device().expect("No audio output device found!");        
+        let (stream, stream_handle) = rodio::OutputStream::try_default().expect("Failed to open default audio output device!");
         let channels = RefCell::from(Vec::<SoundChannel>::new());
         let config = Rc::clone(config);
         let master_volume = config.sound.master_volume;
@@ -322,7 +323,8 @@ impl SoundEngine {
             sound_banks_root_path: Path::new(sound_banks_root_path).canonicalize().expect("Unable to expand soundbank root path"),
             sound_banks: Default::default(),
             static_sounds,
-            device,
+            stream,
+            stream_handle,
             channels,
             config,
             master_volume
@@ -457,7 +459,7 @@ impl SoundEngine {
         let mut ch = &mut self.channels.borrow_mut()[channel.as_index()];
         if !ch.sink.empty() {
             ch.sink.stop();
-            ch.sink = rodio::Sink::new(&self.device);
+            ch.sink = rodio::Sink::try_new(&self.stream_handle).expect("Failed to rebuild sound channel");
         }
     }
 
@@ -539,7 +541,7 @@ impl SoundEngine {
 
 impl SoundChannel {
     fn new(engine: &SoundEngine, id: Channel) -> Self {
-        let sink = rodio::Sink::new(&engine.device);        
+        let sink = rodio::Sink::try_new(&engine.stream_handle).expect("Failed to create sound channel");        
         let ch = Self {
             sink,
             id,
@@ -593,7 +595,7 @@ impl SoundChannel {
         }
     }
 
-    fn queue_dtmf(&self, f1: u32, f2: u32, dur: Duration, volume: f32) {
+    fn queue_dtmf(&self, f1: f32, f2: f32, dur: Duration, volume: f32) {
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(f1);
         let sine2 = rodio::source::SineWave::new(f2);
@@ -604,8 +606,8 @@ impl SoundChannel {
     }
 
     fn queue_ringback_tone(&self, volume: f32) {
-        const FREQ_RINGBACK_A: u32 = 440;
-        const FREQ_RINGBACK_B: u32 = 480;
+        const FREQ_RINGBACK_A: f32 = 440.0;
+        const FREQ_RINGBACK_B: f32 = 480.0;
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(FREQ_RINGBACK_A);
         let sine2 = rodio::source::SineWave::new(FREQ_RINGBACK_B);
@@ -622,8 +624,8 @@ impl SoundChannel {
     }
 
     fn queue_dial_tone(&self, volume: f32) {
-        const FREQ_DIAL_A: u32 = 350;
-        const FREQ_DIAL_B: u32 = 440;
+        const FREQ_DIAL_A: f32 = 350.0;
+        const FREQ_DIAL_B: f32 = 440.0;
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(FREQ_DIAL_A);
         let sine2 = rodio::source::SineWave::new(FREQ_DIAL_B);
@@ -632,8 +634,8 @@ impl SoundChannel {
     }
 
     fn queue_busy_tone(&self, volume: f32, is_fast: bool) {
-        const FREQ_BUSY_A: u32 = 480;
-        const FREQ_BUSY_B: u32 = 620;
+        const FREQ_BUSY_A: f32 = 480.0;
+        const FREQ_BUSY_B: f32 = 620.0;
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(FREQ_BUSY_A);
         let sine2 = rodio::source::SineWave::new(FREQ_BUSY_B);
@@ -645,10 +647,10 @@ impl SoundChannel {
     }
 
     fn queue_off_hook_tone(&self, volume: f32) {
-        const FREQ_OFF_HOOK_A: u32 = 1400;
-        const FREQ_OFF_HOOK_B: u32 = 2060;
-        const FREQ_OFF_HOOK_C: u32 = 2450;
-        const FREQ_OFF_HOOK_D: u32 = 2600;
+        const FREQ_OFF_HOOK_A: f32 = 1400.0;
+        const FREQ_OFF_HOOK_B: f32 = 2060.0;
+        const FREQ_OFF_HOOK_C: f32 = 2450.0;
+        const FREQ_OFF_HOOK_D: f32 = 2600.0;
         let quarter_volume = volume * 0.25;
         let sine1 = rodio::source::SineWave::new(FREQ_OFF_HOOK_A);
         let sine2 = rodio::source::SineWave::new(FREQ_OFF_HOOK_B);
@@ -666,8 +668,8 @@ impl SoundChannel {
     }
 
     fn queue_panic_tone(&self, volume: f32) {
-        const FREQ_PANIC_A: u32 = 720;
-        const FREQ_PANIC_B: u32 = 900;
+        const FREQ_PANIC_A: f32 = 720.0;
+        const FREQ_PANIC_B: f32 = 900.0;
         let half_volume = volume * 0.5;
         let sine1 = rodio::source::SineWave::new(FREQ_PANIC_A);
         let sine2 = rodio::source::SineWave::new(FREQ_PANIC_B);
@@ -692,13 +694,13 @@ impl SoundChannel {
             Low(len) => (SIT_FREQS_THIRD.0, len.as_ms()),
             High(len) => (SIT_FREQS_THIRD.1, len.as_ms())
         };
-        let sine1 = rodio::source::SineWave::new(f1)
+        let sine1 = rodio::source::SineWave::new(f1 as f32)
             .take_duration(Duration::from_millis(d1))
             .amplify(volume);
-        let sine2 = rodio::source::SineWave::new(f2)
+        let sine2 = rodio::source::SineWave::new(f2 as f32)
             .take_duration(Duration::from_millis(d2))
             .amplify(volume);
-        let sine3 = rodio::source::SineWave::new(f3)
+        let sine3 = rodio::source::SineWave::new(f3 as f32)
             .take_duration(Duration::from_millis(d3))
             .amplify(volume);
         self.sink.append(sine1);

@@ -24,7 +24,7 @@ indexmap = "1.4.0"
 log = { version = "0.4.8" }
 mlua = { version = "0.8.7", default-features = false, features = ["vendored", "luajit"] }
 rand = "0.8.5"
-rodio = { version = "0.11.0", default-features = false, features = ["wav", "vorbis"] }
+rodio = { version = "0.16.0", default-features = false, features = ["wav", "vorbis"] }
 rppal = { version = "0.11.3", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 simplelog = "0.12.0"
