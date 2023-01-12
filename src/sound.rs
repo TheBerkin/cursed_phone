@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
-use enum_iterator::IntoEnumIterator;
+use enum_iterator::Sequence;
 use indexmap::map::IndexMap;
 use rodio;
 use rodio::source::{Source, Buffered};
@@ -19,7 +19,7 @@ use rand::Rng;
 use log::{info, warn};
 
 /// Represents a playback channel for sounds.
-#[derive(IntoEnumIterator, Copy, Clone, Debug, PartialEq)]
+#[derive(Sequence, Copy, Clone, Debug, PartialEq)]
 pub enum Channel {
     /// Channel for incoming telephony signal tones.
     SignalIn,
@@ -329,7 +329,7 @@ impl SoundEngine {
         };
 
         // Create channels
-        for ch in Channel::into_enum_iter() {
+        for ch in enum_iterator::all::<Channel>() {
             let channel = SoundChannel::new(&engine, ch);
             engine.channels.borrow_mut().push(channel);
         }
@@ -430,13 +430,13 @@ impl SoundEngine {
     }
 
     pub fn stop_all(&self) {
-        for ch in Channel::into_enum_iter() {
+        for ch in enum_iterator::all::<Channel>() {
             self.stop(ch);            
         }
     }
 
     pub fn stop_all_except(&self, except: Channel) {
-        for ch in Channel::into_enum_iter() {
+        for ch in enum_iterator::all::<Channel>() {
             if ch == except {
                 continue;
             }
@@ -445,7 +445,7 @@ impl SoundEngine {
     }
 
     pub fn stop_all_nonsignal(&self) {
-        for ch in Channel::into_enum_iter() {
+        for ch in enum_iterator::all::<Channel>() {
             match ch {
                 Channel::NoiseIn | Channel::SignalIn => continue,
                 _ => self.stop(ch)
@@ -475,7 +475,7 @@ impl SoundEngine {
 
     pub fn set_master_volume(&mut self, master_volume: f32) {
         self.master_volume = master_volume;
-        for ch in Channel::into_enum_iter() {
+        for ch in enum_iterator::all::<Channel>() {
             self.channels.borrow_mut()[ch.as_index()].update_sink_volume(master_volume);
         }
     }

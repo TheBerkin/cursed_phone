@@ -2,28 +2,25 @@
 
 This repository houses code for a hobby project of mine, the Cursed Phone.
 
-![](https://i.imgur.com/HMyeW6v.jpg)
+The Cursed Phone is a repurposed rotary phone with a Raspberry Pi as its brain. It's not a "real" telephone; it instead does whatever I want through the convenient and universally understood interface of a rotary dial.
 
-Unless you have an old phone on hand that's wired for use with a Raspberry Pi, you probably won't find this repo very useful. But if you do, boy do I have the program for you.
+## What is this?
 
-## What even is this?
+It's a sort of audio-only game engine for the Raspberry Pi that emulates various styles of telephones. Phone numbers are assigned to scripts rather than people-- call the number to call the script. You can even make scripts call the phone. Imagine the possibilities!
 
-It's a program that emulates various styles of telephones and allows you to write callable services. You can use it to implement anything from home automation to interactive art pieces. 
-
-Here's a short list of feature highlights:
+What you get out of the box:
 
 * Emulation of rotary, touch-tone, and pay phones via GPIO
-* Lua-based scripting system
+* Lua scripting system
 * Fully-configurable everything
 * Realistic call progress/DTMF tones
 * WAV/OGG audio playback support
-* Switchhook dialing
-* Vibration support
-* Motion sensing support
+* GPIO access in scripts (WIP)
+* Switchhook dialing (WIP)
 * Intercept services
 * Comfort noise
-* Compatible with all Raspberry Pi models
 * Mock GPIO interface for desktop testing via stdin
+* Compatibility with all Raspberry Pi models
 
 ## Building
 
@@ -39,10 +36,10 @@ sudo apt install libasound2-dev
 
 ### Cargo
 
-Then, with Cargo installed, run the following command:
+Then, with Cargo installed, run the appropriate build command for your platform:
 
 ```sh
-# Build without GPIO support (use this if testing on Windows)
+# Build without GPIO support (use this when testing on non-RPi platforms)
 cargo build --release
 
 # Build with GPIO support (use this for Raspberry Pi)
@@ -68,7 +65,3 @@ If compiling on the target system, this step is unnecessary. However, be warned 
 ### Move the built executable
 
 If you'll be running this as a service, move the built executable (found somewhere in your `target` folder) to the project's root directory before use. 
-
-## Known issues
-
-Please note that the GPIO library used in this program is currently not fully compatible with the Raspberry Pi 4B.

@@ -1,8 +1,8 @@
 [package]
 name = "cursed_phone"
 version = "0.1.0"
-authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
-edition = "2018"
+authors = ["Robin Pederson <TheBerkin@users.noreply.github.com>"]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,7 +17,7 @@ rpi = ["rppal"]
 no-log = ["log/release_max_level_off", "log/max_level_off"]
 
 [dependencies]
-enum-iterator = "0.6.0"
+enum-iterator = "1.2.0"
 globset = "0.4.5"
 globwalk = "0.8.0"
 indexmap = "1.4.0"
