@@ -225,7 +225,7 @@ impl<'lua> PbxEngine<'lua> {
         if min >= max {
             return Ok(min);
         }
-        Ok(rand::thread_rng().gen_range(min, max))
+        Ok(rand::thread_rng().gen_range(min..max))
     }
 
     fn lua_rand_int_bias_low(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
@@ -233,7 +233,7 @@ impl<'lua> PbxEngine<'lua> {
             return Ok(min);
         }
         let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min, max), rng.gen_range(min, max));
+        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
         Ok(cmp::min(a, b))
     }
 
@@ -242,7 +242,7 @@ impl<'lua> PbxEngine<'lua> {
             return Ok(max);
         }
         let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min, max), rng.gen_range(min, max));
+        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
         Ok(cmp::max(a, b))
     }
 
@@ -251,15 +251,15 @@ impl<'lua> PbxEngine<'lua> {
             return Ok(min);
         }
         if skip < min || skip > max {
-            Ok(rand::thread_rng().gen_range(min, max))
+            Ok(rand::thread_rng().gen_range(min..max))
         } else {
             let range_size: i64 = (max as i64) - (min as i64);
             if range_size > 1 {
-                let range_select = rand::thread_rng().gen_range(1, range_size) % range_size;
+                let range_select = rand::thread_rng().gen_range(1..range_size) % range_size;
                 let output = min as i64 + range_select;
                 Ok(output as i32)
             } else {
-                Ok(rand::thread_rng().gen_range(min, max))
+                Ok(rand::thread_rng().gen_range(min..max))
             }
         }
     }
@@ -268,7 +268,7 @@ impl<'lua> PbxEngine<'lua> {
         if min >= max {
             return Ok(min);
         }
-        Ok(rand::thread_rng().gen_range(min, max))
+        Ok(rand::thread_rng().gen_range(min..max))
     }
 
     fn lua_chance(_: &Lua, p: f64) -> LuaResult<bool> {

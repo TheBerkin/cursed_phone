@@ -277,7 +277,7 @@ impl SoundBank {
                 let mut glob_cache = self.sound_glob_cache.borrow_mut();
                 let glob_list = glob_cache.get(key);
                 if let Some(glob_list) = glob_list {
-                    let index = rand::thread_rng().gen_range(0, glob_list.len());
+                    let index = rand::thread_rng().gen_range(0..glob_list.len());
                     return Some(Rc::clone(&self.sounds.get_index(glob_list[index]).unwrap().1));
                 }
                 // If not, run the search manually and cache the results
@@ -293,7 +293,7 @@ impl SoundBank {
                     }                    
                     // Cache and pick only if there were results
                     if glob_list.len() > 0 {
-                        let index = rand::thread_rng().gen_range(0, glob_list.len());
+                        let index = rand::thread_rng().gen_range(0..glob_list.len());
                         let sound = Some(self.sounds.get_index(glob_list[index]).unwrap().1);
                         glob_cache.insert(key.to_string(), glob_list);
                         return Some(Rc::clone(sound.unwrap()));
