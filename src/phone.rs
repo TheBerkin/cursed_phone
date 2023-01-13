@@ -26,7 +26,6 @@ pub enum PhoneInputSignal {
 /// Represents signals produced by the phone.
 pub enum PhoneOutputSignal {
     Ring(bool), // TODO: Add cadence settings to ringer
-    Vibrate { on: bool, duty_cycle: f32, time_seconds: f32 }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -73,7 +72,6 @@ pub struct PhoneEngine {
     dial_pulse_state: bool,
     hook_state: bool,
     ring_state: bool,
-    vibe_state: bool,
     tx_ringer: Option<mpsc::Sender<bool>>,
     #[cfg(feature = "rpi")]
     gpio: GpioInterface
@@ -96,7 +94,6 @@ impl PhoneEngine {
             dial_pulse_state: false,
             hook_state: true,
             ring_state: false,
-            vibe_state: false,
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default(),
@@ -129,7 +126,6 @@ impl PhoneEngine {
             dial_pulse_state: false,
             hook_state: true,
             ring_state: false,
-            vibe_state: false,
             tx_ringer: None,
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
@@ -234,10 +230,6 @@ impl PhoneEngine {
                             }
                         }
                     },
-                    Vibrate { on, duty_cycle, time_seconds } => {
-                        trace!("Vibration = {}: duty_cycle = {}, time_seconds = {}", on, duty_cycle, time_seconds);
-                        // TODO: Pass vibration to GPIO
-                    }
                 }
             }
         }

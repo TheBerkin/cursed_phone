@@ -108,7 +108,7 @@ PHONE_STATE_BUSY_TONE = 6
 --- @alias SpecialInfoTone integer
 
 --- @type SpecialInfoTone
---- Unassigned N11 ode, CLASS code, or prefix.
+--- Unassigned N11 code, CLASS code, or prefix.
 SIT_VACANT_CODE = 0
 --- @type SpecialInfoTone
 --- Incomplete digits, internal office or feature failure (local office).
@@ -131,14 +131,3 @@ SIT_INEFFECTIVE = 6
 --- @type SpecialInfoTone
 --- Reserved for future use.
 SIT_RESERVED = 7
-
--- NATIVE PHONE FUNCTIONS
-NATIVE_API(function()
-    phone = {}
-
-    function phone.vibrate(power, time) end
-
-    function phone.vibrate_set(power) end
-
-    function phone.vibrate_stop() end
-end)

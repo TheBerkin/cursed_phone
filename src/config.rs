@@ -112,12 +112,6 @@ pub struct FeaturesConfig {
     /// Enables ringer.
     pub enable_ringer: Option<bool>,
 
-    /// Enables vibration.
-    pub enable_vibration: Option<bool>,
-
-    /// Enables motion sensor.
-    pub enable_motion_sensor: Option<bool>,
-
     /// Enables switch-hook dialing.
     pub enable_switch_hook_dialing: Option<bool>,
 
@@ -189,8 +183,6 @@ pub struct InputPinConfig {
 pub struct GpioOutputsConfig {
     /// BCM pin number of ringer output.
     pub pin_ringer: Option<u8>,
-    /// BCM pin number of vibration motor output.
-    pub pin_vibrate: Option<u8>,
     /// BCM pin numbers of keypad column outputs.
     pub pins_keypad_cols: Option<[u8; 3]>,
 }

@@ -20,7 +20,7 @@ local reason_handlers = {
     -- Phone was left off the hook
     [CALL_REASON_OFF_HOOK] = function(self)
         local cancel_func = function()
-            return get_call_time() > MAX_MESSAGE_TIME
+            return call_time() > MAX_MESSAGE_TIME
         end
 
         while not cancel_func() do

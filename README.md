@@ -28,7 +28,7 @@ These instructions are written for Debian (Linux), but this should run in Window
 
 ### Prerequisites
 
-You'll first need to install the ALSA library:
+Before building for Linux, you'll first need to install the ALSA library:
 
 ```sh
 sudo apt install libasound2-dev
@@ -39,11 +39,11 @@ sudo apt install libasound2-dev
 Then, with Cargo installed, run the appropriate build command for your platform:
 
 ```sh
-# Build without GPIO support (use this when testing on non-RPi platforms)
-cargo build --release
-
-# Build with GPIO support (use this for Raspberry Pi)
+# Build with GPIO support (for Raspberry Pi)
 cargo build --release --features=rpi
+
+# Build without GPIO support (for non-RPi platforms)
+cargo build --release
 ```
 
 ### Cross-compilation
@@ -64,4 +64,4 @@ If compiling on the target system, this step is unnecessary. However, be warned 
 
 ### Move the built executable
 
-If you'll be running this as a service, move the built executable (found somewhere in your `target` folder) to the project's root directory before use. 
+If you'll be running this as a service, move the built executable (found in `/target/release`) to the project's root directory before use. 

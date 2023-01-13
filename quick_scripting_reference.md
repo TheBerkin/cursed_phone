@@ -38,5 +38,6 @@ S:state(AGENT_STATE_IDLE, {
 function S.unload(args)
 end
 
+-- Make sure to return the completed module at the end
 return S
 ```

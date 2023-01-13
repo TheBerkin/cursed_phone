@@ -46,14 +46,14 @@ impl<'lua> CursedEngine<'lua> {
         // chance(p)
         globals.set("chance", lua.create_function(CursedEngine::lua_chance).unwrap());
 
-        // get_run_time()
-        globals.set("get_run_time", lua.create_function(move |_, ()| {
+        // engine_time()
+        globals.set("engine_time", lua.create_function(move |_, ()| {
             let run_time = self.start_time.elapsed().as_secs_f64();
             Ok(run_time)
         }).unwrap());
 
-        // get_call_time()
-        globals.set("get_call_time", lua.create_function(move |_, ()| {
+        // call_time()
+        globals.set("call_time", lua.create_function(move |_, ()| {
             match self.state() {
                 PbxState::Connected => {
                     return Ok(self.current_state_time().as_secs_f64());

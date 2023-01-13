@@ -23,6 +23,13 @@ S:state(AGENT_STATE_IDLE, {
     end,
 })
 
+S:state(AGENT_STATE_CALL_IN, {
+    enter = function(self) 
+        agent.wait(rand_float(2.0, 10.0))
+        agent.accept_call()
+    end
+})
+
 S:state(AGENT_STATE_CALL_OUT, {
     enter = function(self)
         agent.wait(rand_float(15.0, 30.0))

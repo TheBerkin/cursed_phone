@@ -43,8 +43,6 @@ pub struct GpioInterface {
     out_keypad_cols: Option<Arc<Mutex<[OutputPin; KEYPAD_COL_COUNT]>>>,
     /// Pin for ringer output.
     out_ringer: Option<Arc<Mutex<OutputPin>>>,
-    /// Pin for vibration motor output.
-    out_vibe: Option<Arc<Mutex<OutputPin>>>,
     /// Transmission channel for ringer control
     tx_ringer: Option<mpsc::Sender<bool>>, // TODO: Pass cadence data to ringer thread
     /// Copy of config used to initialize pins.
@@ -123,9 +121,6 @@ impl GpioInterface {
         let in_motion = gen_optional_soft_input_from(&gpio, config.features.enable_motion_sensor, &inputs.motion);
 
         let out_ringer = gen_optional_output(&gpio, config.features.enable_ringer, outputs.pin_ringer)
-            .map(|o| Arc::new(Mutex::new(o)));
-
-        let out_vibe = gen_optional_output(&gpio, config.features.enable_vibration, outputs.pin_vibrate)
             .map(|o| Arc::new(Mutex::new(o)));
 
         // Register pulse-dialing pins
@@ -257,9 +252,6 @@ impl GpioInterface {
             _ => None
         };
 
-        // Vibration fields
-        // TODO: Set up vibration output
-
         GpioInterface {
             gpio,
             in_hook,
@@ -271,7 +263,6 @@ impl GpioInterface {
             coin_trigger_active_state,
             out_keypad_cols,
             out_ringer,
-            out_vibe,
             tx_ringer,
             config: Rc::clone(config)
         }

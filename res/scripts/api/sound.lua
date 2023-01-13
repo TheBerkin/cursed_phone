@@ -203,8 +203,8 @@ end
 ---
 --- Keeps waiting even if `duration` lasts longer than the sound.
 function sound.wait_min(channel, duration)
-    local start_time = get_run_time();
-    while sound.is_busy(channel) or get_run_time() - start_time < duration do
+    local start_time = engine_time();
+    while sound.is_busy(channel) or engine_time() - start_time < duration do
         agent.intent(AGENT_INTENT_WAIT)
     end
 end
@@ -215,8 +215,8 @@ end
 ---
 --- If the sound stops within `duration`, the wait is canceled.
 function sound.wait_max(channel, duration)
-    local start_time = get_run_time();
-    while sound.is_busy(channel) and get_run_time() - start_time < duration do
+    local start_time = engine_time();
+    while sound.is_busy(channel) and engine_time() - start_time < duration do
         agent.intent(AGENT_INTENT_WAIT)
     end
 end

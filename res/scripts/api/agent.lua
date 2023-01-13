@@ -114,7 +114,7 @@ local _AgentModule_MEMBERS = {
     --- Enables or disables the ringback tone when calling the agent.
     --- @param enabled boolean
     set_ringback_enabled = function(self, enabled)
-        self._ringback_enabled = (not not enabled)
+        self._ringback_enabled = coerce_boolean(enabled)
     end,
     --- Prints a message prefixed with the agent name.
     --- @param msg any
@@ -237,7 +237,8 @@ function AGENT_MODULE(name, phone_number, role)
     return module
 end
 
---- Wrapper around coroutine.yield() specifically for passing agent intent to the host.
+
+--- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
 --- @param intent AgentIntentCode
 --- @param intent_data any
 --- @return AgentDataCode, any
@@ -249,8 +250,8 @@ end
 --- Asynchronously waits the specified number of seconds.
 --- @param seconds number
 function agent.wait(seconds)
-    local start_time = get_run_time()
-    while get_run_time() - start_time < seconds do
+    local start_time = engine_time()
+    while engine_time() - start_time < seconds do
         agent.intent(AGENT_INTENT_WAIT)
     end
 end
@@ -260,8 +261,8 @@ end
 --- @param predicate function
 function agent.wait_cancel(seconds, predicate)
     if predicate == nil or predicate() then return end
-    local start_time = get_run_time()
-    while not predicate() and get_run_time() - start_time < seconds do
+    local start_time = engine_time()
+    while not predicate() and engine_time() - start_time < seconds do
         agent.intent(AGENT_INTENT_WAIT)
     end
 end
@@ -296,8 +297,8 @@ end
 function agent.read_digit(max_seconds)
     local timed = is_number(max_seconds) and max_seconds > 0
     if timed then
-        local start_time = get_run_time()
-        while get_run_time() - start_time < max_seconds do
+        local start_time = engine_time()
+        while engine_time() - start_time < max_seconds do
             local data_code, data = agent.intent(AGENT_INTENT_READ_DIGIT)
             if data_code == AGENT_DATA_DIGIT and type(data) == "string" then
                 return data
@@ -314,7 +315,7 @@ function agent.read_digit(max_seconds)
     end
 end
 
---- Generates a agent state machine coroutine.
+--- Generates an agent state machine coroutine.
 --- @param s AgentModule
 --- @param new_state AgentStateCode
 --- @param old_state PhoneStateCode
@@ -324,9 +325,9 @@ local function gen_state_coroutine(s, new_state, old_state)
         local old_func_table = s._state_func_tables[old_state]
         local new_func_table = s._state_func_tables[new_state]
 
-        local on_enter = new_func_table and new_func_table.enter or empty_func
-        local on_tick = new_func_table and new_func_table.tick or empty_func
-        local prev_on_exit = old_func_table and old_func_table.exit or empty_func
+        local on_enter = new_func_table and new_func_table.enter or stub
+        local on_tick = new_func_table and new_func_table.tick or stub
+        local prev_on_exit = old_func_table and old_func_table.exit or stub
 
         prev_on_exit(s)
 

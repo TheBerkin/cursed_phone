@@ -26,6 +26,10 @@ function NATIVE_API(api_defs)
     end
 end
 
-function empty_func() end
+function coerce_boolean(value)
+    return not not value
+end
+
+function stub() end
 
 print_info()
