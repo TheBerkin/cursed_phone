@@ -153,8 +153,6 @@ pub struct GpioInputsConfig {
     pub dial_pulse: Option<InputPinConfig>,
     /// Input configuration for the dial (switch component).
     pub dial_switch: Option<InputPinConfig>,
-    /// Input configuration for the motion sensor.
-    pub motion: Option<InputPinConfig>,
     /// BCM pin numbers of keypad row inputs.
     pub keypad_row_pins: Option<[u8; 4]>,
     /// Input pins for the coin trigger switches.

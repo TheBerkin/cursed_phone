@@ -31,8 +31,6 @@ pub struct GpioInterface {
     in_dial_switch: Option<SoftInputPin>,
     /// Pin for dial pulse switch input.
     in_dial_pulse: Option<SoftInputPin>,
-    /// Pin for motion detector input.
-    in_motion: Option<SoftInputPin>,
     /// Pins for keypad row inputs.
     in_keypad_rows: Option<[Arc<Mutex<SoftInputPin>>; KEYPAD_ROW_COUNT]>,
     /// Pins for coin trigger switch inputs.
@@ -118,7 +116,6 @@ impl GpioInterface {
 
         // Register standard GPIO pins
         let in_hook = gen_required_soft_input_from(&gpio, &inputs.hook);
-        let in_motion = gen_optional_soft_input_from(&gpio, config.features.enable_motion_sensor, &inputs.motion);
 
         let out_ringer = gen_optional_output(&gpio, config.features.enable_ringer, outputs.pin_ringer)
             .map(|o| Arc::new(Mutex::new(o)));
@@ -257,7 +254,6 @@ impl GpioInterface {
             in_hook,
             in_dial_switch,
             in_dial_pulse,
-            in_motion,
             in_keypad_rows,
             in_coin_triggers,
             coin_trigger_active_state,
@@ -278,16 +274,6 @@ impl GpioInterface {
         self.in_hook.set_on_changed(move |state| {
             sender.send(PhoneInputSignal::HookState(state)).unwrap();
         });
-
-        // Motion sensor
-        if let Some(in_motion) = &mut self.in_motion {
-            let sender = tx.clone();
-            in_motion.set_on_changed(move |motion_detected| {
-                if motion_detected {
-                     sender.send(PhoneInputSignal::Motion).unwrap();
-                }
-            });
-        }
 
         // Rotary dial rest switch
         if let Some(in_dial_switch) = &mut self.in_dial_switch {
