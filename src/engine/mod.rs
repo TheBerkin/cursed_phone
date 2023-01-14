@@ -6,7 +6,7 @@ mod api;
 mod agent;
 
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
 use std::{thread, time, fs, sync::mpsc};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -37,6 +37,23 @@ const API_GLOB: &str = "api/*";
 // Pulse dialing digits
 const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+// Vertical Service Codes
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum VerticalServiceCode {
+    /// Last-Call Return (Tone: *69, Pulse: 1169)
+    LastCallReturn
+}
+
+impl VerticalServiceCode {
+    #[inline(always)]
+    pub fn parse(number: &str, phone_type: PhoneType) -> Option<Self> {
+        Some(match (number, phone_type) {
+            ("1169", t @ PhoneType::Rotary) | ("*69", t @ _) if t != PhoneType::TouchTone => Self::LastCallReturn,
+            _ => return None
+        })
+    }
+}
+
 const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
 
 type AgentId = usize;
@@ -65,6 +82,8 @@ pub struct CursedEngine<'lua> {
     start_time: Instant,
     /// The numbered agents associated with the engine.
     phone_book: RefCell<HashMap<String, AgentId>>,
+    /// The last agent who called the host
+    last_caller_id: Cell<Option<AgentId>>,
     /// The agents (both numbered and otherwise) associated with the engine.
     agents: RefCell<IndexMap<String, Rc<AgentModule<'lua>>>>,
     /// The sound engine associated with the engine.
@@ -133,6 +152,7 @@ impl<'lua> CursedEngine<'lua> {
             config: Rc::clone(config),
             sound_engine: Rc::clone(sound_engine),
             phone_book: Default::default(),
+            last_caller_id: Cell::new(None),
             agents: Default::default(),
             intercept_agent: Default::default(),
             state: RefCell::new(PbxState::Idle),
@@ -189,8 +209,20 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Calls the specified phone number.
     fn call_number(&'lua self, number: &str) -> bool {
+
+        let vsc_agent = if let Some(vsc) = VerticalServiceCode::parse(number, self.host_phone_type) {
+            match vsc {
+                VerticalServiceCode::LastCallReturn => 
+                    self.config.features.enable_lcr.unwrap_or_default()
+                    .then(|| self.last_caller_id.get().and_then(|id| self.lookup_agent_id(id)))
+                    .flatten()
+            }
+        } else {
+            None
+        };
+
         info!("Placing call to: {}", number);
-        if let Some(agent) = self.lookup_agent(number) {
+        if let Some(agent) = vsc_agent.or_else(|| self.lookup_agent(number)) {
             self.call_agent(agent);
             return true;
         } else {
@@ -827,6 +859,7 @@ impl<'lua> CursedEngine<'lua> {
                             agent.transition_state(AgentState::OutgoingCall);
                             self.load_other_party(Rc::clone(agent));
                             self.set_state(PbxState::IdleRinging);
+                            self.last_caller_id.replace(agent.id());
                         } else {
                             // Tell the agent they're busy
                             intent = agent.tick(AgentData::LineBusy);

@@ -117,6 +117,9 @@ pub struct FeaturesConfig {
 
     /// Allows the host device to receive calls.
     pub enable_incoming_calls: Option<bool>,
+
+    /// Enables Last-Call Return (*69/1169)
+    pub enable_lcr: Option<bool>,
 }
 
 #[serde(rename_all = "kebab-case")]
