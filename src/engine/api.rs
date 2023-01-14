@@ -6,7 +6,7 @@ use crate::sound::*;
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {    
-    pub fn load_cursed_api(&'static self) -> Result<(), String> {
+    pub fn load_cursed_lua_api(&'static self) -> Result<(), String> {
         info!("Setting up Lua...");
     
         let lua = &self.lua;

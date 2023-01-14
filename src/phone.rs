@@ -74,7 +74,7 @@ pub struct PhoneEngine {
     ring_state: bool,
     tx_ringer: Option<mpsc::Sender<bool>>,
     #[cfg(feature = "rpi")]
-    gpio: GpioInterface
+    gpio: PhoneGpioInterface
 }
 
 impl PhoneEngine {
@@ -83,7 +83,7 @@ impl PhoneEngine {
     pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
-        let mut gpio = GpioInterface::new(phone_type, &config);
+        let mut gpio = PhoneGpioInterface::new(phone_type, &config);
         let listener = gpio.listen().expect("Unable to initialize GPIO listener.");
         let tx_ringer = gpio.tx_ringer();
         Self {

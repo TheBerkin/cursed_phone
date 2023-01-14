@@ -94,7 +94,6 @@ pub struct CursedEngine<'lua> {
     /// Enable switchhook dialing?
     switch_hook_dialing_enabled: bool,
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
-    /// > _"Kajhiit has calls, if you have coin."_
     coin_deposit: RefCell<u32>,
     /// Indicates whether the initial coin deposit for the call has been consumed.
     initial_deposit_consumed: RefCell<bool>,

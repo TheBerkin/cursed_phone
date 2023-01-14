@@ -23,7 +23,8 @@ const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
 
 /// Provides an interface for phone-related GPIO pins.
-pub struct GpioInterface {
+/// This doesn't handle GPIO pins registered from Lua.
+pub struct PhoneGpioInterface {
     gpio: Gpio,
     /// Pin for switch hook input.
     in_hook: SoftInputPin,
@@ -52,7 +53,7 @@ pub fn gen_input_pin(pin: Pin, pull: Pull) -> InputPin {
         Pull::Up => pin.into_input_pullup(),
         Pull::Down => pin.into_input_pulldown(),
         Pull::None => {
-            warn!("Pin {} is floating. Consider using internal pull resistor instead.", pin.pin());
+            warn!("Input pin {} is floating; internal pull resistors are disabled.", pin.pin());
             pin.into_input()
         }
     }
@@ -106,8 +107,8 @@ fn gen_required_output(gpio: &Gpio, pin: u8) -> OutputPin {
     gpio.get(pin).unwrap().into_output()
 }
 
-impl GpioInterface {
-    pub fn new(phone_type: PhoneType, config: &Rc<CursedConfig>) -> GpioInterface {
+impl PhoneGpioInterface {
+    pub fn new(phone_type: PhoneType, config: &Rc<CursedConfig>) -> PhoneGpioInterface {
         use PhoneType::*;
         let gpio = Gpio::new().expect("Unable to initialize GPIO interface");
         let inputs = &config.gpio.inputs;
@@ -249,7 +250,7 @@ impl GpioInterface {
             _ => None
         };
 
-        GpioInterface {
+        PhoneGpioInterface {
             gpio,
             in_hook,
             in_dial_switch,
@@ -265,7 +266,7 @@ impl GpioInterface {
     }
 }
 
-impl GpioInterface {
+impl PhoneGpioInterface {
     pub fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>> {
         let (tx, rx) = mpsc::channel();
         

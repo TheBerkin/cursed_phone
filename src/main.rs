@@ -40,7 +40,7 @@ fn main() -> Result<(), String> {
     let pbx = create_cursed_engine(&config, sound_engine);
     pbx.listen_phone_input(phone.gen_phone_output());
     phone.listen_from_pbx(pbx.gen_pbx_output());
-    pbx.load_cursed_api()?;
+    pbx.load_cursed_lua_api()?;
     pbx.load_agents();
 
     loop {
