@@ -175,8 +175,8 @@ end
 --- * `early_stop: boolean` Stop the channel if canceled (Default: `true`)
 --- @param path string
 --- @param channel integer
---- @param opts table
 --- @param predicate function
+--- @param opts table?
 function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)

@@ -69,6 +69,20 @@ impl GpioInterface {
         }
     }
 
+    pub fn set_pwm(&mut self, pin_id: u8, period: f64, pulse: f64) -> Result<(), rppal::gpio::Error> {
+        if let Some(pin) = self.output_pins.get_mut(&pin_id) {
+            pin.set_pwm(Duration::from_secs_f64(period), Duration::from_secs_f64(pulse))?;
+        }
+        Ok(())
+    }
+
+    pub fn clear_pwm(&mut self, pin_id: u8) -> Result<(), rppal::gpio::Error> {
+        if let Some(pin) = self.output_pins.get_mut(&pin_id) {
+            pin.clear_pwm()?;
+        }
+        Ok(())
+    }
+
     pub fn unregister(&mut self, pin_id: u8) {
         self.input_pins.remove(&pin_id);
         self.output_pins.remove(&pin_id);
