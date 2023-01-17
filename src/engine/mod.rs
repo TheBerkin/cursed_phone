@@ -15,7 +15,6 @@ use rand::Rng;
 use mlua::prelude::*;
 use indexmap::IndexMap;
 use log::{info, warn, trace, error};
-use crate::gpio::GpioInterface;
 use crate::sound::*;
 use crate::phone::*;
 use crate::config::*;
@@ -23,6 +22,9 @@ use crate::config::*;
 pub use self::api::*;
 pub use self::props::*;
 pub use self::agent::*;
+
+#[cfg(feature = "rpi")]
+use crate::gpio::*;
 
 /// `Option<Rc<T>>`
 type Orc<T> = Option<Rc<T>>;
