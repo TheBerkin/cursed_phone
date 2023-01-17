@@ -4,7 +4,10 @@
 mod debounce;
 mod pull;
 
-use std::sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}};
+pub use debounce::*;
+pub use pull::*;
+
+use std::{sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}}, iter::Map, collections::HashMap};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
@@ -12,8 +15,7 @@ use log::{info, warn};
 use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
-use debounce::*;
-use pull::*;
+
 
 const KEYPAD_MIN_DIGIT_INTERVAL: Duration = Duration::from_millis(80);
 const KEYPAD_ROW_BOUNCE: Duration = Duration::from_micros(850);
@@ -21,6 +23,62 @@ const KEYPAD_SCAN_INTERVAL: Duration = Duration::from_micros(1000);
 const KEYPAD_COL_COUNT: usize = 3;
 const KEYPAD_ROW_COUNT: usize = 4;
 const KEYPAD_DIGITS: &[u8; KEYPAD_COL_COUNT * KEYPAD_ROW_COUNT] = b"123456789*0#";
+
+/// Provides a general-purpose interface for accessing GPIO pins.
+pub struct GpioInterface {
+    pub gpio: Gpio,
+    input_pins: HashMap<u8, SoftInputPin>,
+    output_pins: HashMap<u8, OutputPin>,
+}
+
+impl GpioInterface {
+    pub fn new() -> Result<Self, rppal::gpio::Error> {
+        let gpio = Gpio::new()?;
+        Ok(Self {
+            gpio,
+            .. Default::default()
+        })
+    }
+
+    pub fn register_input(&mut self, pin_id: u8, pull: Pull, bounce_time: Option<Duration>) -> Result<(), rppal::gpio::Error> {
+        let pin = gen_input_pin(self.gpio.get(pin_id)?, pull).debounce(bounce_time.unwrap_or_default());
+        self.input_pins.insert(pin_id, pin);
+        Ok(())
+    }
+
+    pub fn register_output(&mut self, pin_id: u8) -> Result<(), rppal::gpio::Error> {
+        let pin = self.gpio.get(pin_id)?;
+        self.output_pins.insert(pin_id, pin);
+        Ok(())
+    }
+
+    pub fn read_pin(&self, pin_id: u8) -> Option<bool> {
+        if let Some(pin) = self.input_pins.get(&pin_id) {
+            return Some(pin.is_high())
+        }
+        None
+    }
+
+    pub fn write_pin(&mut self, pin_id: u8, logic_level: bool) {
+        if let Some(pin) = self.output_pins.get_mut(&pin_id) {
+            if logic_level {
+                pin.set_high()
+            } else {
+                pin.set_low()
+            }
+        }
+    }
+
+    pub fn unregister(&mut self, pin_id: u8) {
+        self.input_pins.remove(&pin_id);
+        self.output_pins.remove(&pin_id);
+    }
+
+    pub fn unregister_all(&mut self) {
+        self.input_pins.clear();
+        self.output_pins.clear();
+    }
+}
 
 /// Provides an interface for phone-related GPIO pins.
 /// This doesn't handle GPIO pins registered from Lua.

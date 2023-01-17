@@ -15,6 +15,7 @@ use rand::Rng;
 use mlua::prelude::*;
 use indexmap::IndexMap;
 use log::{info, warn, trace, error};
+use crate::gpio::GpioInterface;
 use crate::sound::*;
 use crate::phone::*;
 use crate::config::*;
@@ -134,6 +135,9 @@ pub struct CursedEngine<'lua> {
     host_rotary_dial_lift_time: RefCell<Instant>,
     /// Delay between rotary dial leaving resting state and first valid pulse.
     host_rotary_first_pulse_delay: Duration,
+    /// GPIO interface used by Lua.
+    #[cfg(feature = "rpi")]
+    gpio: crate::gpio::GpioInterface,
 }
 
 #[allow(unused_must_use)]
@@ -142,7 +146,7 @@ impl<'lua> CursedEngine<'lua> {
         let lua = Lua::new();
         let now = Instant::now();
         let host_phone_type = PhoneType::from_name(config.phone_type.as_str());
-
+        
         Self {
             host_phone_type,
             lua,
@@ -175,6 +179,8 @@ impl<'lua> CursedEngine<'lua> {
             host_rotary_resting: RefCell::new(true),
             host_rotary_dial_lift_time: RefCell::new(now),
             host_rotary_first_pulse_delay: Duration::from_millis(config.rotary_first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
+            #[cfg(feature = "rpi")]
+            gpio: GpioInterface::new().expect("Unable to initialize Lua GPIO interface"),
         }
     }
 

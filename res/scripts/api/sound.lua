@@ -86,7 +86,7 @@ NATIVE_API(function()
     --- * `volume: number` Multiply each sample by this value (Default: `1.0`)
     --- @param path string
     --- @param channel SoundChannel
-    --- @param opts table
+    --- @param opts table?
     function sound.play(path, channel, opts) end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
@@ -155,7 +155,7 @@ end)
 --- * `volume: number` Multiply each sample by this value (Default: `1.0`)
 --- @param path string
 --- @param channel integer
---- @param opts table
+--- @param opts table?
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do

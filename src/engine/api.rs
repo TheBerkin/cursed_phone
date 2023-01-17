@@ -4,6 +4,9 @@ use std::cmp;
 use log::{info};
 use crate::sound::*;
 
+#[cfg(feature = "rpi")]
+use crate::gpio::*;
+
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {    
     pub fn load_cursed_lua_api(&'static self) -> Result<(), String> {
@@ -11,9 +14,7 @@ impl<'lua> CursedEngine<'lua> {
     
         let lua = &self.lua;
         let globals = &lua.globals();
-        let tbl_sound = lua.create_table().unwrap();
         // let tbl_agent = lua.create_table().unwrap();
-        let tbl_toll = lua.create_table().unwrap();
 
         // Override print()
         globals.set("print", lua.create_function(CursedEngine::lua_print).unwrap());
@@ -65,6 +66,8 @@ impl<'lua> CursedEngine<'lua> {
         // ====================================================
         // ==================== SOUND API =====================
         // ====================================================
+
+        let tbl_sound = lua.create_table().unwrap();
     
         // sound.play(path, channel, opts)
         tbl_sound.set("play", lua.create_function(move |_, (path, channel, opts): (String, usize, Option<LuaTable>)| {
@@ -169,6 +172,8 @@ impl<'lua> CursedEngine<'lua> {
         // ===================== TOLL API =====================
         // ====================================================
 
+        let tbl_toll = lua.create_table().unwrap();
+
         // toll.is_time_low()
         tbl_toll.set("is_time_low", lua.create_function(move |_, ()| {
             Ok(self.is_time_credit_low())
@@ -196,6 +201,43 @@ impl<'lua> CursedEngine<'lua> {
 
         globals.set("toll", tbl_toll);
     
+        // ====================================================
+        // ===================== GPIO API =====================
+        // ====================================================
+
+        let tbl_gpio = lua.create_table().unwrap();
+
+        #[cfg(feature = "rpi")]
+        {
+            tbl_gpio.set("register_input", lua.create_function(move |_, (pin, pull, bounce_time): (u8, Option<String>, Option<f64>)| {
+                Ok(self.gpio.register_input(
+                    pin, 
+                    pull.map_or(Pull::None, |v| Pull::from(&v)), 
+                    bounce_time.map(|t| Duration::from_secs_f64(bounce_time))
+                )?)
+            }).unwrap());
+
+            tbl_gpio.set("register_output", lua.create_function(move |_, (pin): (u8)| {
+                Ok(self.gpio.register_output(pin)?)
+            }).unwrap());
+
+            tbl_gpio.set("read_pin", lua.create_function(move |_, (pin): (u8)| {
+                Ok(self.gpio.read_pin(pin))
+            }).unwrap());
+
+            tbl_gpio.set("write_pin", lua.create_function(move |_, (pin, logic_level): (u8, bool)| {
+                Ok(self.gpio.write_pin(pin, logic_level))
+            }).unwrap());
+
+            tbl_gpio.set("unregister", lua.create_function(move |_, (pin): (u8)| {
+                Ok(self.gpio.unregister(pin))
+            }).unwrap());
+
+            tbl_gpio.set("unregister_all", lua.create_function(move |_, ()| {
+                Ok(self.gpio.unregister_all())
+            }).unwrap());
+        }
+
         // Run API scripts
         self.run_scripts_in_glob(API_GLOB)?;
     

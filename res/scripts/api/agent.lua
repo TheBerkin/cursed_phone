@@ -9,7 +9,7 @@
     
 ]]
 
---- Exposes functions to interact with and control phone agents.
+--- Exposes functions to interact with and control the current agent.
 agent = {}
 
 local agent_messages = {}
@@ -206,8 +206,8 @@ local M_AgentModule = {
 
 --- Returns an empty phone agent module.
 --- @param name string @The display name of the phone agent
---- @param phone_number string | nil @The number associated with the phone agent
---- @param role AgentRole|nil
+--- @param phone_number string? @The number associated with the phone agent
+--- @param role AgentRole?
 --- @return AgentModule
 function AGENT_MODULE(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))

@@ -13,42 +13,58 @@
 -- ==================== GPIO API ======================
 -- ====================================================
 
---- @alias GpioPull integer
+--- @alias GpioPull string
 
 --- Indicates no pull resistor to be activated on an input.
 --- @type GpioPull
-GPIO_PULL_NONE = 0
+GPIO_PULL_NONE = "none"
 
 --- Indicates to activate the built-in pull-up resistor on an input.
 --- @type GpioPull
-GPIO_PULL_UP = 1
+GPIO_PULL_UP = "up"
 
 --- Indicates to activate the built-in pull-down resistor on an input.
 --- @type GpioPull
-GPIO_PULL_DOWN = 2
+GPIO_PULL_DOWN = "down"
+
+
+--- @alias GpioLogicLevel boolean
+
+--- HIGH logic level.
+--- @type GpioLogicLevel
+GPIO_HIGH = true
+
+--- LOW logic level.
+--- @type GpioLogicLevel
+GPIO_LOW = false
 
 NATIVE_API(function()
     gpio = {}
 
     --- Registers a pin as an input pin.
-    --- @param pin integer
-    --- @param pull GpioPull|nil
-    function gpio.register_input(pin, pull) end
+    --- @param pin integer @ The pin to register
+    --- @param pull GpioPull? @ The pull resistor to activate (`GPIO_PULL_*`), defaults to `GPIO_PULL_NONE`
+    --- @param debounce_time number? @ The debounce time in seconds
+    function gpio.register_input(pin, pull, debounce_time) end
 
     --- Registers a pin as an output pin.
     --- @param pin integer
     function gpio.register_output(pin) end
 
-    --- Reads the state from an input pin.
+    --- Reads the logic level from an input pin.
     --- @param pin integer
-    function gpio.get_pin_state(pin) end
+    --- @return GpioLogicLevel
+    function gpio.read_pin(pin) return GPIO_LOW end
 
-    --- Sets the state on an output pin.
+    --- Sets the logic level on an output pin.
     --- @param pin integer
-    --- @param state boolean
-    function gpio.set_pin_state(pin, state) end
+    --- @param value GpioLogicLevel
+    function gpio.write_pin(pin, value) end
 
     --- Unregisters a previously registered pin.
     --- @param pin integer
     function gpio.unregister(pin) end
+
+    --- Unregisters all registered pins.
+    function gpio.unregister_all() end
 end)
