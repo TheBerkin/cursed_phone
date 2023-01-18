@@ -56,7 +56,7 @@ impl<'lua> CursedEngine<'lua> {
         // call_time()
         globals.set("call_time", lua.create_function(move |_, ()| {
             match self.state() {
-                PbxState::Connected => {
+                PhoneLineState::Connected => {
                     return Ok(self.current_state_time().as_secs_f64());
                 }
                 _ => Ok(0.0)

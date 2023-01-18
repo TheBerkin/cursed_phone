@@ -62,13 +62,20 @@ const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
 type AgentId = usize;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum PbxState {
+pub enum PhoneLineState {
+    /// The phone is on-hook and the line is idle.
     Idle,
+    /// The phone is on-hook and ringing. An agent is calling the phone.
     IdleRinging,
+    /// The phone is off-hook and the line is awaiting a number and transmitting a dial tone.
     DialTone,
+    /// The phone has dialed something and the line is in Post-Dial Delay.
     PDD,
+    /// The line is calling out to an agent and awaiting connection. The line may transmit a ringback tone.
     CallingOut,
+    /// The line is connected to an agent and a call is in-progress.
     Connected,
+    /// The phone is off-hook, no call is connected, and the line is transmitting a busy signal.
     Busy
 }
 
@@ -100,7 +107,7 @@ pub struct CursedEngine<'lua> {
     /// The agent to which the engine is connecting/has connected the host.
     other_party: RefCell<Orc<AgentModule<'lua>>>,
     /// The current state of the engine.
-    state: RefCell<PbxState>,
+    state: RefCell<PhoneLineState>,
     /// Time when PDD last started.
     pdd_start: RefCell<Instant>,
     /// Time when the current state started.
@@ -157,7 +164,7 @@ impl<'lua> CursedEngine<'lua> {
             last_caller_id: Cell::new(None),
             agents: Default::default(),
             intercept_agent: Default::default(),
-            state: RefCell::new(PbxState::Idle),
+            state: RefCell::new(PhoneLineState::Idle),
             state_start: RefCell::new(now),
             phone_input: Default::default(),
             phone_output: Default::default(),
@@ -235,7 +242,7 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Calls the specified agent.
     fn call_agent(&'lua self, agent: Rc<AgentModule>) {
-        use PbxState::*;
+        use PhoneLineState::*;
         match self.state() {
             DialTone | Busy | PDD => {
                 info!("PBX: Connecting call -> {} ({:?})", agent.name(), agent.phone_number());
@@ -259,12 +266,12 @@ impl<'lua> CursedEngine<'lua> {
         } else {
             // Default to busy signal if there is no intercept agent
             warn!("PBX: No intercept agent; defaulting to busy signal.");
-            self.set_state(PbxState::Busy);
+            self.set_state(PhoneLineState::Busy);
         }
     }
 
     #[inline]
-    pub fn state(&self) -> PbxState {
+    pub fn state(&self) -> PhoneLineState {
         self.state.borrow().clone()
     }
 
@@ -275,7 +282,7 @@ impl<'lua> CursedEngine<'lua> {
 
     #[inline]
     fn pdd_time(&self) -> Duration {
-        if self.state() == PbxState::PDD {
+        if self.state() == PhoneLineState::PDD {
             return Instant::now().saturating_duration_since(*self.pdd_start.borrow());
         }
         Duration::default()
@@ -423,8 +430,8 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     /// Sets the current state of the engine.
-    fn set_state(&'lua self, state: PbxState) {
-        use PbxState::*;
+    fn set_state(&'lua self, state: PhoneLineState) {
+        use PhoneLineState::*;
         if *self.state.borrow() == state {
             return;
         }
@@ -439,10 +446,10 @@ impl<'lua> CursedEngine<'lua> {
 
         // Run behavior for state we're leaving
         match prev_state {
-            PbxState::IdleRinging => {
+            PhoneLineState::IdleRinging => {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
-            PbxState::Connected => {
+            PhoneLineState::Connected => {
                 if self.is_payphone() {
                     // When leaving the connected state, clear existing time credit
                     self.initial_deposit_consumed.replace(false);
@@ -528,7 +535,7 @@ impl<'lua> CursedEngine<'lua> {
     /// Called when the host dials a digit via any method.
     #[inline]
     fn handle_host_digit(&'lua self, digit: char) {
-        use PbxState::*;
+        use PhoneLineState::*;
 
         // Perform special digit-triggered behaviors
         match self.state() {
@@ -537,7 +544,7 @@ impl<'lua> CursedEngine<'lua> {
 
             // Transition from dial tone to PDD once the first digit is dialed
             DialTone => {
-                self.set_state(PbxState::PDD);
+                self.set_state(PhoneLineState::PDD);
             },
 
             // Reset the PDD timer each time a digit is dialed
@@ -557,7 +564,7 @@ impl<'lua> CursedEngine<'lua> {
     #[inline]
     fn handle_rotary_pulse(&self) {
         match self.state() {
-            PbxState::Idle | PbxState::IdleRinging => return,
+            PhoneLineState::Idle | PhoneLineState::IdleRinging => return,
             _ => {
                 let current_rest_state = *self.host_rotary_resting.borrow();
                 if !current_rest_state {
@@ -578,7 +585,7 @@ impl<'lua> CursedEngine<'lua> {
 
     pub fn remaining_time_credit(&self) -> Duration {
         match self.state() {
-            PbxState::Connected => self.time_credit.borrow().checked_sub(self.current_state_time()).unwrap_or_default(),
+            PhoneLineState::Connected => self.time_credit.borrow().checked_sub(self.current_state_time()).unwrap_or_default(),
             _ => *self.time_credit.borrow()
         }
     }
@@ -622,7 +629,7 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     pub fn is_time_credit_low(&self) -> bool {
-        self.state() == PbxState::Connected 
+        self.state() == PhoneLineState::Connected 
         && self.config.payphone.time_credit_seconds > 0
         && self.initial_deposit_consumed()
         && !self.is_current_call_free()
@@ -643,7 +650,7 @@ impl<'lua> CursedEngine<'lua> {
     /// Converts deposit into time credit for the current call.
     /// Any leftover deposit will remain and count towards future credit.
     fn convert_deposit_to_credit(&self) -> bool {
-        if self.state() == PbxState::Connected {
+        if self.state() == PhoneLineState::Connected {
             // Check if time credit can be added to the call
             let mut deposit = self.coin_deposit.borrow_mut();
             let rate = self.current_call_rate();
@@ -691,7 +698,7 @@ impl<'lua> CursedEngine<'lua> {
         if resting {
             // Ignore 
             match self.state() {
-                PbxState::Idle | PbxState::IdleRinging => {},
+                PhoneLineState::Idle | PhoneLineState::IdleRinging => {},
                 _ => {
                     // When dial moves to resting, dial digit according to pulse count
                     let digit_num = *self.host_rotary_pulses.borrow();
@@ -711,15 +718,15 @@ impl<'lua> CursedEngine<'lua> {
 
     #[inline]
     fn handle_hook_state_change(&'lua self, on_hook: bool) {
-        use PbxState::*;
+        use PhoneLineState::*;
         let state = self.state();
         let hook_change_time = Instant::now();
         if on_hook {
             match state {
                 Idle | IdleRinging => {}
                 _ => {
-                    info!("PBX: Host on-hook.");
-                    self.set_state(PbxState::Idle);
+                    info!("PBX: Switchhook CLOSED");
+                    self.set_state(PhoneLineState::Idle);
                 }
             }
         } else {
@@ -727,14 +734,14 @@ impl<'lua> CursedEngine<'lua> {
             match state {
                 // Picking up idle phone
                 Idle => {
-                    info!("PBX: Host off-hook.");
-                    self.set_state(PbxState::DialTone);
+                    info!("PBX: Switchhook OPEN.");
+                    self.set_state(PhoneLineState::DialTone);
                 },
                 // Answering a call
                 IdleRinging => {
-                    info!("PBX: Host off-hook, connecting call.");
+                    info!("PBX: Switchhook OPEN, connecting call.");
                     // Connect the call
-                    self.set_state(PbxState::Connected);
+                    self.set_state(PhoneLineState::Connected);
                 },
                 _ => {}
             }
@@ -769,8 +776,8 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Updates the state of the engine.
     #[inline]
-    fn update_pbx_state(&'lua self) {
-        use PbxState::*;
+    fn update_state(&'lua self) {
+        use PhoneLineState::*;
         let state = self.state();
         match state {
             DialTone => {
@@ -821,7 +828,7 @@ impl<'lua> CursedEngine<'lua> {
                         } else if !self.has_time_credit() {
                             // Cut off call if time credit runs out
                             info!("Out of time credit; ending call.");
-                            self.set_state(PbxState::Busy);
+                            self.set_state(PhoneLineState::Busy);
                         }
                     },
                     _ => ()
@@ -835,7 +842,7 @@ impl<'lua> CursedEngine<'lua> {
     #[inline]
     fn update_agents(&'lua self) {
         use AgentIntent::*;
-        use PbxState::*;
+        use PhoneLineState::*;
         let state = self.state();
         let agent_modules = self.agents.borrow();
         let agent_iter = agent_modules.iter();
@@ -855,12 +862,12 @@ impl<'lua> CursedEngine<'lua> {
                         // First, check that there's nobody on the line and the user's on-hook.
                         // Also make sure that the config allows incoming calls.
                         if self.config.features.enable_incoming_calls.unwrap_or(false) 
-                        && self.state() == PbxState::Idle 
+                        && self.state() == PhoneLineState::Idle 
                         && self.other_party.borrow().is_none() {
                             agent.set_reason(CallReason::AgentInit);
                             agent.transition_state(AgentState::OutgoingCall);
                             self.load_other_party(Rc::clone(agent));
-                            self.set_state(PbxState::IdleRinging);
+                            self.set_state(PhoneLineState::IdleRinging);
                             self.last_caller_id.replace(agent.id());
                         } else {
                             // Tell the agent they're busy
@@ -884,7 +891,7 @@ impl<'lua> CursedEngine<'lua> {
                             // Caller has given up, disconnect immediately
                             IdleRinging => {
                                 agent.transition_state(AgentState::Idle);
-                                self.set_state(PbxState::Idle);
+                                self.set_state(PhoneLineState::Idle);
                             },
                             _ => {}
                         }
@@ -917,7 +924,7 @@ impl<'lua> CursedEngine<'lua> {
     /// Processes pending inputs and updates state information associated with the engine.
     pub fn tick(&'lua self) {
         self.process_input_signals();
-        self.update_pbx_state();
+        self.update_state();
         self.update_agents();
     }
 }
