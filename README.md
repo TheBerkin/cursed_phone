@@ -6,7 +6,7 @@ The Cursed Phone is a repurposed rotary phone with a Raspberry Pi as its brain. 
 
 ## What is this?
 
-It's a sort of audio-only game engine for the Raspberry Pi that emulates various styles of telephones. Phone numbers are assigned to scripts rather than people-- call the number to call the script. You can even make scripts call the phone. Imagine the possibilities!
+It's a sort of audio-only game engine for the Raspberry Pi that emulates various styles of telephones. Phone numbers are assigned to scripts (known as "agents") rather than people-- call the number to call the script. You can even make your scripts call the phone. Imagine the possibilities!
 
 What you get out of the box:
 
@@ -15,7 +15,7 @@ What you get out of the box:
 * Fully-configurable everything
 * Realistic call progress/DTMF tones
 * WAV/OGG audio playback support
-* GPIO access in scripts (WIP)
+* GPIO access in scripts
 * Switchhook dialing (WIP)
 * Intercept services
 * Comfort noise

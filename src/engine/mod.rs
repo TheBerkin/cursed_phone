@@ -107,12 +107,8 @@ pub struct CursedEngine<'lua> {
     state_start: RefCell<Instant>,
     /// Phone configuration.
     config: Rc<CursedConfig>,
-    /// Post-dial delay.
-    post_dial_delay: Duration,
     /// The currently dialed number.
     dialed_number: RefCell<String>,
-    /// Off-hook delay.
-    off_hook_delay: Duration,
     /// Enable switchhook dialing?
     switch_hook_dialing_enabled: bool,
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
@@ -165,8 +161,6 @@ impl<'lua> CursedEngine<'lua> {
             state_start: RefCell::new(now),
             phone_input: Default::default(),
             phone_output: Default::default(),
-            off_hook_delay: Duration::from_secs_f32(config.off_hook_delay),
-            post_dial_delay: Duration::from_secs_f32(config.pdd),
             other_party: Default::default(),
             dialed_number: Default::default(),
             switch_hook_dialing_enabled: config.features.enable_switch_hook_dialing.unwrap_or(false),
@@ -786,7 +780,7 @@ impl<'lua> CursedEngine<'lua> {
                 }
             }
             PDD => {
-                if self.pdd_time() >= self.post_dial_delay {
+                if self.pdd_time().as_secs_f32() >= self.config.pdd {
                     match self.host_phone_type {
                         PhoneType::Payphone => {
                             let number_to_dial = self.get_dialed_number();
