@@ -116,10 +116,7 @@ pub struct FeaturesConfig {
     pub enable_switch_hook_dialing: Option<bool>,
 
     /// Allows the host device to receive calls.
-    pub enable_incoming_calls: Option<bool>,
-
-    /// Enables Last-Call Return (*69/1169)
-    pub enable_lcr: Option<bool>,
+    pub enable_incoming_calls: Option<bool>
 }
 
 #[serde(rename_all = "kebab-case")]
