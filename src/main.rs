@@ -10,6 +10,7 @@ use crate::phone::PhoneEngine;
 use crate::config::*;
 use std::boxed::Box;
 use std::rc::Rc;
+use std::env;
 use std::cell::RefCell;
 use std::{thread, time};
 use log::{info, warn};
@@ -20,6 +21,8 @@ const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
 const SOUNDS_PATH: &str = "./res/sounds";
 const SOUNDBANKS_PATH: &str = "./res/soundbanks";
+
+const ENV_CONFIG_PATH: &str = "CURSED_CONFIG_PATH";
 
 #[allow(unreachable_code)]
 fn main() -> Result<(), String> {
@@ -32,6 +35,7 @@ fn main() -> Result<(), String> {
     }
 
     // Load engine
+    let config_path = env::var(ENV_CONFIG_PATH).as_deref().unwrap_or(CONFIG_PATH);
     let config = Rc::new(config::load_config(CONFIG_PATH));
     info!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);

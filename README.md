@@ -65,3 +65,8 @@ If compiling on the target system, this step is unnecessary. However, be warned 
 ### Move the built executable
 
 If you'll be running this as a service, move the built executable (found in `/target/release`) to the project's root directory before use. 
+
+
+## Running
+
+By default the Engine will use the configuration file `cursed_phone.conf` in the current working directory, but the file location can be overridden with the `CURSED_CONFIG_PATH` environment variable.
