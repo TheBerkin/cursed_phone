@@ -306,7 +306,7 @@ function agent.forward_call(number)
 end
 
 --- Forwards the call to the specified agent ID.
---- @param number string
+--- @param agent_id integer
 function agent.forward_call_id(agent_id)
     agent.intent(AGENT_INTENT_FORWARD_CALL_ID, agent_id)
 end

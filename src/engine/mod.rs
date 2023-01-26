@@ -216,7 +216,7 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Calls the specified phone number.
     fn call_number(&'lua self, number: &str) -> bool {
-        info!("Placing call to: {}", number);
+        info!("Calling: {}", number);
         self.called_number.replace(Some((*self.dialed_digits.borrow()).clone()));
         if let Some(agent) = self.lookup_agent(number) {
             self.call_agent(agent);
@@ -231,8 +231,8 @@ impl<'lua> CursedEngine<'lua> {
     fn call_agent(&'lua self, agent: Rc<AgentModule>) {
         use PhoneLineState::*;
         match self.state() {
-            DialTone | Busy | PDD => {
-                info!("Connecting call -> {} ({:?})", agent.name(), agent.phone_number());
+            DialTone | Busy | PDD | Connected => {
+                info!("Calling agent '{}' ({:?})", agent.name(), agent.phone_number());
                 // Inform the agent state machine that the user initiated the call
                 agent.set_reason(CallReason::UserInit);
                 // Set other_party to requested agent
@@ -955,8 +955,9 @@ impl<'lua> CursedEngine<'lua> {
                     Ok(ForwardCallToId(id)) => {
                         match state {
                             Connected => {
+                                agent.transition_state(AgentState::Idle);
                                 if let Some(agent) = self.lookup_agent_id(id) {
-                                    agent.transition_state(AgentState::Idle);
+                                    info!("Forwarding call to agent '{}' (id = {:?})", agent.name(), agent.id());
                                     self.call_agent(agent);
                                 } else {
                                     warn!("Agent '{}' tried to forward call to invalid Agent ID: {}", agent.name(), id);

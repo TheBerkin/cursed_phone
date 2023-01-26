@@ -17,8 +17,13 @@ end
 
 local vsc_handlers = {
     ["69"] = function(self) 
-        print("Redialing last incoming caller")
-        agent.forward_call_id(phone.last_caller_id())
+        local last_call_return_id = phone.last_caller_id()
+        if last_call_return_id then
+            print("Returning last call to Agent ID: " .. last_call_return_id)
+        else
+            print("No previous caller available for callback")
+        end
+        agent.forward_call_id(last_call_return_id)
     end
 }
 
@@ -27,18 +32,22 @@ local reason_handlers = {
     [CALL_REASON_NUMBER_REDIRECTED] = function(self)
         local vsc
         local pn = agent.caller_dialed_number()
-        print(pn)
+        local vsc_handled = false
         repeat
             vsc, pn = split_vsc(pn)
             if vsc then
-                print("Intercept: VSC " .. vsc)
+                print("VSC " .. vsc)
                 local vsc_handler = vsc_handlers[vsc]
                 if vsc_handler then
                     vsc_handler(self)
                 end
+                vsc_handled = true
             end
         until (not vsc)
         
+        if vsc_handled and pn and #pn > 0 then
+            agent.forward_call(pn)
+        end
 
         sound.play_special_info_tone(SIT_INTERCEPT)
         sound.wait(CHAN_SIGIN)

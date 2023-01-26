@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("mark", "111")
+local module = AGENT_MODULE("mark")
 module:require_sound_bank('mark')
 module:require_sound_bank('sewer')
 
@@ -15,7 +15,8 @@ end
 module:state(AGENT_STATE_IDLE, {
     enter = function(self)
         while true do
-            agent.wait(120.0 - rand_float(0.0, 60.0))
+            --agent.wait(120.0 - rand_float(0.0, 60.0))
+            agent.wait(rand_float(20.0, 30.0))
             if chance(1) then
                 agent.start_call()
             end
