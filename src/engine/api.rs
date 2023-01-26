@@ -65,7 +65,7 @@ impl<'lua> CursedEngine<'lua> {
 
         // _caller_dialed_number_impl()
         globals.set("_caller_dialed_number_impl", lua.create_function(move |_, ()| {
-            return Ok(self.dialed_number.borrow().clone())
+            return Ok(self.called_number.borrow().clone())
         }).unwrap());
     
         // ====================================================
@@ -220,6 +220,8 @@ impl<'lua> CursedEngine<'lua> {
         tbl_phone.set("is_rotary", lua.create_function(move |_, ()| {
             Ok(self.host_phone_type == PhoneType::Rotary)
         }).unwrap());
+
+        globals.set("phone", tbl_phone);
     
         // ====================================================
         // ===================== GPIO API =====================

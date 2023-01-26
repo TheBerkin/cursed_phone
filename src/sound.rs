@@ -58,7 +58,9 @@ pub enum Channel {
     /// Background Channel 3.
     Bg3,
     /// Background Channel 4.
-    Bg4
+    Bg4,
+    /// Debug channel.
+    Debug,
 }
 
 impl Channel {
@@ -73,7 +75,7 @@ impl From<usize> for Channel {
     }
 }
 
-const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4] };
+const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
 const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8] };
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
@@ -525,7 +527,7 @@ impl SoundEngine {
 
     pub fn play_panic_tone(&self) {
         self.stop(Channel::SignalIn);
-        self.channels.borrow()[Channel::SignalIn.as_index()].queue_panic_tone(1.0);
+        self.channels.borrow()[Channel::Debug.as_index()].queue_panic_tone(1.0);
     }
 
     pub fn play_special_info_tone(&self, sit: SpecialInfoTone) {

@@ -102,8 +102,10 @@ pub struct CursedEngine<'lua> {
     state_start: RefCell<Instant>,
     /// Phone configuration.
     config: Rc<CursedConfig>,
-    /// The currently dialed number.
-    dialed_number: RefCell<String>,
+    /// The currently queued digits dialed by the user.
+    dialed_digits: RefCell<String>,
+    /// The number currently being called.
+    called_number: RefCell<Option<String>>,
     /// Enable switchhook dialing?
     switchhook_dialing_enabled: bool,
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
@@ -164,7 +166,8 @@ impl<'lua> CursedEngine<'lua> {
             phone_input: Default::default(),
             phone_output: Default::default(),
             other_party: Default::default(),
-            dialed_number: Default::default(),
+            dialed_digits: Default::default(),
+            called_number: Default::default(),
             switchhook_dialing_enabled: config.features.enable_switch_hook_dialing.unwrap_or(false),
             coin_deposit: RefCell::new(0),
             coin_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
@@ -213,18 +216,8 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Calls the specified phone number.
     fn call_number(&'lua self, number: &str) -> bool {
-        // let vsc_agent = if let Some(vsc) = VerticalServiceCode::parse(number, self.host_phone_type) {
-        //     match vsc {
-        //         VerticalServiceCode::LastCallReturn => 
-        //             self.config.features.enable_lcr.unwrap_or_default()
-        //             .then(|| self.last_caller_id.get().and_then(|id| self.lookup_agent_id(id)))
-        //             .flatten()
-        //     }
-        // } else {
-        //     None
-        // };
-
         info!("Placing call to: {}", number);
+        self.called_number.replace(Some((*self.dialed_digits.borrow()).clone()));
         if let Some(agent) = self.lookup_agent(number) {
             self.call_agent(agent);
             return true;
@@ -283,17 +276,22 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     #[inline]
-    fn clear_dialed_number(&self) {
-        self.dialed_number.borrow_mut().clear();
+    fn clear_dialed_digits(&self) {
+        self.dialed_digits.borrow_mut().clear();
+    }
+
+    #[inline]
+    fn clear_called_number(&self) {
+        self.called_number.replace(None);
     }
 
     #[inline]
     fn consume_dialed_digit(&self) -> Option<char> {
-        self.dialed_number.borrow_mut().pop()
+        self.dialed_digits.borrow_mut().pop()
     }
 
-    fn get_dialed_number(&self) -> String {
-        let dialed: String = self.dialed_number.borrow().clone();
+    fn get_dialed_digits(&self) -> String {
+        let dialed: String = self.dialed_digits.borrow().clone();
         dialed
     }
 
@@ -444,6 +442,7 @@ impl<'lua> CursedEngine<'lua> {
                 self.send_output(PhoneOutputSignal::Ring(false));
             },
             PhoneLineState::Connected => {
+                self.clear_called_number();
                 if self.is_payphone() {
                     // When leaving the connected state, clear existing time credit
                     self.initial_deposit_consumed.replace(false);
@@ -467,7 +466,8 @@ impl<'lua> CursedEngine<'lua> {
             (_, Idle) => {
                 self.unload_other_party();
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
-                self.clear_dialed_number();
+                self.clear_dialed_digits();
+                self.clear_called_number();
             },
             (_, IdleRinging) => {
                 self.send_output(PhoneOutputSignal::Ring(true));
@@ -488,7 +488,7 @@ impl<'lua> CursedEngine<'lua> {
             },
             (_, CallingOut) => {
                 if let Some(agent) = self.get_other_party_agent() {
-                    self.clear_dialed_number();
+                    self.clear_dialed_digits();
                     self.sound_engine.borrow().stop(Channel::SignalIn);
 
                     // Tell agent that we're calling it
@@ -504,7 +504,7 @@ impl<'lua> CursedEngine<'lua> {
                 }
             },
             (_, Connected) => {
-                self.clear_dialed_number();
+                self.clear_dialed_digits();
                 // Stop all existing sounds except for host signals
                 let sound_engine = self.sound_engine.borrow();
                 sound_engine.stop(Channel::SignalIn);
@@ -551,7 +551,7 @@ impl<'lua> CursedEngine<'lua> {
         info!("Host dialed '{}'", digit);
 
         // Add digit to dialed number
-        self.dialed_number.borrow_mut().push(digit);
+        self.dialed_digits.borrow_mut().push(digit);
     }
 
     /// Called when the engine receives a pulse from the host's rotary dial.
@@ -741,6 +741,7 @@ impl<'lua> CursedEngine<'lua> {
                 IdleRinging => {
                     info!("Switchhook OPEN, connecting call.");
                     // Connect the call
+                    self.add_time_credit(Duration::MAX);
                     self.set_state(PhoneLineState::Connected);
                 },
                 _ => {
@@ -786,7 +787,7 @@ impl<'lua> CursedEngine<'lua> {
         // Handle switchhook dialing and delayed hangups
         if self.switchhook_dialing_enabled {
             let time_since_last_switchhook_change = now.duration_since(self.switchhook_change_time.get());
-            if self.switchhook_closed.get() {
+            if self.switchhook_closed.get() && !matches!(self.state(), PhoneLineState::Idle | PhoneLineState::IdleRinging) {
                 // If the phone is on the hook long enough, hang up the call
                 if time_since_last_switchhook_change.as_secs_f32() > self.config.hangup_delay {
                     self.pending_pulse_count.replace(0);
@@ -815,7 +816,7 @@ impl<'lua> CursedEngine<'lua> {
                 if self.pdd_time().as_secs_f32() >= self.config.pdd {
                     match self.host_phone_type {
                         PhoneType::Payphone => {
-                            let number_to_dial = self.get_dialed_number();
+                            let number_to_dial = self.get_dialed_digits();
 
                             // Figure out how much the call costs
                             let price = match self.lookup_agent(number_to_dial.as_str()) {
@@ -836,7 +837,7 @@ impl<'lua> CursedEngine<'lua> {
                             }
                         },
                         _ => {
-                            let number_to_dial = self.get_dialed_number();
+                            let number_to_dial = self.get_dialed_digits();
                             self.call_number(number_to_dial.as_str());
                         }
                     }
@@ -873,7 +874,8 @@ impl<'lua> CursedEngine<'lua> {
         let agent_iter = agent_modules.iter();
         for (_, agent) in agent_iter {
             let mut intent = agent.tick(AgentData::None);
-            loop {
+            let mut call_attempted = false;
+            'agrnt_next_intent: loop {
                 match intent {
                     // Agent requests a digit from the user
                     Ok(ReadDigit) => {
@@ -897,6 +899,11 @@ impl<'lua> CursedEngine<'lua> {
                         } else {
                             // Tell the agent they're busy
                             intent = agent.tick(AgentData::LineBusy);
+                            if call_attempted {
+                                break 'agrnt_next_intent
+                            }
+
+                            call_attempted = true;
                             continue;
                         }
                     },
@@ -912,11 +919,13 @@ impl<'lua> CursedEngine<'lua> {
                             // Transition to idle (hangs up at end of CALL state)
                             Connected => {
                                 agent.transition_state(AgentState::Idle);
+                                info!("Agent '{}' has disconnected the call.", agent.name())
                             },
                             // Caller has given up, disconnect immediately
                             IdleRinging => {
                                 agent.transition_state(AgentState::Idle);
                                 self.set_state(PhoneLineState::Idle);
+                                info!("Agent '{}' has disconnected the pending call.", agent.name())
                             },
                             _ => {}
                         }

@@ -4,9 +4,42 @@ local MAX_MESSAGE_TIME = 30
 
 module:set_ringback_enabled(false)
 
+function split_vsc(phone_number)
+    if not phone_number then return nil, nil end
+    local prefix = phone.is_rotary() and '11' or '%*'
+    local vsc_start, vsc_end = string.find(phone_number, '^' .. prefix .. '%d%d')
+    if vsc_start and vsc_start > 0 then
+        return string.sub(phone_number, vsc_end - 1, vsc_end), string.sub(phone_number, vsc_end + 1, #phone_number)
+    else
+        return nil, phone_number
+    end
+end
+
+local vsc_handlers = {
+    ["69"] = function(self) 
+        print("Redialing last incoming caller")
+        agent.forward_call_id(phone.last_caller_id())
+    end
+}
+
 local reason_handlers = {
     -- Number is invalid or a vertical service code
     [CALL_REASON_NUMBER_REDIRECTED] = function(self)
+        local vsc
+        local pn = agent.caller_dialed_number()
+        print(pn)
+        repeat
+            vsc, pn = split_vsc(pn)
+            if vsc then
+                print("Intercept: VSC " .. vsc)
+                local vsc_handler = vsc_handlers[vsc]
+                if vsc_handler then
+                    vsc_handler(self)
+                end
+            end
+        until (not vsc)
+        
+
         sound.play_special_info_tone(SIT_INTERCEPT)
         sound.wait(CHAN_SIGIN)
         agent.wait(0.05)

@@ -17,7 +17,7 @@ local M_ACTIVE_AGENT_MACHINES = { __weak = 'kv' }
 setmetatable(ACTIVE_AGENT_MACHINES, M_ACTIVE_AGENT_MACHINES)
 
 function assert_agent_caller()
-    if ACTIVE_AGENT_MACHINES[coroutine.running()] == nil then error("Function may only be called by agents", 3) end
+    --if ACTIVE_AGENT_MACHINES[coroutine.running()] == nil then error("Function may only be called by agents", 3) end
 end
 
 local agent_messages = {}
@@ -268,13 +268,13 @@ end
 --- @param seconds number?
 function agent.wait(seconds)
     assert_agent_caller()
-    if seconds then
-        while true do
+    if seconds ~= nil then
+        local start_time = engine_time()
+        while engine_time() - start_time < seconds do
             agent.intent(AGENT_INTENT_WAIT)
         end
     else
-        local start_time = engine_time()
-        while engine_time() - start_time < seconds do
+        while true do
             agent.intent(AGENT_INTENT_WAIT)
         end
     end
