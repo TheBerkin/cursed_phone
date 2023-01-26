@@ -1,6 +1,6 @@
-local S = AGENT_MODULE("denise")
+local module = AGENT_MODULE("denise")
 
-S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
+module:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 -- S:suspend()
 
 local msg_handlers = {
@@ -28,10 +28,10 @@ local msg_handlers = {
 }
 
 -- args.path: path to this script file
-function S.load(args)    
+function module.load(args)
 end
 
-S:state(AGENT_STATE_IDLE, {
+module:state(AGENT_STATE_IDLE, {
     enter = function(self)
         --sound.play("ambient/static", CHAN_BG1, { looping = true, volume = 0.6 })
         --agent.wait(rand_float(0, 1))
@@ -55,7 +55,7 @@ S:state(AGENT_STATE_IDLE, {
     end
 })
 
-function S.unload(args)
+function module.unload(args)
 end
 
-return S
+return module

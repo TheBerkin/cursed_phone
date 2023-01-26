@@ -1,8 +1,8 @@
-local S = AGENT_MODULE('toll', nil, AGENT_ROLE_TOLLMASTER)
+local module = AGENT_MODULE('toll', nil, AGENT_ROLE_TOLLMASTER)
 
 local NAG_TONE_VOLUME = 0.5
 
-S:state(AGENT_STATE_IDLE, {
+module:state(AGENT_STATE_IDLE, {
     tick = function(self)
         if toll.is_awaiting_deposit() then
             print("Tollmaster: Insert " .. toll.current_call_rate() .. "¢ now!")
@@ -20,4 +20,4 @@ S:state(AGENT_STATE_IDLE, {
     end
 })
 
-return S
+return module

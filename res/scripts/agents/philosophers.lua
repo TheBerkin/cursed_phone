@@ -1,7 +1,7 @@
-local S = AGENT_MODULE("philosophers", "9873763")
-S:require_sound_bank('philosophers')
+local module = AGENT_MODULE("philosophers", "9873763")
+module:require_sound_bank('philosophers')
 
-S:state(AGENT_STATE_IDLE, {
+module:state(AGENT_STATE_IDLE, {
     enter = function(self)
         while true do
             agent.wait(60.0 + rand_float(0.0, 60.0))
@@ -12,23 +12,23 @@ S:state(AGENT_STATE_IDLE, {
     end,
 })
 
-S:state(AGENT_STATE_CALL_IN, {
+module:state(AGENT_STATE_CALL_IN, {
     tick = function(self)
         agent.wait(rand_float(2.0, 5.0))
         agent.accept_call()
     end
 })
 
-S:state(AGENT_STATE_CALL_OUT, {
+module:state(AGENT_STATE_CALL_OUT, {
     enter = function(self)
         agent.wait(rand_float(30.0, 40.0))
         agent.end_call()
     end
 })
 
-S:state(AGENT_STATE_CALL, {
+module:state(AGENT_STATE_CALL, {
     enter = function(self)
-        if S:get_reason() == CALL_REASON_USER_INIT then
+        if module:get_reason() == CALL_REASON_USER_INIT then
             sound.play("handset/pickup*", CHAN_PHONE2)
             if chance(0.5) then
                 sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), CHAN_PHONE3, { volume = 0.25 })
@@ -39,4 +39,4 @@ S:state(AGENT_STATE_CALL, {
     end
 })
 
-return S
+return module

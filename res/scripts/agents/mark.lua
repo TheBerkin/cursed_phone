@@ -1,43 +1,36 @@
-local S = AGENT_MODULE("mark", "111")
-S:require_sound_bank('mark')
-S:require_sound_bank('sewer')
+local module = AGENT_MODULE("mark", "111")
+module:require_sound_bank('mark')
+module:require_sound_bank('sewer')
 
-S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
+module:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 -- TODO: Implement "slow idle" mode for agents
 -- S:use_slow_idle()
 
 local talked_during_call = false
 
 -- args.path: path to this script file
-function S.load(args)    
+function module.load(args)    
 end
 
-S:state(AGENT_STATE_IDLE, {
+module:state(AGENT_STATE_IDLE, {
     enter = function(self)
         while true do
-            agent.wait(120.0 + rand_float(0.0, 60.0))
-            if chance(0.02) then
+            agent.wait(120.0 - rand_float(0.0, 60.0))
+            if chance(1) then
                 agent.start_call()
             end
         end
     end,
 })
 
-S:state(AGENT_STATE_CALL_IN, {
-    enter = function(self) 
-        agent.wait(rand_float(2.0, 10.0))
-        agent.accept_call()
-    end
-})
-
-S:state(AGENT_STATE_CALL_OUT, {
+module:state(AGENT_STATE_CALL_OUT, {
     enter = function(self)
         agent.wait(rand_float(15.0, 30.0))
         agent.end_call()
     end
 })
 
-S:state(AGENT_STATE_CALL, {
+module:state(AGENT_STATE_CALL, {
     enter = function(self)
         -- Start soundscape
         sound.play("$sewer/amb_drips", CHAN_PHONE2, { volume = 0.25, looping = true })
@@ -54,7 +47,7 @@ S:state(AGENT_STATE_CALL, {
             sound.play("$mark/*", CHAN_PHONE1, { volume = 0.9 })
             self.talked_during_call = true
             if i == 1 or chance(0.7) then                
-                S:send('denise', i == 1 and 'mark_start' or 'mark_talk')
+                module:send('denise', i == 1 and 'mark_start' or 'mark_talk')
             end
         end
 
@@ -64,9 +57,9 @@ S:state(AGENT_STATE_CALL, {
     end,
     exit = function(self)
         if self.talked_during_call == true then
-            S:send('denise', 'mark_end')
+            module:send('denise', 'mark_end')
         end
     end
 })
 
-return S
+return module

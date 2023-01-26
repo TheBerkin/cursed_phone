@@ -1,22 +1,22 @@
-local S = AGENT_MODULE("hangman", "7308432")
+local module = AGENT_MODULE("hangman", "7308432")
 
-S:require_sound_bank("hangman")
+module:require_sound_bank("hangman")
 
-S:state(AGENT_STATE_CALL_IN, {
+module:state(AGENT_STATE_CALL_IN, {
     enter = function(self) 
         agent.wait(rand_float(4.0, 8.0))
         agent.accept_call()
     end
 })
 
-S:state(AGENT_STATE_CALL_OUT, {
+module:state(AGENT_STATE_CALL_OUT, {
     enter = function(self)
         agent.wait(rand_float(10.0, 20.0))
         agent.end_call()
     end
 })
 
-S:state(AGENT_STATE_CALL, {
+module:state(AGENT_STATE_CALL, {
     enter = function(self)
         print("Hangman: call started")
     end,
@@ -51,4 +51,4 @@ S:state(AGENT_STATE_CALL, {
     end
 })
 
-return S
+return module

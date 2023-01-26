@@ -12,6 +12,14 @@
 --- Exposes functions to interact with and control the current agent.
 agent = {}
 
+local ACTIVE_AGENT_MACHINES = {}
+local M_ACTIVE_AGENT_MACHINES = { __weak = 'kv' }
+setmetatable(ACTIVE_AGENT_MACHINES, M_ACTIVE_AGENT_MACHINES)
+
+function assert_agent_caller()
+    if ACTIVE_AGENT_MACHINES[coroutine.running()] == nil then error("Function may only be called by agents", 3) end
+end
+
 local agent_messages = {}
 
 -- ========================
@@ -56,11 +64,14 @@ AGENT_INTENT_WAIT = 4
 --- Agent is waiting for the user to dial a digit.
 AGENT_INTENT_READ_DIGIT = 5
 --- @type AgentIntentCode
---- Agent is forwarding the call.
+--- Agent is forwarding the call to another number.
 AGENT_INTENT_FORWARD_CALL = 6
 --- @type AgentIntentCode
 --- Agent is finished with its current state and needs to transition to the next state.
 AGENT_INTENT_STATE_END = 7
+--- @type AgentIntentCode
+--- Agent is forwarding the call to another Agent ID.
+AGENT_INTENT_FORWARD_CALL_ID = 8
 
 -- ========================
 -- AGENT DATA CODE CONSTANTS
@@ -201,13 +212,19 @@ local _AgentModule_MEMBERS = {
 local M_AgentModule = {
     __index = function(self, index)
         return _AgentModule_MEMBERS[index]
+    end,
+    --- Gets the ID of the current agent. 
+    --- Can't be called during module initialization as agents are only assigned IDs afterwards.
+    id = function(self)
+        assert_agent_caller()
+        return self._id
     end
 }
 
 --- Returns an empty phone agent module.
---- @param name string @The display name of the phone agent
---- @param phone_number string? @The number associated with the phone agent
---- @param role AgentRole?
+--- @param name string @ The display name of the phone agent
+--- @param phone_number string? @ The number associated with the phone agent
+--- @param role AgentRole? @ The role of the agent in the system
 --- @return AgentModule
 function AGENT_MODULE(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
@@ -237,22 +254,29 @@ function AGENT_MODULE(name, phone_number, role)
     return module
 end
 
-
 --- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
 --- @param intent AgentIntentCode
 --- @param intent_data any
 --- @return AgentDataCode, any
 function agent.intent(intent, intent_data)
+    assert_agent_caller()
     local data_code, response_data = coroutine.yield(intent, intent_data)
     return (data_code or AGENT_DATA_NONE), response_data
 end
 
---- Asynchronously waits the specified number of seconds.
---- @param seconds number
+--- Asynchronously waits the specified number of seconds, or forever if no duration is specified.
+--- @param seconds number?
 function agent.wait(seconds)
-    local start_time = engine_time()
-    while engine_time() - start_time < seconds do
-        agent.intent(AGENT_INTENT_WAIT)
+    assert_agent_caller()
+    if seconds then
+        while true do
+            agent.intent(AGENT_INTENT_WAIT)
+        end
+    else
+        local start_time = engine_time()
+        while engine_time() - start_time < seconds do
+            agent.intent(AGENT_INTENT_WAIT)
+        end
     end
 end
 
@@ -267,26 +291,43 @@ function agent.wait_cancel(seconds, predicate)
     end
 end
 
+--- Returns the number that was used to reach the current agent.
+---
+--- For intercept agents, this can be any value.
+function agent.caller_dialed_number()
+    assert_agent_caller()
+    return _caller_dialed_number_impl()
+end
+
 --- Forwards the call to the specified number.
 --- @param number string
 function agent.forward_call(number)
     agent.intent(AGENT_INTENT_FORWARD_CALL, number)
 end
 
+--- Forwards the call to the specified agent ID.
+--- @param number string
+function agent.forward_call_id(agent_id)
+    agent.intent(AGENT_INTENT_FORWARD_CALL_ID, agent_id)
+end
+
 --- Starts a call with the user, if the line is open.
 --- @return boolean
 function agent.start_call()
+    assert_agent_caller()
     local data_code = agent.intent(AGENT_INTENT_CALL_USER)
     return data_code ~= AGENT_DATA_LINE_BUSY
 end
 
 --- Accepts a pending call.
 function agent.accept_call()
+    assert_agent_caller()
     coroutine.yield(AGENT_INTENT_ACCEPT_CALL)
 end
 
 --- Ends the call.
 function agent.end_call()
+    assert_agent_caller()
     coroutine.yield(AGENT_INTENT_END_CALL)
 end
 
@@ -295,6 +336,7 @@ end
 --- @param max_seconds number|nil
 --- @return string|nil
 function agent.read_digit(max_seconds)
+    assert_agent_caller()
     local timed = is_number(max_seconds) and max_seconds > 0
     if timed then
         local start_time = engine_time()
@@ -342,6 +384,7 @@ local function gen_state_coroutine(s, new_state, old_state)
             agent.intent(AGENT_INTENT_IDLE)
         end
     end)
+    ACTIVE_AGENT_MACHINES[state_coroutine] = state_coroutine
     return state_coroutine
 end
 

@@ -62,6 +62,11 @@ impl<'lua> CursedEngine<'lua> {
                 _ => Ok(0.0)
             }
         }).unwrap());
+
+        // _caller_dialed_number_impl()
+        globals.set("_caller_dialed_number_impl", lua.create_function(move |_, ()| {
+            return Ok(self.dialed_number.borrow().as_str())
+        }).unwrap());
     
         // ====================================================
         // ==================== SOUND API =====================
@@ -200,6 +205,21 @@ impl<'lua> CursedEngine<'lua> {
         }).unwrap());
 
         globals.set("toll", tbl_toll);
+
+        // ====================================================
+        // ==================== PHONE API =====================
+        // ====================================================
+        let tbl_phone = lua.create_table().unwrap();
+
+        // phone.last_caller_id()
+        tbl_phone.set("last_caller_id", lua.create_function(move |_, ()| {
+            Ok(self.last_caller_id.get())
+        }).unwrap());
+
+        // phone.is_rotary()
+        tbl_phone.set("is_rotary", lua.create_function(move |_, ()| {
+            Ok(self.host_phone_type == PhoneType::Rotary)
+        }).unwrap());
     
         // ====================================================
         // ===================== GPIO API =====================

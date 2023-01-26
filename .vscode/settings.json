@@ -6,7 +6,8 @@
     "Lua.diagnostics.globals": [
         "phone",
         "sound",
-        "agent"
+        "agent",
+        "_caller_dialed_number_impl"
     ],
     "Lua.runtime.version": "LuaJIT",
     "rust-analyzer.updates.channel": "nightly",

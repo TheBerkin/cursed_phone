@@ -1,7 +1,7 @@
-local S = AGENT_MODULE("operator", "0")
-S:set_custom_price(0)
+local module = AGENT_MODULE("operator", "0")
+module:set_custom_price(0)
 
-S:state(AGENT_STATE_CALL, {
+module:state(AGENT_STATE_CALL, {
     enter = function(self)
         print("Operator: call started")
     end,
@@ -18,11 +18,11 @@ S:state(AGENT_STATE_CALL, {
 })
 
 
-S:state(AGENT_STATE_CALL_IN, {
+module:state(AGENT_STATE_CALL_IN, {
     tick = function(self)
         agent.wait(rand_float(1.0, 3.0))
         agent.accept_call()
     end
 })
 
-return S
+return module

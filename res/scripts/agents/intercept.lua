@@ -1,20 +1,18 @@
-local S = AGENT_MODULE("intercept", nil, AGENT_ROLE_INTERCEPT)
+local module = AGENT_MODULE("intercept", nil, AGENT_ROLE_INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 
-S:set_ringback_enabled(false)
+module:set_ringback_enabled(false)
 
 local reason_handlers = {
-    -- Number is disconnected
-    [CALL_REASON_NUMBER_DISCONNECTED] = function(self)
+    -- Number is invalid or a vertical service code
+    [CALL_REASON_NUMBER_REDIRECTED] = function(self)
         sound.play_special_info_tone(SIT_INTERCEPT)
         sound.wait(CHAN_SIGIN)
         agent.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
         sound.play_fast_busy_tone()
-        while true do
-            agent.intent(AGENT_INTENT_WAIT)
-        end
+        agent.wait()
     end,
 
     -- Phone was left off the hook
@@ -29,21 +27,19 @@ local reason_handlers = {
         end
 
         sound.play_off_hook_tone()
-        while true do
-            agent.intent(AGENT_INTENT_WAIT)
-        end
+        agent.wait()
     end
 }
 
 -- Immediately answer calls
-S:state(AGENT_STATE_CALL_IN, {
+module:state(AGENT_STATE_CALL_IN, {
     enter = function(self)
         agent.accept_call()
     end
 })
 
 -- Call handler for intercept reason
-S:state(AGENT_STATE_CALL, {
+module:state(AGENT_STATE_CALL, {
     enter = function(self)
     end,
     tick = function(self)
@@ -57,4 +53,4 @@ S:state(AGENT_STATE_CALL, {
     end
 })
 
-return S
+return module

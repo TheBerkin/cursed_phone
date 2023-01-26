@@ -70,8 +70,8 @@ CALL_REASON_NONE = 0
 --- Call was placed because of an off-hook timeout.
 CALL_REASON_OFF_HOOK = 1
 --- @type CallReason
---- Call was placed because the originally dialed number was disconnected.
-CALL_REASON_NUMBER_DISCONNECTED = 2
+--- Call was placed because the originally dialed number was redirected.
+CALL_REASON_NUMBER_REDIRECTED = 2
 --- @type CallReason
 --- Call was placed by the user.
 CALL_REASON_USER_INIT = 3
@@ -131,3 +131,15 @@ SIT_INEFFECTIVE = 6
 --- @type SpecialInfoTone
 --- Reserved for future use.
 SIT_RESERVED = 7
+
+NATIVE_API(function() 
+    phone = {}
+
+    --- Returns the internal ID of the last agent who called the phone, or `nil` if nobody called yet.
+    --- @return integer|nil
+    function phone.last_caller_id() return nil end
+
+    --- Returns a boolean value indicating whether the host phone is registered as a rotary phone.
+    --- @return boolean
+    function phone.is_rotary() return false end
+end)

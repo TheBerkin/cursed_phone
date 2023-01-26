@@ -93,6 +93,7 @@ impl<'lua> AgentModule<'lua> {
     }
 
     pub fn register_id(&self, id: AgentId) {
+        self.tbl_module.raw_set("_id", id);
         self.id.replace(Some(id));
     }
 

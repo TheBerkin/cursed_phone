@@ -1,5 +1,7 @@
 use mlua::prelude::*;
 
+use super::AgentId;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AgentRole {
     Normal = 0,
@@ -84,26 +86,31 @@ pub enum AgentIntent {
     Wait,
     ReadDigit,
     ForwardCall(String),
-    StateEnded(AgentState)
+    StateEnded(AgentState),
+    ForwardCallToId(AgentId),
 }
 
 impl AgentIntent {
-    pub fn from_lua_value(status_code: i32, status_data: LuaValue) -> AgentIntent {
-        match status_code {
+    pub fn from_lua_value(intent_code: i32, intent_data: LuaValue) -> AgentIntent {
+        match intent_code {
             0 => AgentIntent::Idle,
             1 => AgentIntent::AcceptCall,
             2 => AgentIntent::EndCall,
             3 => AgentIntent::CallUser,
             4 => AgentIntent::Wait,
             5 => AgentIntent::ReadDigit,
-            6 => match status_data {
+            6 => match intent_data {
                 LuaValue::String(s) => AgentIntent::ForwardCall(String::from(s.to_str().unwrap())),
                 _ => AgentIntent::ForwardCall(String::from("A"))
             },
-            7 => match status_data {
+            7 => match intent_data {
                 LuaValue::Integer(n) => AgentIntent::StateEnded(AgentState::from(n as usize)),
                 _ => AgentIntent::Idle
             },
+            8 => match intent_data {
+                LuaValue::Integer(n) => AgentIntent::ForwardCallToId(n as usize),
+                _ => AgentIntent::Idle
+            }
             _ => AgentIntent::Idle
         }
     }
