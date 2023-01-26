@@ -64,7 +64,7 @@ pub enum PhoneLineState {
 
 #[inline]
 fn pulses_to_digit(pulse_count: usize) -> Option<char> {
-    PULSE_DIAL_DIGITS.get(pulse_count).clone()
+    PULSE_DIAL_DIGITS.get(pulse_count).map(|d| *d as char)
 }
 
 /// A Lua-powered telephone exchange that loads,
@@ -133,6 +133,13 @@ pub struct CursedEngine<'lua> {
     gpio: crate::gpio::GpioInterface,
 }
 
+// TODO: Replace this with `cell_update` feature when it stabilizes
+fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T {
+    let old = cell.get();
+    let new = update_fn(old);
+    cell.replace(new);
+}
+
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: impl Into<String>, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
@@ -164,7 +171,7 @@ impl<'lua> CursedEngine<'lua> {
             initial_deposit_consumed: RefCell::new(false),
             awaiting_initial_deposit: RefCell::new(false),
             time_credit: Default::default(),
-            switchhook_change_time: RefCell::new(now),
+            switchhook_change_time: Cell::new(now),
             switchhook_closed: Cell::new(true),
             pending_pulse_count: Default::default(),
             rotary_resting: Cell::new(true),
@@ -218,7 +225,7 @@ impl<'lua> CursedEngine<'lua> {
         // };
 
         info!("Placing call to: {}", number);
-        if let Some(agent) = vsc_agent.or_else(|| self.lookup_agent(number)) {
+        if let Some(agent) = self.lookup_agent(number) {
             self.call_agent(agent);
             return true;
         } else {
@@ -553,14 +560,14 @@ impl<'lua> CursedEngine<'lua> {
         match self.state() {
             PhoneLineState::Idle | PhoneLineState::IdleRinging => return,
             _ => {
-                let current_rest_state = *self.rotary_resting.borrow();
+                let current_rest_state = self.rotary_resting.get();
                 if !current_rest_state {
                     // This is a fix for my noisy rotary dial randomly pulsing when I lift it from resting.
                     // Forcing a delay between the dial lift and the first pulse seems to resolve this issue.
-                    let rotary_rest_lifted_time = self.rotary_dial_lift_time.borrow().elapsed();
+                    let rotary_rest_lifted_time = self.rotary_dial_lift_time.get().elapsed();
                     if rotary_rest_lifted_time > self.rotary_first_pulse_delay {
                         // Increment pulse count
-                        self.pending_pulse_count.update(|old| old + 1);
+                        update_cell(&self.pending_pulse_count, |old| old + 1);
                         self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0);
                     } else {
                         trace!("Discarded premature rotary dial pulse");
@@ -737,7 +744,7 @@ impl<'lua> CursedEngine<'lua> {
                     self.set_state(PhoneLineState::Connected);
                 },
                 _ => {
-                    self.pending_pulse_count.update(|p| p + 1);
+                    update_cell(&self.pending_pulse_count, |p| p + 1);
                 }
             }
         }

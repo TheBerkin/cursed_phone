@@ -65,7 +65,7 @@ impl<'lua> CursedEngine<'lua> {
 
         // _caller_dialed_number_impl()
         globals.set("_caller_dialed_number_impl", lua.create_function(move |_, ()| {
-            return Ok(self.dialed_number.borrow().as_str())
+            return Ok(self.dialed_number.borrow().clone())
         }).unwrap());
     
         // ====================================================
