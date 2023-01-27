@@ -6,7 +6,7 @@ mod pull;
 
 pub use debounce::*;
 pub use pull::*;
-use rppal::gpio::{Gpio, OutputPin};
+use rppal::gpio::{Gpio, OutputPin, InputPin, Pin};
 
 use std::{sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}}, iter::Map, collections::HashMap};
 use std::time::{Instant, Duration};
@@ -339,7 +339,7 @@ impl PhoneGpioInterface {
 }
 
 impl PhoneGpioInterface {
-    pub fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>> {
+    pub fn listen(&mut self) -> Result<mpsc::Receiver<PhoneInputSignal>, rppal::gpio::Error> {
         let (tx, rx) = mpsc::channel();
         
         // On/Off-hook GPIO events
