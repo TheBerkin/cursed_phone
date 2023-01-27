@@ -240,7 +240,7 @@ impl<'lua> CursedEngine<'lua> {
             }).unwrap());
 
             tbl_gpio.set("register_output", lua.create_function(move |_, (pin): (u8)| {
-                Ok(self.gpio.register_output(pin)?)
+                Ok(self.gpio.register_output(pin).to_lua_err()?)
             }).unwrap());
 
             tbl_gpio.set("read_pin", lua.create_function(move |_, (pin): (u8)| {
