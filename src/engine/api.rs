@@ -235,7 +235,7 @@ impl<'lua> CursedEngine<'lua> {
                 Ok(self.gpio.borrow_mut().register_input(
                     pin, 
                     pull.map_or(Pull::None, |v| Pull::from(&v)), 
-                    bounce_time.map(|t| Duration::from_secs_f64(bounce_time.unwrap_or_default()))
+                    bounce_time.map(|t| Duration::from_secs_f64(t))
                 ).to_lua_err()?)
             }).unwrap());
 

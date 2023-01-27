@@ -38,7 +38,7 @@ fn main() -> Result<(), String> {
     let env_config_path = env::var(ENV_CONFIG_PATH);
     let config_path = env_config_path.as_deref().unwrap_or(CONFIG_PATH);
     info!("Loading config: {}", config_path);
-    let config = Rc::new(config::load_config(CONFIG_PATH));
+    let config = Rc::new(config::load_config(config_path));
     info!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
