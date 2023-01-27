@@ -36,7 +36,8 @@ impl GpioInterface {
         let gpio = Gpio::new()?;
         Ok(Self {
             gpio,
-            .. Default::default()
+            input_pins: Default::default(),
+            output_pins: Default::default(),
         })
     }
 
@@ -47,7 +48,7 @@ impl GpioInterface {
     }
 
     pub fn register_output(&mut self, pin_id: u8) -> Result<(), rppal::gpio::Error> {
-        let pin = self.gpio.get(pin_id)?;
+        let pin = self.gpio.get(pin_id)?.into_output();
         self.output_pins.insert(pin_id, pin);
         Ok(())
     }
