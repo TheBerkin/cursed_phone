@@ -6,13 +6,13 @@ mod pull;
 
 pub use debounce::*;
 pub use pull::*;
+use rppal::gpio::{Gpio, OutputPin};
 
 use std::{sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}}, iter::Map, collections::HashMap};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;
 use log::{info, warn};
-use rppal::gpio::*;
 use crate::config::*;
 use crate::phone::*;
 

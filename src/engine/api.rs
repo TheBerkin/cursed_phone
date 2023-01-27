@@ -252,7 +252,7 @@ impl<'lua> CursedEngine<'lua> {
             }).unwrap());
 
             tbl_gpio.set("set_pwm", lua.create_function(move |_, (pin, period, pulse_width): (u8, f64, f64)| {
-                Ok(self.gpio.set_pwm(pin_id, period, pulse_width)?)
+                Ok(self.gpio.set_pwm(pin, period, pulse_width)?)
             }).unwrap());
 
             tbl_gpio.set("clear_pwm", lua.create_function(move |_, (pin): (u8)| {
