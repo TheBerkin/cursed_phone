@@ -36,6 +36,7 @@ fn main() -> Result<(), String> {
 
     // Load engine
     let config_path = env::var(ENV_CONFIG_PATH).as_deref().unwrap_or(CONFIG_PATH);
+    info!("Loading config: {}", config_path);
     let config = Rc::new(config::load_config(CONFIG_PATH));
     info!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
