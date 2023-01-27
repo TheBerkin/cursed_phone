@@ -240,31 +240,31 @@ impl<'lua> CursedEngine<'lua> {
             }).unwrap());
 
             tbl_gpio.set("register_output", lua.create_function(move |_, (pin): (u8)| {
-                Ok(self.gpio.register_output(pin).to_lua_err()?)
+                Ok(self.gpio.borrow_mut().register_output(pin).to_lua_err()?)
             }).unwrap());
 
             tbl_gpio.set("read_pin", lua.create_function(move |_, (pin): (u8)| {
-                Ok(self.gpio.read_pin(pin))
+                Ok(self.gpio.borrow().read_pin(pin))
             }).unwrap());
 
             tbl_gpio.set("write_pin", lua.create_function(move |_, (pin, logic_level): (u8, bool)| {
-                Ok(self.gpio.write_pin(pin, logic_level))
+                Ok(self.gpio.borrow_mut().write_pin(pin, logic_level))
             }).unwrap());
 
             tbl_gpio.set("set_pwm", lua.create_function(move |_, (pin, period, pulse_width): (u8, f64, f64)| {
-                Ok(self.gpio.set_pwm(pin, period, pulse_width).to_lua_err()?)
+                Ok(self.gpio.borrow_mut().set_pwm(pin, period, pulse_width).to_lua_err()?)
             }).unwrap());
 
             tbl_gpio.set("clear_pwm", lua.create_function(move |_, (pin): (u8)| {
-                Ok(self.gpio.clear_pwm(pin).to_lua_err()?)
+                Ok(self.gpio.borrow_mut().clear_pwm(pin).to_lua_err()?)
             }).unwrap());
 
             tbl_gpio.set("unregister", lua.create_function(move |_, (pin): (u8)| {
-                Ok(self.gpio.unregister(pin))
+                Ok(self.gpio.borrow_mut().unregister(pin))
             }).unwrap());
 
             tbl_gpio.set("unregister_all", lua.create_function(move |_, ()| {
-                Ok(self.gpio.unregister_all())
+                Ok(self.gpio.borrow_mut().unregister_all())
             }).unwrap());
         }
 

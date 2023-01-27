@@ -132,7 +132,7 @@ pub struct CursedEngine<'lua> {
     rotary_first_pulse_delay: Duration,
     /// GPIO interface used by Lua.
     #[cfg(feature = "rpi")]
-    gpio: crate::gpio::GpioInterface,
+    gpio: RefCell<crate::gpio::GpioInterface>,
 }
 
 // TODO: Replace this with `cell_update` feature when it stabilizes
@@ -181,7 +181,7 @@ impl<'lua> CursedEngine<'lua> {
             rotary_dial_lift_time: Cell::new(now),
             rotary_first_pulse_delay: Duration::from_millis(config.rotary_first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
             #[cfg(feature = "rpi")]
-            gpio: GpioInterface::new().expect("Unable to initialize Lua GPIO interface"),
+            gpio: RefCell::new(GpioInterface::new().expect("Unable to initialize Lua GPIO interface")),
         }
     }
 
