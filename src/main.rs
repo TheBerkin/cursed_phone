@@ -35,7 +35,8 @@ fn main() -> Result<(), String> {
     }
 
     // Load engine
-    let config_path = env::var(ENV_CONFIG_PATH).as_deref().unwrap_or(CONFIG_PATH);
+    let env_config_path = env::var(ENV_CONFIG_PATH);
+    let config_path = env_config_path.as_deref().unwrap_or(CONFIG_PATH);
     info!("Loading config: {}", config_path);
     let config = Rc::new(config::load_config(CONFIG_PATH));
     info!("Config loaded: {:#?}", config);
