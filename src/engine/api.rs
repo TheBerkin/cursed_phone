@@ -232,7 +232,7 @@ impl<'lua> CursedEngine<'lua> {
         #[cfg(feature = "rpi")]
         {
             tbl_gpio.set("register_input", lua.create_function(move |_, (pin, pull, bounce_time): (u8, Option<String>, Option<f64>)| {
-                Ok(self.gpio.register_input(
+                Ok(self.gpio.borrow_mut().register_input(
                     pin, 
                     pull.map_or(Pull::None, |v| Pull::from(&v)), 
                     bounce_time.map(|t| Duration::from_secs_f64(bounce_time.unwrap_or_default()))
