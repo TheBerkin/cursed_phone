@@ -266,6 +266,8 @@ impl<'lua> CursedEngine<'lua> {
             tbl_gpio.set("unregister_all", lua.create_function(move |_, ()| {
                 Ok(self.gpio.borrow_mut().unregister_all())
             }).unwrap());
+
+            globals.set("gpio", tbl_gpio);
         }
 
         // Run API scripts

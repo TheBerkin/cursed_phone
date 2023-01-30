@@ -291,6 +291,14 @@ function agent.wait_cancel(seconds, predicate)
     end
 end
 
+--- Asynchronously waits until the specified function returns true. Function is called once per agent tick.
+--- @param predicate function
+function agent.wait_until(predicate)
+    while not predicate() do
+        agent.intent(AGENT_INTENT_WAIT)
+    end
+end
+
 --- Returns the number that was used to reach the current agent.
 ---
 --- For intercept agents, this can be any value.
