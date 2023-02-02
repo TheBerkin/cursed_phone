@@ -74,7 +74,8 @@ CHAN_BG3 = 17
 --- @type SoundChannel
 CHAN_BG4 = 18
 
-NATIVE_API(function()
+if not sound then
+    --- Provides functions for controlling multi-channel sound playback.
     sound = {}
 
     --- Plays a sound on a specific channel.
@@ -92,7 +93,7 @@ NATIVE_API(function()
     --- Returns a boolean indicating whether the specified channel is playing something.
     --- @param channel SoundChannel
     --- @return boolean
-    function sound.is_busy(channel) end
+    function sound.is_busy(channel) return false end
 
     --- Stops playback on a specific channel.
     --- @param channel SoundChannel
@@ -104,7 +105,7 @@ NATIVE_API(function()
     --- Gets the volume of the specified channel.
     --- @param channel SoundChannel
     --- @return number
-    function sound.get_channel_volume(channel) end
+    function sound.get_channel_volume(channel) return 0 end
 
     --- Sets the volume of the specified channel.
     --- @param channel SoundChannel
@@ -113,12 +114,12 @@ NATIVE_API(function()
 
     --- Gets the master volume.
     --- @return number
-    function sound.get_master_volume() end
+    function sound.get_master_volume() return 0 end
 
     --- Gets a boolean value indicating whether the specified sound channel is muted.
     --- @param channel SoundChannel @ The sound channel whose muted status to retrieve.
     --- @return boolean
-    function sound.is_channel_muted(channel) end
+    function sound.is_channel_muted(channel) return false end
 
     --- Sets the muted status of the specified sound channel.
     --- @param channel SoundChannel @ The sound channel whose muted status to change.
@@ -153,7 +154,7 @@ NATIVE_API(function()
     --- @param duration number
     --- @param volume number
     function sound.play_dtmf_digit(digit, duration, volume) end
-end)
+end
 
 --- *(Agent use only)*
 ---

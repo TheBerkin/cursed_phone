@@ -159,6 +159,7 @@ local _AgentModule_MEMBERS = {
     --- @param state AgentStateCode
     --- @param func_table table
     state = function(self, state, func_table)
+        --- @diagnostic disable-next-line: undefined-field
         self._state_func_tables[state] = func_table
     end,
     suspend = function(self)

@@ -23,6 +23,7 @@ local vsc_handlers = {
         else
             print("No previous caller available for callback")
         end
+        --- @cast last_call_return_id integer
         agent.forward_call_id(last_call_return_id)
     end
 }
@@ -49,7 +50,7 @@ local reason_handlers = {
             agent.forward_call(pn)
         end
 
-        sound.play_special_info_tone(SIT_INTERCEPT)
+        sound.play_special_info_tone(SpecialInfoTone.INTERCEPT)
         sound.wait(CHAN_SIGIN)
         agent.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)

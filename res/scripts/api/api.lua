@@ -13,15 +13,15 @@
 ---- Native API ----
 --------------------
 
-NATIVE_API(function()
+if _NATIVE_STUB then
     --- Gets the number of seconds elapsed since the engine was initialized.
     --- @return number
-    function engine_time() end
+    function engine_time() return 0 end
 
     --- Gets the number of seconds elapsed since the current call started.
     --- Returns 0 if no call is active.
     --- @return number
-    function call_time() end
+    function call_time() return 0 end
 
     --- Pauses execution for the specified number of milliseconds.
     --- @param ms integer
@@ -65,8 +65,8 @@ NATIVE_API(function()
     --- Returns a boolean value with probability `p` of being true, where `0.0 <= p <= 1.0`.
     --- @param p number
     --- @return boolean
-    function chance(p) end
-end)
+    function chance(p) return false end
+end
 
 --- Removes all keys from table `t`.
 --- @param t table

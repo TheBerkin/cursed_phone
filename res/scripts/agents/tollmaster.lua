@@ -6,7 +6,7 @@ module:state(AGENT_STATE_IDLE, {
     tick = function(self)
         if toll.is_awaiting_deposit() then
             print("Tollmaster: Insert " .. toll.current_call_rate() .. "¢ now!")
-            sound.play_special_info_tone(SIT_INEFFECTIVE)
+            sound.play_special_info_tone(SpecialInfoTone.INEFFECTIVE)
             sound.wait(CHAN_SIGIN)
             sound.play("toll/nag_start_call", CHAN_BG1)
             sound.wait_min(CHAN_BG1, 10.0)

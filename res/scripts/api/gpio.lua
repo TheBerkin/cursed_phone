@@ -38,7 +38,8 @@ GPIO_HIGH = true
 --- @type GpioLogicLevel
 GPIO_LOW = false
 
-NATIVE_API(function()
+if not gpio then
+    --- Provides an interface for accessing GPIO pins.
     gpio = {}
 
     --- Registers a pin as an input pin.
@@ -78,4 +79,4 @@ NATIVE_API(function()
 
     --- Unregisters all registered pins.
     function gpio.unregister_all() end
-end)
+end

@@ -104,35 +104,29 @@ PHONE_STATE_RINGING = 5
 --- Indicates that the phone is playing a busy signal (for varying reasons).
 PHONE_STATE_BUSY_TONE = 6
 
+--- @enum SpecialInfoTone
+--- Defines Special Information Tone (SIT) types.
+SpecialInfoTone = {
+    --- Unassigned N11 code, CLASS code, or prefix.
+    VACANT_CODE = 0,
+    --- Incomplete digits, internal office or feature failure (local office).
+    REORDER_INTRA = 1,
+    --- Call failure, no wink or partial digits received (distant office).
+    REORDER_INTER = 2,
+    --- All circuits busy (local office).
+    NO_CIRCUIT_INTRA = 3,
+    --- All circuits busy (distant office).
+    NO_CIRCUIT_INTER = 4,
+    --- Number changed or disconnected.
+    INTERCEPT = 5,
+    --- General misdialing, coin deposit required or other failure.
+    INEFFECTIVE = 6,
+    --- Reserved for future use.
+    RESERVED = 7
+}
 
---- @alias SpecialInfoTone integer
-
---- @type SpecialInfoTone
---- Unassigned N11 code, CLASS code, or prefix.
-SIT_VACANT_CODE = 0
---- @type SpecialInfoTone
---- Incomplete digits, internal office or feature failure (local office).
-SIT_REORDER_INTRA = 1
---- @type SpecialInfoTone
---- Call failure, no wink or partial digits received (distant office).
-SIT_REORDER_INTER = 2
---- @type SpecialInfoTone
---- All circuits busy (local office).
-SIT_NO_CIRCUIT_INTRA = 3
---- @type SpecialInfoTone
---- All circuits busy (distant office).
-SIT_NO_CIRCUIT_INTER = 4
---- @type SpecialInfoTone
---- Number changed or disconnected.
-SIT_INTERCEPT = 5
---- @type SpecialInfoTone
---- General misdialing, coin deposit required or other failure.
-SIT_INEFFECTIVE = 6
---- @type SpecialInfoTone
---- Reserved for future use.
-SIT_RESERVED = 7
-
-NATIVE_API(function() 
+if not phone then
+    --- Provides information about and exposes functionality specific to the phone state and physical interface.
     phone = {}
 
     --- Returns the internal ID of the last agent who called the phone, or `nil` if nobody called yet.
@@ -142,4 +136,3 @@ NATIVE_API(function()
     --- Returns a boolean value indicating whether the host phone is registered as a rotary phone.
     --- @return boolean
     function phone.is_rotary() return false end
-end)

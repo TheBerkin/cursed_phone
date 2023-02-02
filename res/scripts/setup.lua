@@ -18,14 +18,6 @@ function print_info()
     end
 end
 
---- Stub function to represent a table of native functions without initializing it.
---- @param api_defs function
-function NATIVE_API(api_defs) 
-    if __STUB == true then
-        api_defs()
-    end
-end
-
 function coerce_boolean(value)
     return not not value
 end
