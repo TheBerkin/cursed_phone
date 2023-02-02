@@ -232,6 +232,16 @@ impl<'lua> CursedEngine<'lua> {
             Ok(self.host_phone_type == PhoneType::Rotary)
         }).unwrap());
 
+        // phone.is_rotary_dial_resting()
+        tbl_phone.set("is_rotary_dial_resting", lua.create_function(move |_, ()| {
+            Ok(self.rotary_resting.get())
+        }).unwrap());
+
+        // phone.is_on_hook()
+        tbl_phone.set("is_on_hook", lua.create_function(move |_, ()| {
+            Ok(self.switchhook_closed.get())
+        }).unwrap());
+
         globals.set("phone", tbl_phone);
     
         // ====================================================
