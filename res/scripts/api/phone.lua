@@ -136,3 +136,4 @@ if not phone then
     --- Returns a boolean value indicating whether the host phone is registered as a rotary phone.
     --- @return boolean
     function phone.is_rotary() return false end
+end
