@@ -127,6 +127,17 @@ impl<'lua> CursedEngine<'lua> {
             self.sound_engine.borrow_mut().set_volume(Channel::from(channel), volume);
             Ok(())
         }).unwrap());
+
+        // sound.is_channel_muted(channel)
+        tbl_sound.set("is_channel_muted", lua.create_function(move |_, (channel): (usize)| {
+            Ok(self.sound_engine.borrow().is_muted(Channel::from(channel)))
+        }).unwrap());
+
+        // sound.set_channel_muted(channel, muted)
+        tbl_sound.set("set_channel_muted", lua.create_function(move |_, (channel, muted): (usize, bool)| {
+            self.sound_engine.borrow_mut().set_muted(Channel::from(channel), muted);
+            Ok(())
+        }).unwrap());
     
         // sound.play_dial_tone()
         tbl_sound.set("play_dial_tone", lua.create_function(move |_, ()| {

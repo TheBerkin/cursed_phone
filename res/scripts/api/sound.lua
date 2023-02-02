@@ -115,6 +115,16 @@ NATIVE_API(function()
     --- @return number
     function sound.get_master_volume() end
 
+    --- Gets a boolean value indicating whether the specified sound channel is muted.
+    --- @param channel SoundChannel @ The sound channel whose muted status to retrieve.
+    --- @return boolean
+    function sound.is_channel_muted(channel) end
+
+    --- Sets the muted status of the specified sound channel.
+    --- @param channel SoundChannel @ The sound channel whose muted status to change.
+    ---@param muted boolean @ The muted status to set on the channel.
+    function sound.set_channel_muted(channel, muted) end
+
     --- Sets the master volume.
     --- @param volume number
     function sound.set_master_volume(volume) end
@@ -135,6 +145,7 @@ NATIVE_API(function()
     function sound.play_off_hook_tone() end
 
     --- Plays a Special Information Tone (SIT) on `CHAN_SIGIN`.
+    --- @param sit_type SpecialInfoTone @ The type of SIT to play.
     function sound.play_special_info_tone(sit_type) end
 
     --- Plays the specified DTMF digit on `CHAN_SIGOUT`.

@@ -188,7 +188,10 @@ pub struct SoundEngine {
 struct SoundChannel {
     id: Channel,
     sink: rodio::Sink,
-    channel_volume: f32
+    volume_a: f32,
+    volume_b: f32,
+    volume_c: f32,
+    muted: bool,
 }
 
 struct Sound {
@@ -465,12 +468,20 @@ impl SoundEngine {
         }
     }
 
+    pub fn is_muted(&self, channel: Channel) -> bool {
+        self.channels.borrow()[channel.as_index()].muted()
+    }
+
+    pub fn set_muted(&mut self, channel: Channel, muted: bool) {
+        self.channels.borrow_mut()[channel.as_index()].set_muted(muted);
+    }
+
     pub fn set_volume(&mut self, channel: Channel, volume: f32) {
-        self.channels.borrow_mut()[channel.as_index()].set_volume(volume).update_sink_volume(self.master_volume);
+        self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::B, volume);
     }
 
     pub fn volume(&self, channel: Channel) -> f32 {
-        self.channels.borrow()[channel.as_index()].volume()
+        self.channels.borrow()[channel.as_index()].volume(VolumeLayer::B)
     }
 
     pub fn master_volume(&self) -> f32 {
@@ -480,7 +491,7 @@ impl SoundEngine {
     pub fn set_master_volume(&mut self, master_volume: f32) {
         self.master_volume = master_volume;
         for ch in enum_iterator::all::<Channel>() {
-            self.channels.borrow_mut()[ch.as_index()].update_sink_volume(master_volume);
+            self.channels.borrow_mut()[ch.as_index()].set_volume(VolumeLayer::A, master_volume);
         }
     }
 
@@ -541,13 +552,26 @@ impl SoundEngine {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum VolumeLayer {
+    /// Volume Layer A - Master Volume
+    A,
+    /// Volume Layer B - Channel Volume
+    B,
+    /// Volume Layer C - Custom Volume
+    C,
+}
+
 impl SoundChannel {
     fn new(engine: &SoundEngine, id: Channel) -> Self {
         let sink = rodio::Sink::try_new(&engine.stream_handle).expect("Failed to create sound channel");        
         let ch = Self {
             sink,
             id,
-            channel_volume: 1.0
+            volume_a: 1.0,
+            volume_b: 1.0,
+            volume_c: 1.0,
+            muted: false,
         };
         //ch.update_sink_volume(engine.master_volume);
         ch
@@ -555,20 +579,42 @@ impl SoundChannel {
 }
 
 impl SoundChannel {
-    fn update_sink_volume(&mut self, master_volume: f32) -> &mut Self {
-        let mixed_vol = master_volume * self.channel_volume;
-        self.sink.set_volume(mixed_vol);
+    fn update_sink_volume(&mut self) -> &mut Self {
+        self.sink.set_volume(self.mixed_volume());
         // trace!("Sink volume for Channel {:?} is now {}", self.id, self.sink.volume());
         self
     }
 
-    fn volume(&self) -> f32 {
-        self.channel_volume
+    fn mixed_volume(&self) -> f32 {
+        self.volume_a * self.volume_b * self.volume_c * if self.muted { 0.0 } else { 1.0 }
     }
 
-    fn set_volume(&mut self, volume: f32) -> &mut Self {
-        self.channel_volume = volume;
+    fn volume(&self, layer: VolumeLayer) -> f32 {
+        match layer {
+            VolumeLayer::A => self.volume_a,
+            VolumeLayer::B => self.volume_b,
+            VolumeLayer::C => self.volume_c,
+        }
+    }
+
+    fn set_volume(&mut self, layer: VolumeLayer, volume: f32) -> &mut Self {
+        let dst_volume = match layer {
+            VolumeLayer::A => &mut self.volume_a,
+            VolumeLayer::B => &mut self.volume_b,
+            VolumeLayer::C => &mut self.volume_c,
+        };
+        *dst_volume = volume;
+        self.update_sink_volume();
         self
+    }
+
+    fn muted(&self) -> bool {
+        self.muted
+    }
+
+    fn set_muted(&mut self, muted: bool) {
+        self.muted = muted;
+        self.update_sink_volume();
     }
 
     fn busy(&self) -> bool {
