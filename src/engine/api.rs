@@ -234,7 +234,11 @@ impl<'lua> CursedEngine<'lua> {
 
         // phone.is_rotary_dial_resting()
         tbl_phone.set("is_rotary_dial_resting", lua.create_function(move |_, ()| {
-            Ok(self.rotary_resting.get())
+            Ok(if self.host_phone_type == PhoneType::Rotary {
+                Some(self.rotary_resting.get())
+            } else {
+                None
+            })
         }).unwrap());
 
         // phone.is_on_hook()
@@ -247,11 +251,11 @@ impl<'lua> CursedEngine<'lua> {
         // ====================================================
         // ===================== GPIO API =====================
         // ====================================================
-
-        let tbl_gpio = lua.create_table().unwrap();
-
+        
         #[cfg(feature = "rpi")]
         {
+            let tbl_gpio = lua.create_table().unwrap();
+
             tbl_gpio.set("register_input", lua.create_function(move |_, (pin, pull, bounce_time): (u8, Option<String>, Option<f64>)| {
                 Ok(self.gpio.borrow_mut().register_input(
                     pin, 

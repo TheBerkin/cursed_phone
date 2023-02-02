@@ -137,9 +137,9 @@ if not phone then
     --- @return boolean
     function phone.is_rotary() return false end
 
-    --- Returns a boolean value indicating whether the rotary dial (if available) is in the resting position.
-    --- @return boolean
-    function phone.is_rotary_dial_resting() return false end
+    --- Returns a boolean value indicating whether the rotary dial (if available) is in the resting position, or `nil` if the phone isn't a rotary phone.
+    --- @return boolean|nil
+    function phone.is_rotary_dial_resting() return nil end
 
     --- Returns a boolean value indicating whether the phone is currently on-hook.
     --- @return boolean
