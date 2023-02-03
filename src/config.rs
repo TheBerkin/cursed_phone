@@ -5,8 +5,8 @@ use toml;
 #[allow(non_camel_case_types)]
 type ms = u64;
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct CursedConfig {
     /// Phone type. Mainly affects which inputs control dialing.
     /// See table for supported values.
@@ -62,8 +62,8 @@ pub struct CursedConfig {
     pub debug: Option<DebugConfig>
 }
 
-#[serde(rename_all = "kebab-case", default)]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case", default)]
 pub struct PayphoneConfig {
     /// Monetary value constants for coin triggers.
     /// Set values in terms of the smallest unit of your currency.
@@ -106,8 +106,8 @@ impl Default for PayphoneConfig {
     }
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct FeaturesConfig {
     /// Enables ringer.
     pub enable_ringer: Option<bool>,
@@ -119,8 +119,8 @@ pub struct FeaturesConfig {
     pub enable_incoming_calls: Option<bool>
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct SoundConfig {
     /// Initial master volume.
     pub master_volume: f32,
@@ -135,8 +135,8 @@ pub struct SoundConfig {
     pub comfort_noise_volume: f32
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct GpioConfig {
     /// Input configuration.
     pub inputs: GpioInputsConfig,
@@ -144,8 +144,8 @@ pub struct GpioConfig {
     pub outputs: GpioOutputsConfig
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct GpioInputsConfig {
     /// Input configuration for the switchhook.
     pub hook: InputPinConfig,
@@ -165,8 +165,8 @@ pub struct GpioInputsConfig {
     pub coin_trigger_pull: Option<String>
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct InputPinConfig {
     /// BCM pin number of the input.
     pub pin: u8,
@@ -176,8 +176,8 @@ pub struct InputPinConfig {
     pub pull: Option<String>
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct GpioOutputsConfig {
     /// BCM pin number of ringer output.
     pub pin_ringer: Option<u8>,
@@ -185,8 +185,8 @@ pub struct GpioOutputsConfig {
     pub pins_keypad_cols: Option<[u8; 3]>,
 }
 
-#[serde(rename_all = "kebab-case")]
 #[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct DebugConfig {
     /// Plays the panic tone when a Lua script encounters an error.
     pub enable_panic_tone: Option<bool>

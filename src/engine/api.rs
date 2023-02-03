@@ -129,7 +129,7 @@ impl<'lua> CursedEngine<'lua> {
         }).unwrap());
 
         // sound.is_channel_muted(channel)
-        tbl_sound.set("is_channel_muted", lua.create_function(move |_, (channel): (usize)| {
+        tbl_sound.set("is_channel_muted", lua.create_function(move |_, channel: usize| {
             Ok(self.sound_engine.borrow().is_muted(Channel::from(channel)))
         }).unwrap());
 
