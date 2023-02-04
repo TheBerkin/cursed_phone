@@ -76,11 +76,12 @@ CHAN_BG4 = 18
 
 
 --- @class SoundPlayOptions
---- @field volume number @ Multiply each sample by this value (Default: `1.0`)
---- @field interrupt boolean @ Stop other sounds on the channel before playing (Default: `true`)
---- @field speed number @ Multiply the playback speed (Default: `1.0`)
---- @field looping boolean @ Make the sound loop forever (Default: `false`)
---- @field skip number @ Skip forward by `skip` seconds before playing (Default: `0.0`)
+--- @field volume number @ Amplitude is multiplied by this value (Default: `1.0`)
+--- @field interrupt boolean @ Indicates whether to stops other sounds on the channel before playing (Default: `true`)
+--- @field speed number @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
+--- @field looping boolean @ Indicates whether to make the sound loop forever (Default: `false`)
+--- @field skip number @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
+--- @field take number|nil @ Cut sound to maximum of `take` seconds (before speed adjustment) (Default: `nil`)
 
 if not sound then
     --- Provides functions for controlling multi-channel sound playback.

@@ -81,22 +81,27 @@ impl<'lua> CursedEngine<'lua> {
             let mut looping: Option<bool> = None;
             let mut volume: Option<f32> = None;
             let mut skip: Option<Duration> = None;
+            let mut take: Option<Duration> = None;
             if let Some(opts_table) = opts {
                 speed = opts_table.get::<&str, f32>("speed").ok();
                 interrupt = opts_table.get::<&str, bool>("interrupt").ok();
                 looping = opts_table.get::<&str, bool>("looping").ok();
                 volume = opts_table.get::<&str, f32>("volume").ok();
                 skip = opts_table.get::<&str, f32>("skip").ok().map(|secs| Duration::from_secs_f32(secs));
+                take = opts_table.get::<&str, f32>("take").ok().map(|secs| Duration::from_secs_f32(secs));
             }
             self.sound_engine.borrow().play(
                 path.as_str(), 
                 Channel::from(channel), 
                 false, 
-                looping.unwrap_or(false), 
-                interrupt.unwrap_or(true), 
-                speed.unwrap_or(1.0),
-                volume.unwrap_or(1.0),
-                skip.unwrap_or_default(),
+                interrupt.unwrap_or(true),
+                SoundPlayOptions {
+                    looping: looping.unwrap_or(false),
+                    speed: speed.unwrap_or(1.0),
+                    volume: volume.unwrap_or(1.0),
+                    skip: skip.unwrap_or_default(),
+                    take
+                }
             );
             Ok(())
         }).unwrap());

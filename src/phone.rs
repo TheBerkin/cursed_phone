@@ -187,10 +187,7 @@ impl PhoneEngine {
                         if on_hook { "handset/hangup*" } else { "handset/pickup*" }, 
                         Channel::SignalOut, 
                         false, 
-                        false, 
-                        true, 
-                        1.0, 
-                        1.0,
+                        true,                       
                         Default::default());
                 },
                 Digit(digit) => {
@@ -220,13 +217,12 @@ impl PhoneEngine {
                         {
                             if on {
                                 self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, 
-                                
                                 false, 
                                 true, 
-                                true, 
-                                1.0, 
-                                1.0,
-                                Default::default());
+                                SoundPlayOptions {
+                                    looping: true,
+                                    .. Default::default()
+                                });
                             } else {
                                 self.sound_engine.borrow().stop(Channel::SignalOut)
                             }
