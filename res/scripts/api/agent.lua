@@ -157,7 +157,7 @@ local _AgentModule_MEMBERS = {
     --- Adds a function table for the specified state code.
     --- @param self AgentModule
     --- @param state AgentStateCode
-    --- @param func_table table
+    --- @param func_table { enter: fun(self: AgentModule), tick: fun(self: AgentModule), exit: fun(self: AgentModule), message: fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) }
     state = function(self, state, func_table)
         --- @diagnostic disable-next-line: undefined-field
         self._state_func_tables[state] = func_table

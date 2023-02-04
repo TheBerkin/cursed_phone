@@ -8,7 +8,7 @@ pub use debounce::*;
 pub use pull::*;
 use rppal::gpio::{Gpio, OutputPin, InputPin, Pin};
 
-use std::{sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}}, iter::Map, collections::HashMap};
+use std::{sync::{mpsc, Mutex, Arc, atomic::{AtomicBool, Ordering}}, collections::HashMap};
 use std::time::{Instant, Duration};
 use std::thread;
 use std::rc::Rc;

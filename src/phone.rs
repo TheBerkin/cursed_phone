@@ -190,7 +190,8 @@ impl PhoneEngine {
                         false, 
                         true, 
                         1.0, 
-                        1.0);
+                        1.0,
+                        Default::default());
                 },
                 Digit(digit) => {
                     self.sound_engine.borrow().play_dtmf(digit, self.dtmf_tone_duration, 1.0);
@@ -224,7 +225,8 @@ impl PhoneEngine {
                                 true, 
                                 true, 
                                 1.0, 
-                                1.0);
+                                1.0,
+                                Default::default());
                             } else {
                                 self.sound_engine.borrow().stop(Channel::SignalOut)
                             }

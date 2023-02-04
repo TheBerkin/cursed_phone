@@ -1,5 +1,3 @@
-use log::warn;
-
 #[derive(Copy, Clone, Debug)]
 pub enum Pull {
     None,

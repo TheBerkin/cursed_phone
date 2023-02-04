@@ -412,7 +412,8 @@ impl<'lua> CursedEngine<'lua> {
             true,
             true,
             1.0,
-            self.config.sound.comfort_noise_volume
+            self.config.sound.comfort_noise_volume,
+            Default::default(),
         );
     }
 
@@ -568,7 +569,7 @@ impl<'lua> CursedEngine<'lua> {
                     if rotary_rest_lifted_time > self.rotary_first_pulse_delay {
                         // Increment pulse count
                         update_cell(&self.pending_pulse_count, |old| old + 1);
-                        self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0);
+                        self.sound_engine.borrow().play("rotary/pulse", Channel::SignalOut, false, false, true, 1.0, 1.0, Default::default());
                     } else {
                         trace!("Discarded premature rotary dial pulse");
                     }
@@ -747,6 +748,7 @@ impl<'lua> CursedEngine<'lua> {
                 _ => {
                     if self.switchhook_dialing_enabled {
                         update_cell(&self.pending_pulse_count, |p| p + 1);
+                        info!("SHD pulse (n = {})", self.pending_pulse_count.get());
                     }
                 }
             }

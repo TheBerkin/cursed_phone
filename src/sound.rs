@@ -348,7 +348,7 @@ impl SoundEngine {
 }
 
 impl SoundEngine {
-    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool, speed: f32, volume: f32) {
+    pub fn play(&self, key: &str, channel: Channel, wait: bool, looping: bool, interrupt: bool, speed: f32, volume: f32, skip: Duration) {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
@@ -359,7 +359,7 @@ impl SoundEngine {
                 let ch = &self.channels.borrow_mut()[channel.as_index()];
 
                 // Queue sound in sink
-                ch.queue(sound, looping, speed, volume);
+                ch.queue(sound, looping, speed, volume, skip);
                 
                 // Optionally wait
                 if wait {
@@ -625,20 +625,20 @@ impl SoundChannel {
         self.sink.stop();
     }
 
-    fn queue(&self, snd: Rc<Sound>, looping: bool, speed: f32, volume: f32) {
+    fn queue(&self, snd: Rc<Sound>, looping: bool, speed: f32, volume: f32, skip: Duration) {
         let src = snd.src.clone().amplify(volume);
-        let speed_mod = speed != 1.0;
+        let is_nonstandard_speed = speed != 1.0;
         if looping {
-            if speed_mod {
-                self.sink.append(src.speed(speed).repeat_infinite());
+            if is_nonstandard_speed {
+                self.sink.append(src.speed(speed).repeat_infinite().skip_duration(skip));
             } else {
-                self.sink.append(src.repeat_infinite());
+                self.sink.append(src.repeat_infinite().skip_duration(skip));
             }
         } else {
-            if speed_mod {
-                self.sink.append(src.speed(speed));
+            if is_nonstandard_speed {
+                self.sink.append(src.speed(speed).skip_duration(skip));
             } else {
-                self.sink.append(src);
+                self.sink.append(src.skip_duration(skip));
             }
         }
     }

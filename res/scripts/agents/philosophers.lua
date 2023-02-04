@@ -28,7 +28,7 @@ module:state(AGENT_STATE_CALL_OUT, {
 
 module:state(AGENT_STATE_CALL, {
     enter = function(self)
-        if module:get_reason() == CALL_REASON_USER_INIT then
+        if self:get_reason() == CALL_REASON_USER_INIT then
             sound.play("handset/pickup*", CHAN_PHONE2)
             if chance(0.5) then
                 sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), CHAN_PHONE3, { volume = 0.25 })

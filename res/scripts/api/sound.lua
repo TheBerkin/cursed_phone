@@ -74,20 +74,22 @@ CHAN_BG3 = 17
 --- @type SoundChannel
 CHAN_BG4 = 18
 
+
+--- @class SoundPlayOptions
+--- @field volume number @ Multiply each sample by this value (Default: `1.0`)
+--- @field interrupt boolean @ Stop other sounds on the channel before playing (Default: `true`)
+--- @field speed number @ Multiply the playback speed (Default: `1.0`)
+--- @field looping boolean @ Make the sound loop forever (Default: `false`)
+--- @field skip number @ Skip forward by `skip` seconds before playing (Default: `0.0`)
+
 if not sound then
     --- Provides functions for controlling multi-channel sound playback.
     sound = {}
 
     --- Plays a sound on a specific channel.
-    ---
-    --- Available options:
-    --- * `looping: boolean` Make the sound loop (Default: `false`)
-    --- * `interrupt: boolean` Stop other sounds on the channel before playing (Default: `true`)
-    --- * `speed: number` Multiply the playback speed (Default: `1.0`)
-    --- * `volume: number` Multiply each sample by this value (Default: `1.0`)
-    --- @param path string
-    --- @param channel SoundChannel
-    --- @param opts table?
+    --- @param path string @ A soundglob or path to the sound to play. Soundglobs will play a random matching sound.
+    --- @param channel SoundChannel @ The channel to play the sound on.
+    --- @param opts SoundPlayOptions? @ The options to apply to the played sound.
     function sound.play(path, channel, opts) end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
@@ -159,15 +161,9 @@ end
 --- *(Agent use only)*
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
----
---- Available options:
---- * `looping: boolean` Make the sound loop (Default: `false`)
---- * `interrupt: boolean` Stop other sounds on the channel before playing (Default: `true`)
---- * `speed: number` Multiply the playback speed (Default: `1.0`)
---- * `volume: number` Multiply each sample by this value (Default: `1.0`)
 --- @param path string
 --- @param channel integer
---- @param opts table?
+--- @param opts SoundPlayOptions?
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
@@ -179,16 +175,12 @@ end
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end or until the specified predicate returns true.
 ---
---- Available options:
---- * `looping: boolean` Make the sound loop (Default: `false`)
---- * `interrupt: boolean` Stop other sounds on the channel before playing (Default: `true`)
---- * `speed: number` Multiply the playback speed (Default: `1.0`)
---- * `volume: number` Multiply each sample by this value (Default: `1.0`)
+--- Additional options:
 --- * `early_stop: boolean` Stop the channel if canceled (Default: `true`)
 --- @param path string
 --- @param channel integer
 --- @param predicate function
---- @param opts table?
+--- @param opts SoundPlayOptions?
 function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)
