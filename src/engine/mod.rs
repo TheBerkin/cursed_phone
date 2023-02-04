@@ -64,7 +64,7 @@ pub enum PhoneLineState {
 
 #[inline]
 fn pulses_to_digit(pulse_count: usize) -> Option<char> {
-    PULSE_DIAL_DIGITS.get(pulse_count).map(|d| *d as char)
+    PULSE_DIAL_DIGITS.get(pulse_count.saturating_sub(1)).map(|d| *d as char)
 }
 
 /// A Lua-powered telephone exchange that loads,
@@ -718,10 +718,10 @@ impl<'lua> CursedEngine<'lua> {
         self.switchhook_change_time.replace(hook_change_time);
         self.switchhook_closed.replace(on_hook);
         if on_hook {
+            info!("Switchhook CLOSED");
             match state {
                 Idle | IdleRinging => {}
                 _ => {
-                    info!("Switchhook CLOSED");
 
                     // Only hang up the call immediately if switchhook dialing is disabled
                     if !self.switchhook_dialing_enabled {
@@ -730,22 +730,24 @@ impl<'lua> CursedEngine<'lua> {
                 }
             }
         } else {
+            info!("Switchhook OPEN");
             // Only process this signal if the line is inactive or ringing
             match state {
                 // Picking up idle phone
                 Idle => {
-                    info!("Switchhook OPEN");
                     self.set_state(PhoneLineState::DialTone);
                 },
                 // Answering a call
                 IdleRinging => {
-                    info!("Switchhook OPEN, connecting call.");
+                    info!("Connecting call.");
                     // Connect the call
                     self.add_time_credit(Duration::MAX);
                     self.set_state(PhoneLineState::Connected);
                 },
                 _ => {
-                    update_cell(&self.pending_pulse_count, |p| p + 1);
+                    if self.switchhook_dialing_enabled {
+                        update_cell(&self.pending_pulse_count, |p| p + 1);
+                    }
                 }
             }
         }
