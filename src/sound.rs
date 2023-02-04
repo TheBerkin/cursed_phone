@@ -188,9 +188,9 @@ pub struct SoundEngine {
 struct SoundChannel {
     id: Channel,
     sink: rodio::Sink,
-    volume_a: f32,
-    volume_b: f32,
-    volume_c: f32,
+    volume_master: f32,
+    volume_channel: f32,
+    volume_fade: f32,
     muted: bool,
 }
 
@@ -218,6 +218,7 @@ pub struct SoundPlayOptions {
     pub looping: bool,
     pub skip: Duration,
     pub take: Option<Duration>,
+    pub fadein: Duration,
 }
 
 impl Default for SoundPlayOptions {
@@ -227,7 +228,8 @@ impl Default for SoundPlayOptions {
             speed: 1.0, 
             looping: false, 
             skip: Default::default(), 
-            take: Default::default() 
+            take: Default::default(),
+            fadein: Default::default(),
         }
     }
 }
@@ -377,9 +379,10 @@ impl SoundEngine {
                     self.stop(channel);
                 }
 
-                let ch = &self.channels.borrow_mut()[channel.as_index()];
+                let ch = &mut self.channels.borrow_mut()[channel.as_index()];
 
                 // Queue sound in sink
+                ch.set_volume(VolumeLayer::Fade, 1.0);
                 ch.queue(sound, opts);
                 
                 // Optionally wait
@@ -498,11 +501,19 @@ impl SoundEngine {
     }
 
     pub fn set_volume(&mut self, channel: Channel, volume: f32) {
-        self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::B, volume);
+        self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::Channel, volume);
     }
 
     pub fn volume(&self, channel: Channel) -> f32 {
-        self.channels.borrow()[channel.as_index()].volume(VolumeLayer::B)
+        self.channels.borrow()[channel.as_index()].volume(VolumeLayer::Channel)
+    }
+
+    pub fn set_fade_volume(&mut self, channel: Channel, volume: f32) {
+        self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::Fade, volume);
+    }
+
+    pub fn fade_volume(&self, channel: Channel) -> f32 {
+        self.channels.borrow()[channel.as_index()].volume(VolumeLayer::Fade)
     }
 
     pub fn master_volume(&self) -> f32 {
@@ -512,7 +523,7 @@ impl SoundEngine {
     pub fn set_master_volume(&mut self, master_volume: f32) {
         self.master_volume = master_volume;
         for ch in enum_iterator::all::<Channel>() {
-            self.channels.borrow_mut()[ch.as_index()].set_volume(VolumeLayer::A, master_volume);
+            self.channels.borrow_mut()[ch.as_index()].set_volume(VolumeLayer::Master, master_volume);
         }
     }
 
@@ -575,12 +586,12 @@ impl SoundEngine {
 
 #[derive(Clone, Copy, PartialEq)]
 enum VolumeLayer {
-    /// Volume Layer A - Master Volume
-    A,
-    /// Volume Layer B - Channel Volume
-    B,
-    /// Volume Layer C - Custom Volume
-    C,
+    /// Master volume mix
+    Master,
+    /// Channel volume mix
+    Channel,
+    /// Fade volume mix
+    Fade,
 }
 
 impl SoundChannel {
@@ -589,9 +600,9 @@ impl SoundChannel {
         let ch = Self {
             sink,
             id,
-            volume_a: 1.0,
-            volume_b: 1.0,
-            volume_c: 1.0,
+            volume_master: 1.0,
+            volume_channel: 1.0,
+            volume_fade: 1.0,
             muted: false,
         };
         //ch.update_sink_volume(engine.master_volume);
@@ -607,22 +618,22 @@ impl SoundChannel {
     }
 
     fn mixed_volume(&self) -> f32 {
-        self.volume_a * self.volume_b * self.volume_c * if self.muted { 0.0 } else { 1.0 }
+        self.volume_master * self.volume_channel * self.volume_fade * if self.muted { 0.0 } else { 1.0 }
     }
 
     fn volume(&self, layer: VolumeLayer) -> f32 {
         match layer {
-            VolumeLayer::A => self.volume_a,
-            VolumeLayer::B => self.volume_b,
-            VolumeLayer::C => self.volume_c,
+            VolumeLayer::Master => self.volume_master,
+            VolumeLayer::Channel => self.volume_channel,
+            VolumeLayer::Fade => self.volume_fade,
         }
     }
 
     fn set_volume(&mut self, layer: VolumeLayer, volume: f32) -> &mut Self {
         let dst_volume = match layer {
-            VolumeLayer::A => &mut self.volume_a,
-            VolumeLayer::B => &mut self.volume_b,
-            VolumeLayer::C => &mut self.volume_c,
+            VolumeLayer::Master => &mut self.volume_master,
+            VolumeLayer::Channel => &mut self.volume_channel,
+            VolumeLayer::Fade => &mut self.volume_fade,
         };
         *dst_volume = volume;
         self.update_sink_volume();
@@ -652,29 +663,29 @@ impl SoundChannel {
         if let Some(take) = opts.take {
             if opts.looping {
                 if is_nonstandard_speed {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take).speed(opts.speed));
+                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take));
+                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take).fade_in(opts.fadein));
                 }
             } else {
                 if is_nonstandard_speed {
-                    self.sink.append(src.skip_duration(opts.skip).take_duration(take).speed(opts.speed));
+                    self.sink.append(src.skip_duration(opts.skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.skip_duration(opts.skip).take_duration(take));
+                    self.sink.append(src.skip_duration(opts.skip).take_duration(take).fade_in(opts.fadein));
                 }
             }
         } else {
             if opts.looping {
                 if is_nonstandard_speed {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).speed(opts.speed));
+                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip));
+                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).fade_in(opts.fadein));
                 }
             } else {
                 if is_nonstandard_speed {
-                    self.sink.append(src.skip_duration(opts.skip).speed(opts.speed));
+                    self.sink.append(src.skip_duration(opts.skip).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.skip_duration(opts.skip));
+                    self.sink.append(src.skip_duration(opts.skip).fade_in(opts.fadein));
                 }
             }
         }

@@ -76,12 +76,13 @@ CHAN_BG4 = 18
 
 
 --- @class SoundPlayOptions
---- @field volume number @ Amplitude is multiplied by this value (Default: `1.0`)
---- @field interrupt boolean @ Indicates whether to stops other sounds on the channel before playing (Default: `true`)
---- @field speed number @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
---- @field looping boolean @ Indicates whether to make the sound loop forever (Default: `false`)
---- @field skip number @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
---- @field take number|nil @ Cut sound to maximum of `take` seconds (before speed adjustment) (Default: `nil`)
+--- @field volume number? @ Amplitude is multiplied by this value (Default: `1.0`)
+--- @field interrupt boolean? @ Indicates whether to stops other sounds on the channel before playing (Default: `true`)
+--- @field speed number? @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
+--- @field looping boolean? @ Indicates whether to make the sound loop forever (Default: `false`)
+--- @field skip number? @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
+--- @field take number? @ Cut sound to maximum of `take` seconds (before speed adjustment) (Default: `nil`)
+--- @field fadein number? @ Fades in the sound over `fadein` seconds (after speed adjustment) (Default: `0`)
 
 if not sound then
     --- Provides functions for controlling multi-channel sound playback.
@@ -110,10 +111,15 @@ if not sound then
     --- @return number
     function sound.get_channel_volume(channel) return 0 end
 
-    --- Sets the volume of the specified channel.
+    --- Gets the fade volume of the specified channel.
+    --- @param channel SoundChannel
+    --- @return number
+    function sound.get_channel_fade_volume(channel) return 0 end
+
+    --- Sets the fade volume of the specified channel.
     --- @param channel SoundChannel
     --- @param volume number
-    function sound.set_channel_volume(channel, volume) end
+    function sound.set_channel_fade_volume(channel, volume) end
 
     --- Gets the master volume.
     --- @return number
@@ -190,6 +196,33 @@ function sound.play_wait_cancel(path, channel, predicate, opts)
     end
     if not opts or opts.early_stop == nil or opts.early_stop == true then
         sound.stop(channel)
+    end
+end
+
+--- *(Agent use only)*
+---
+--- Fades out the sound on the specified channel over `duration` seconds, then stops the sound. 
+--- @param channel SoundChannel @ The channel to fade out
+--- @param duration number @ The duration of the fade in seconds
+function sound.fade_out(channel, duration)
+    if not sound.is_busy(channel) then return end
+    local fade_volume_start = sound.get_channel_fade_volume(channel)
+    local start_time = engine_time()
+    local end_time = engine_time() + duration
+    while true do
+        local time = engine_time()
+        local progress = math.invlerp(time, start_time, end_time, true)
+
+        if not sound.is_busy(channel) then return end
+
+        if progress >= 1 then
+            sound.stop(channel)
+            return
+        else
+            local fade_volume = math.lerp(1, 0, progress, true)
+            sound.set_channel_fade_volume(channel, fade_volume)
+        end
+        agent.intent(AGENT_INTENT_WAIT)
     end
 end
 

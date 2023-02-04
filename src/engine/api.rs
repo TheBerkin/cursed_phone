@@ -82,6 +82,7 @@ impl<'lua> CursedEngine<'lua> {
             let mut volume: Option<f32> = None;
             let mut skip: Option<Duration> = None;
             let mut take: Option<Duration> = None;
+            let mut fadein: Option<Duration> = None;
             if let Some(opts_table) = opts {
                 speed = opts_table.get::<&str, f32>("speed").ok();
                 interrupt = opts_table.get::<&str, bool>("interrupt").ok();
@@ -89,6 +90,7 @@ impl<'lua> CursedEngine<'lua> {
                 volume = opts_table.get::<&str, f32>("volume").ok();
                 skip = opts_table.get::<&str, f32>("skip").ok().map(|secs| Duration::from_secs_f32(secs));
                 take = opts_table.get::<&str, f32>("take").ok().map(|secs| Duration::from_secs_f32(secs));
+                fadein = opts_table.get::<&str, f32>("fadein").ok().map(|secs| Duration::from_secs_f32(secs));
             }
             self.sound_engine.borrow().play(
                 path.as_str(), 
@@ -100,7 +102,8 @@ impl<'lua> CursedEngine<'lua> {
                     speed: speed.unwrap_or(1.0),
                     volume: volume.unwrap_or(1.0),
                     skip: skip.unwrap_or_default(),
-                    take
+                    take,
+                    fadein: fadein.unwrap_or_default(),
                 }
             );
             Ok(())
@@ -133,6 +136,18 @@ impl<'lua> CursedEngine<'lua> {
         // sound.set_channel_volume(channel, volume)
         tbl_sound.set("set_channel_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
             self.sound_engine.borrow_mut().set_volume(Channel::from(channel), volume);
+            Ok(())
+        }).unwrap());
+
+        // sound.get_channel_fade_volume(channel)
+        tbl_sound.set("get_channel_fade_volume", lua.create_function(move |_, channel: usize| {
+            let vol = self.sound_engine.borrow().fade_volume(Channel::from(channel));
+            Ok(vol)
+        }).unwrap());
+    
+        // sound.set_channel_fade_volume(channel, volume)
+        tbl_sound.set("set_channel_fade_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
+            self.sound_engine.borrow_mut().set_fade_volume(Channel::from(channel), volume);
             Ok(())
         }).unwrap());
 
