@@ -878,14 +878,14 @@ impl<'lua> CursedEngine<'lua> {
         let agent_modules = self.agents.borrow();
         let agent_iter = agent_modules.iter();
         for (_, agent) in agent_iter {
-            let mut intent = agent.tick(AgentData::None);
+            let mut intent = agent.tick(AgentIntentResponse::None);
             let mut call_attempted = false;
             'agrnt_next_intent: loop {
                 match intent {
                     // Agent requests a digit from the user
                     Ok(ReadDigit) => {
                         if let Some(digit) = self.consume_dialed_digit() {
-                            intent = agent.tick(AgentData::Digit(digit));
+                            intent = agent.tick(AgentIntentResponse::Digit(digit));
                             continue;
                         }
                     },
@@ -903,7 +903,7 @@ impl<'lua> CursedEngine<'lua> {
                             self.last_caller_id.replace(agent.id());
                         } else {
                             // Tell the agent they're busy
-                            intent = agent.tick(AgentData::LineBusy);
+                            intent = agent.tick(AgentIntentResponse::LineBusy);
                             if call_attempted {
                                 break 'agrnt_next_intent
                             }

@@ -136,7 +136,7 @@ impl<'lua> AgentModule<'lua> {
     }
 
     #[inline]
-    pub fn tick(&self, data: AgentData) -> LuaResult<AgentIntent> {
+    pub fn tick(&self, data: AgentIntentResponse) -> LuaResult<AgentIntent> {
         if self.suspended() {
             return Ok(AgentIntent::Idle)
         }
@@ -146,9 +146,9 @@ impl<'lua> AgentModule<'lua> {
 
         // Tick agent
         let (intent_code, intent_data) = match data {
-            AgentData::None => self.func_tick.call((agent_table, data_code))?,
-            AgentData::Digit(digit) => self.func_tick.call((agent_table, data_code, digit.to_string()))?,
-            AgentData::LineBusy => self.func_tick.call((agent_table, data_code))?
+            AgentIntentResponse::None => self.func_tick.call((agent_table, data_code))?,
+            AgentIntentResponse::Digit(digit) => self.func_tick.call((agent_table, data_code, digit.to_string()))?,
+            AgentIntentResponse::LineBusy => self.func_tick.call((agent_table, data_code))?
         };
 
         let intent = AgentIntent::from_lua_value(intent_code, intent_data);

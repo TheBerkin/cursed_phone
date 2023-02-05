@@ -225,7 +225,7 @@ local M_AgentModule = {
 --- Returns an empty phone agent module.
 --- @param name string @ The display name of the phone agent
 --- @param phone_number string? @ The number associated with the phone agent
---- @param role AgentRole? @ The role of the agent in the system
+--- @param role AgentRole? @ The role of the agent in the system; defaults to regular role
 --- @return AgentModule
 function AGENT_MODULE(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
@@ -297,6 +297,31 @@ end
 function agent.wait_until(predicate)
     while not predicate() do
         agent.intent(AGENT_INTENT_WAIT)
+    end
+end
+
+--- @param ... function
+function agent.multi_task(...)
+    local coroutines = table.map({...}, function(f) return {
+        co = coroutine.create(f),
+        last_response_code = AGENT_DATA_NONE,
+        last_response_data = nil
+    } end)
+
+    while true do 
+        local tasks_running = false
+        for _,state in pairs(coroutines) do
+            if coroutine.status(state.co) ~= 'dead' then
+                local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
+                tasks_running = true
+                if success then
+                    local response_code, response_data = agent.intent(intent, intent_data)
+                    state.last_response_code = response_code
+                    state.last_response_data = response_data
+                end
+            end
+        end
+        if not tasks_running then return end
     end
 end
 

@@ -79,14 +79,23 @@ impl CallReason {
 
 #[derive(Clone, Debug)]
 pub enum AgentIntent {
+    /// Agent performed no action.
     Idle,
+    /// Agent wants to accept an incoming call.
     AcceptCall,
+    /// Agent wants to end an ongoing call.
     EndCall,
+    /// Agent wants to call the host.
     CallUser,
+    /// Agent is waiting for an operation to complete.
     Wait,
+    /// Agent is requesting a digit from the host.
     ReadDigit,
+    /// Agent wants to forward the call to a specified phone number.
     ForwardCall(String),
+    /// Agent has ended its current state.
     StateEnded(AgentState),
+    /// Agent wants to forward the call to a specified Agent ID.
     ForwardCallToId(AgentId),
 }
 
@@ -117,18 +126,18 @@ impl AgentIntent {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum AgentData {
+pub enum AgentIntentResponse {
     None,
     Digit(char),
     LineBusy
 }
 
-impl AgentData {
+impl AgentIntentResponse {
     pub fn to_code(&self) -> usize {
         match self {
-            AgentData::None => 0,
-            AgentData::Digit(_) => 1,
-            AgentData::LineBusy => 2
+            AgentIntentResponse::None => 0,
+            AgentIntentResponse::Digit(_) => 1,
+            AgentIntentResponse::LineBusy => 2
         }
     }
 }

@@ -206,7 +206,6 @@ end
 --- @param duration number @ The duration of the fade in seconds
 function sound.fade_out(channel, duration)
     if not sound.is_busy(channel) then return end
-    local fade_volume_start = sound.get_channel_fade_volume(channel)
     local start_time = engine_time()
     local end_time = engine_time() + duration
     while true do
@@ -221,6 +220,41 @@ function sound.fade_out(channel, duration)
         else
             local fade_volume = math.lerp(1, 0, progress, true)
             sound.set_channel_fade_volume(channel, fade_volume)
+        end
+        agent.intent(AGENT_INTENT_WAIT)
+    end
+end
+
+--- *(Agent use only)*
+---
+--- Fades out the sound on the specified channels over `duration` seconds, then stops the sounds. 
+--- @param channels SoundChannel[] @ The channels to fade out
+--- @param duration number @ The duration of the fade in seconds
+function sound.fade_out_multi(channels, duration)
+    local start_time = engine_time()
+    local end_time = engine_time() + duration
+    while true do
+        local time = engine_time()
+        local progress = math.invlerp(time, start_time, end_time, true)
+
+        if progress >= 1 then
+            for i = 1, #channels do
+                local channel = channels[i]
+                sound.stop(channel)
+            end
+            return
+        else
+            local fade_volume = math.lerp(1, 0, progress, true)
+            local is_any_channel_busy = false
+            for i = 1, #channels do
+                local channel = channels[i]
+                if sound.is_busy(channel) then 
+                    is_any_channel_busy = true
+                    sound.set_channel_fade_volume(channel, fade_volume)
+                end
+            end
+
+            if not is_any_channel_busy then return end
         end
         agent.intent(AGENT_INTENT_WAIT)
     end

@@ -13,23 +13,37 @@ module:state(AGENT_STATE_CALL_IN, {
     end
 })
 
+local function do_lightning()
+    agent.wait(rand_float(0, 5))
+    sound.play_wait("$beyond/lightning_*", CHAN_PHONE5, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1), skip = rand_float(0, 10) })
+    while true do
+        agent.wait(rand_float(5, 50))
+        sound.play_wait("$beyond/lightning_*", CHAN_PHONE5, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1) })
+    end
+end
+
+local function do_seagulls()
+    agent.wait(rand_float(0, 5))
+    sound.play_wait("$beyond/seagulls_*", CHAN_PHONE6, { volume = rand_float(0.05, 0.1), speed = rand_float(0.9, 1.2), skip = rand_float(0, 10), fadein = 2 })
+    while true do
+        agent.wait(rand_float(5, 40))
+        sound.play_wait("$beyond/seagulls_*", CHAN_PHONE6, { volume = rand_float(0.05, 0.1), speed = rand_float(0.9, 1.2), fadein = 2 })
+    end
+end
+
 module:state(AGENT_STATE_CALL, {
     enter = function(self)
         if self:get_reason() == CALL_REASON_USER_INIT then
-            sound.play("handset/pickup*", CHAN_PHONE2)
+            sound.play("handset/pickup*", CHAN_PHONE2, { skip = rand_float(0, 0.3) })
             if chance(0.5) then
                 sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), CHAN_PHONE3, { volume = 0.25 })
             end
         end
 
-        sound.play("$beyond/amb_waves", CHAN_BG1, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
-        sound.play("$beyond/amb_desert", CHAN_BG2, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
+        sound.play("$beyond/amb_waves", CHAN_PHONE3, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
+        sound.play("$beyond/amb_desert", CHAN_PHONE4, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
 
-        agent.wait(rand_float(0, 10))
-        while true do
-            sound.play_wait("$beyond/lightning_*", CHAN_BG3, { volume = rand_float(0.05, 0.3), speed = rand_float(0.8, 1.1) })
-            agent.wait(rand_float(10, 60))
-        end
+        agent.multi_task(do_lightning, do_seagulls)
     end
 })
 
