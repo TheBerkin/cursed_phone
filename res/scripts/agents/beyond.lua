@@ -15,10 +15,10 @@ module:state(AGENT_STATE_CALL_IN, {
 
 local function do_lightning()
     agent.wait(rand_float(0, 5))
-    sound.play_wait("$beyond/lightning_*", CHAN_PHONE5, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1), skip = rand_float(0, 10) })
+    sound.play_wait("$beyond/lightning_*", CHAN_PHONE7, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1), skip = rand_float(0, 10) })
     while true do
         agent.wait(rand_float(5, 50))
-        sound.play_wait("$beyond/lightning_*", CHAN_PHONE5, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1) })
+        sound.play_wait("$beyond/lightning_*", CHAN_PHONE7, { volume = rand_float(0.05, 0.4), speed = rand_float(0.8, 1.1) })
     end
 end
 
@@ -42,6 +42,7 @@ module:state(AGENT_STATE_CALL, {
 
         sound.play("$beyond/amb_waves", CHAN_PHONE3, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
         sound.play("$beyond/amb_desert", CHAN_PHONE4, { volume = rand_float(0.1, 0.25), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
+        sound.play("$beyond/amb_crows", CHAN_PHONE5, { volume = rand_float(0.01, 0.04), speed = rand_float(0.9, 1.1), skip = rand_float(0, 15), looping = true })
 
         agent.multi_task(do_lightning, do_seagulls)
     end
