@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("philosophers", "9873763")
+local module = create_agent("philosophers", "9873763")
 module:require_sound_bank('philosophers')
 
 module:state(AGENT_STATE_IDLE, {

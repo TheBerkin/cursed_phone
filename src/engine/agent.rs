@@ -25,8 +25,8 @@ impl<'lua> AgentModule<'lua> {
                 let phone_number = table.raw_get("_phone_number").unwrap();
                 let role = AgentRole::from(table.raw_get::<&'static str, usize>("_role").unwrap());
                 let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
-                let func_load: Option<LuaFunction<'lua>> = table.raw_get("load").unwrap();
-                let func_unload = table.raw_get("unload").unwrap();
+                let func_load: Option<LuaFunction<'lua>> = table.raw_get("_on_load").unwrap();
+                let func_unload = table.raw_get("_on_unload").unwrap();
                 let func_tick = table.get("tick").expect("tick() function not found");
                 let mut required_sound_banks: Vec<String> = Default::default();
                 let mut custom_price = None;
@@ -35,19 +35,7 @@ impl<'lua> AgentModule<'lua> {
                     if let Ok(price) = table.raw_get("_custom_price") {
                         custom_price = price;
                     }
-                }
-
-                // Start state machine
-                table.call_method::<&str, _, ()>("start", ()).expect(format!("Unable to start state machine for {}", name).as_str());
-
-                // Call load() if available
-                if let Some(func_load) = &func_load {
-                    let load_args = lua.create_table().unwrap();
-                    load_args.set("path", path.to_str()).unwrap();
-                    if let Err(err) = func_load.call::<LuaTable, ()>(load_args) {
-                        return Err(format!("Error while calling agent loader: {:#?}", err));
-                    }
-                }      
+                }   
                 
                 // Get required sound banks
                 if let Ok(bank_name_table) = table.raw_get::<&'static str, LuaTable>("_required_sound_banks") {
@@ -90,6 +78,24 @@ impl<'lua> AgentModule<'lua> {
         for bank_name in &self.required_sound_banks {
             sound_engine.remove_sound_bank_user(bank_name, SoundBankUser(self.id().unwrap()), true);
         }
+    }
+
+    pub fn start_state_machine(&self) -> Result<bool, LuaError> {
+        self.tbl_module.call_method::<&str, _, bool>("start", ())
+    }
+
+    pub fn call_load_handler(&self) -> Result<(), LuaError> {
+        if let Some(func_load) = &self.func_load {
+            func_load.call::<LuaTable, ()>(self.tbl_module.clone())?;
+        }
+        Ok(())
+    }
+
+    pub fn call_unload_handler(&self) -> Result<(), LuaError> {
+        if let Some(func_unload) = &self.func_unload {
+            func_unload.call::<LuaTable, ()>(self.tbl_module.clone())?;
+        }
+        Ok(())
     }
 
     pub fn register_id(&self, id: AgentId) {

@@ -31,36 +31,36 @@ if _NATIVE_STUB then
     --- Generates a random integer between an inclusive minimum and exclusive maximum.
     --- @param min integer
     --- @param max integer
-    --- @type function
-    function rand_int(min, max) end
+    --- @return integer
+    function rand_int(min, max) return 0 end
 
     --- Generates a random integer between an inclusive minimum and exclusive maximum,
     --- but avoids the `skip` value within the range.
     --- @param min integer
     --- @param skip integer
     --- @param max integer
-    --- @type function
-    function rand_int_skip(min, skip, max) end
+    --- @return integer
+    function rand_int_skip(min, skip, max) return 0 end
 
     --- Generates a random integer between an inclusive minimum and exclusive maximum
     --- with an asymptotal distribution biased to lower values.
     --- @param min integer
     --- @param max integer
-    --- @type function
-    function rand_int_bias_low(min, max) end
+    --- @return integer
+    function rand_int_bias_low(min, max) return 0 end
 
     --- Generates a random integer between an inclusive minimum and exclusive maximum
     --- with an asymptotal distribution biased to higher values.
     --- @param min integer
     --- @param max integer
-    --- @type function
-    function rand_int_bias_high(min, max) end
+    --- @return integer
+    function rand_int_bias_high(min, max) return 0 end
 
     --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
     --- @param min number
     --- @param max number
-    --- @type function
-    function rand_float(min, max) end
+    --- @return number
+    function rand_float(min, max) return 0 end
 
     --- Returns a boolean value with probability `p` of being true, where `0.0 <= p <= 1.0`.
     --- @param p number

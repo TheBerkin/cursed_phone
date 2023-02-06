@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("intercept", nil, AGENT_ROLE_INTERCEPT)
+local module = create_agent("intercept", nil, AGENT_ROLE_INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 

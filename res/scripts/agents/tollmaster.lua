@@ -1,4 +1,4 @@
-local module = AGENT_MODULE('toll', nil, AGENT_ROLE_TOLLMASTER)
+local module = create_agent('toll', nil, AGENT_ROLE_TOLLMASTER)
 
 local NAG_TONE_VOLUME = 0.5
 

@@ -367,6 +367,9 @@ impl<'lua> CursedEngine<'lua> {
                             _ => {}
                         }
 
+                        agent.start_state_machine().expect(format!("Failed to start state machine for agent '{}'", agent.name()).as_str());
+                        agent.call_load_handler().expect(format!("Failed to call load handler for agent '{}'", agent.name()).as_str());
+
                         info!("Agent loaded: {} (num = {}, id = {:?})", agent.name(), agent.phone_number().as_deref().unwrap_or("[RESTRICTED]"), agent.id());
                     },
                     Err(err) => {

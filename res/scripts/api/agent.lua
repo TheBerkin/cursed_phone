@@ -132,8 +132,25 @@ local _AgentModule_MEMBERS = {
     log = function(self, msg)
         print("[" .. self._name .. "] " .. msg)
     end,
+    --- Sets the load handler for the agent.
+    --- This handler runs as soon as the agent module has finished loading.
+    --- @param handler fun(self: AgentModule)
+    on_load = function(self, handler)
+        assert(type(handler) == 'function', "Handler must be a function")
+        self._on_load = handler
+    end,
+    --- Sets the unload handler for the agent.
+    --- This handler runs before the agent module has been unloaded on engine shutdown.
+    --- @param handler fun(self: AgentModule)
+    on_unload = function(self, handler)
+        assert(type(handler) == 'function', "Handler must be a function")
+        self._on_unload = handler
+    end,
+    --- Starts the agent's state machine, if it isn't already started.
     start = function(self)
+        if self._state_coroutine then return false end
         transition_agent_state(self, AGENT_STATE_IDLE)
+        return true
     end,
     --- Sends a message to another agent.
     --- @param dest_name string
@@ -227,7 +244,7 @@ local M_AgentModule = {
 --- @param phone_number string? @ The number associated with the phone agent
 --- @param role AgentRole? @ The role of the agent in the system; defaults to regular role
 --- @return AgentModule
-function AGENT_MODULE(name, phone_number, role)
+function create_agent(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
 
     -- Create message queue for agent
@@ -240,6 +257,7 @@ function AGENT_MODULE(name, phone_number, role)
         _role = role or AGENT_ROLE_NORMAL,
         _state_coroutine = nil,
         _message_coroutine = nil,
+        _prev_state = AGENT_STATE_IDLE,
         _state = AGENT_STATE_IDLE,
         _state_func_tables = {},
         _idle_tick_phone_states = {},

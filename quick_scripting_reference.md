@@ -6,14 +6,13 @@ Below is a skeleton for a basic agent module.
 
 ```lua
 -- Module definition. Only the first argument, the name, is required.
-local S = AGENT_MODULE("agent_name", "1234567", AGENT_ROLE_NORMAL)
+local S = create_agent("agent_name", "1234567", AGENT_ROLE_NORMAL)
 
 -- Special behavior functions
 S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 
--- Called when agent is first loaded
-function S.load(args)    
-end
+-- Called when agent has finished loading
+S:on_load(function(self) end)
 
 -- State machine definition
 S:state(AGENT_STATE_IDLE, {
@@ -35,8 +34,7 @@ S:state(AGENT_STATE_IDLE, {
 })
 
 -- Called when shutting down engine
-function S.unload(args)
-end
+S:on_unload(function(self) end)
 
 -- Make sure to return the completed module at the end
 return S

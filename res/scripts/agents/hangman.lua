@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("hangman", "7308432")
+local module = create_agent("hangman", "7308432")
 
 module:require_sound_bank("hangman")
 

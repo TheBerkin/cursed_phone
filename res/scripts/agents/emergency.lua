@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("emergency", "911")
+local module = create_agent("emergency", "911")
 module:set_custom_price(0)
 module:set_ringback_enabled(false)
 

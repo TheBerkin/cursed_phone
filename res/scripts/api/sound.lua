@@ -14,6 +14,46 @@
 -- ====================================================
 
 
+--- @enum Channel
+--- Defines available sound playback channels. They come in a few flavors:
+--- - `PHONE*`: Phone channels are for call audio (excluding telephony signals).
+--- - `SOUL*`: Soul channels are for souls to speak freely outside of calls. Hanging up a call will not silence these channels.
+--- - `BG*`: Background channels are for miscellaneous use.
+Channel = {
+    --- Phone Channel 1
+    PHONE01 = 3,
+    --- Phone Channel 2
+    PHONE02 = 4,
+    --- Phone Channel 3
+    PHONE03 = 5,
+    --- Phone Channel 4
+    PHONE04 = 6,
+    --- Phone Channel 5
+    PHONE05 = 7,
+    --- Phone Channel 6
+    PHONE06 = 8,
+    --- Phone Channel 7
+    PHONE07 = 9,
+    --- Phone Channel 8
+    PHONE08 = 10,
+    --- Soul Channel 1
+    SOUL01 = 11,
+    --- Soul Channel 2
+    SOUL02 = 12,
+    --- Soul Channel 3
+    SOUL03 = 13,
+    --- Soul Channel 4
+    SOUL04 = 14,
+    --- Background Channel 1
+    BG01 = 15,
+    --- Background Channel 2
+    BG02 = 16,
+    --- Background Channel 3
+    BG03 = 17,
+    --- Background Channel 4
+    BG04 = 18
+}
+
 --- @alias SoundChannel integer
 
 --- Channel for incoming telephony signal tones.
@@ -77,7 +117,7 @@ CHAN_BG4 = 18
 
 --- @class SoundPlayOptions
 --- @field volume number? @ Amplitude is multiplied by this value (Default: `1.0`)
---- @field interrupt boolean? @ Indicates whether to stops other sounds on the channel before playing (Default: `true`)
+--- @field interrupt boolean? @ Indicates whether to stop other sounds on the channel before playing (Default: `true`)
 --- @field speed number? @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
 --- @field looping boolean? @ Indicates whether to make the sound loop forever (Default: `false`)
 --- @field skip number? @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
@@ -90,34 +130,34 @@ if not sound then
 
     --- Plays a sound on a specific channel.
     --- @param path string @ A soundglob or path to the sound to play. Soundglobs will play a random matching sound.
-    --- @param channel SoundChannel @ The channel to play the sound on.
+    --- @param channel Channel @ The channel to play the sound on.
     --- @param opts SoundPlayOptions? @ The options to apply to the played sound.
     function sound.play(path, channel, opts) end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
-    --- @param channel SoundChannel
+    --- @param channel Channel
     --- @return boolean
     function sound.is_busy(channel) return false end
 
     --- Stops playback on a specific channel.
-    --- @param channel SoundChannel
+    --- @param channel Channel
     function sound.stop(channel) end
 
     --- Stops playback on all channels.
     function sound.stop_all() end
 
     --- Gets the volume of the specified channel.
-    --- @param channel SoundChannel
+    --- @param channel Channel
     --- @return number
     function sound.get_channel_volume(channel) return 0 end
 
     --- Gets the fade volume of the specified channel.
-    --- @param channel SoundChannel
+    --- @param channel Channel
     --- @return number
     function sound.get_channel_fade_volume(channel) return 0 end
 
     --- Sets the fade volume of the specified channel.
-    --- @param channel SoundChannel
+    --- @param channel Channel
     --- @param volume number
     function sound.set_channel_fade_volume(channel, volume) end
 
@@ -126,12 +166,12 @@ if not sound then
     function sound.get_master_volume() return 0 end
 
     --- Gets a boolean value indicating whether the specified sound channel is muted.
-    --- @param channel SoundChannel @ The sound channel whose muted status to retrieve.
+    --- @param channel Channel @ The sound channel whose muted status to retrieve.
     --- @return boolean
     function sound.is_channel_muted(channel) return false end
 
     --- Sets the muted status of the specified sound channel.
-    --- @param channel SoundChannel @ The sound channel whose muted status to change.
+    --- @param channel Channel @ The sound channel whose muted status to change.
     ---@param muted boolean @ The muted status to set on the channel.
     function sound.set_channel_muted(channel, muted) end
 
@@ -170,7 +210,7 @@ end
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
 --- @param path string
---- @param channel integer
+--- @param channel Channel
 --- @param opts SoundPlayOptions?
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
@@ -187,7 +227,7 @@ end
 --- Additional options:
 --- * `early_stop: boolean` Stop the channel if canceled (Default: `true`)
 --- @param path string
---- @param channel integer
+--- @param channel Channel
 --- @param predicate function
 --- @param opts SoundPlayOptions?
 function sound.play_wait_cancel(path, channel, predicate, opts)
@@ -205,7 +245,7 @@ end
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channel over `duration` seconds, then stops the sound. 
---- @param channel SoundChannel @ The channel to fade out
+--- @param channel Channel @ The channel to fade out
 --- @param duration number @ The duration of the fade in seconds
 function sound.fade_out(channel, duration)
     if not sound.is_busy(channel) then return end
@@ -232,7 +272,7 @@ end
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channels over `duration` seconds, then stops the sounds. 
---- @param channels SoundChannel[] @ The channels to fade out
+--- @param channels Channel[] @ The channels to fade out
 --- @param duration number @ The duration of the fade in seconds
 function sound.fade_out_multi(channels, duration)
     local start_time = engine_time()
@@ -268,6 +308,7 @@ end
 --- *(Agent use only)*
 ---
 --- Waits for the specified sound channel to finish playing.
+--- @param channel Channel @ The channel to wait for.
 function sound.wait(channel)
     while sound.is_busy(channel) do
         agent.intent(AGENT_INTENT_WAIT)
@@ -280,6 +321,8 @@ end
 --- Waits at least `duration` seconds for the specified sound channel to finish playing.
 ---
 --- Keeps waiting even if `duration` lasts longer than the sound.
+--- @param channel Channel @ The channel to wait for.
+--- @param duration number @ The minimum number of seconds to wait for.
 function sound.wait_min(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) or engine_time() - start_time < duration do
@@ -293,6 +336,8 @@ end
 --- Waits at most `duration` seconds for the specified sound channel to finish playing.
 ---
 --- If the sound stops within `duration`, the wait is canceled.
+--- @param channel Channel @ The channel to wait for.
+--- @param duration number @ The maximum number of seconds to wait for.
 function sound.wait_max(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) and engine_time() - start_time < duration do

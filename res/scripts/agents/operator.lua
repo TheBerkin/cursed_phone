@@ -1,4 +1,4 @@
-local module = AGENT_MODULE("operator", "0")
+local module = create_agent("operator", "0")
 module:set_custom_price(0)
 
 module:state(AGENT_STATE_CALL, {
