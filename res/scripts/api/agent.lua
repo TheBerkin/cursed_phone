@@ -3,7 +3,7 @@
     /==========================================================================\
     |========================= CURSED PHONE API FILE ==========================|
     |==========================================================================|
-    | This script is required by phone agents in order to function properly.   |
+    | This script is required by the engine in order to function properly.     |
     | Unless you are making changes to the engine, do not modify this file.    |
     \==========================================================================/
     
@@ -394,9 +394,10 @@ function agent.end_call()
     coroutine.yield(AGENT_INTENT_END_CALL)
 end
 
+--- @async
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
 --- If a timeout is specified, and no digit is entered within that time, this function returns nil.
---- @param max_seconds number|nil
+--- @param max_seconds number?
 --- @return string|nil
 function agent.read_digit(max_seconds)
     assert_agent_caller()
@@ -474,7 +475,6 @@ end
 function transition_agent_state(s, state)
     local prev_state = s._state
     local state_coroutine = gen_state_coroutine(s, state, prev_state)
-    
     s._state = state
     s._state_coroutine = state_coroutine
     return state_coroutine ~= nil
