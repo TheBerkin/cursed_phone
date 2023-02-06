@@ -165,6 +165,7 @@ if not sound then
     function sound.play_dtmf_digit(digit, duration, volume) end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end.
@@ -178,6 +179,7 @@ function sound.play_wait(path, channel, opts)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Plays a sound on a specific channel and waits asynchronously for it to end or until the specified predicate returns true.
@@ -199,6 +201,7 @@ function sound.play_wait_cancel(path, channel, predicate, opts)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channel over `duration` seconds, then stops the sound. 
@@ -225,6 +228,7 @@ function sound.fade_out(channel, duration)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channels over `duration` seconds, then stops the sounds. 
@@ -260,6 +264,7 @@ function sound.fade_out_multi(channels, duration)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Waits for the specified sound channel to finish playing.
@@ -269,6 +274,7 @@ function sound.wait(channel)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Waits at least `duration` seconds for the specified sound channel to finish playing.
@@ -281,6 +287,7 @@ function sound.wait_min(channel, duration)
     end
 end
 
+--- @async
 --- *(Agent use only)*
 ---
 --- Waits at most `duration` seconds for the specified sound channel to finish playing.

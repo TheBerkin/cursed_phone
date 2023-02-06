@@ -157,7 +157,7 @@ local _AgentModule_MEMBERS = {
     --- Adds a function table for the specified state code.
     --- @param self AgentModule
     --- @param state AgentStateCode
-    --- @param func_table { enter: fun(self: AgentModule), tick: fun(self: AgentModule), exit: fun(self: AgentModule), message: fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) }
+    --- @param func_table { enter: async fun(self: AgentModule), tick: async fun(self: AgentModule), exit: async fun(self: AgentModule), message: async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) }
     state = function(self, state, func_table)
         --- @diagnostic disable-next-line: undefined-field
         self._state_func_tables[state] = func_table
@@ -255,6 +255,7 @@ function AGENT_MODULE(name, phone_number, role)
     return module
 end
 
+--- @async
 --- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
 --- @param intent AgentIntentCode
 --- @param intent_data any
@@ -265,6 +266,7 @@ function agent.intent(intent, intent_data)
     return (data_code or AGENT_DATA_NONE), response_data
 end
 
+--- @async
 --- Asynchronously waits the specified number of seconds, or forever if no duration is specified.
 --- @param seconds number?
 function agent.wait(seconds)
@@ -281,6 +283,7 @@ function agent.wait(seconds)
     end
 end
 
+--- @async
 --- Asynchronously waits the specified number of seconds or until the specified function returns true.
 --- @param seconds number
 --- @param predicate function
@@ -292,6 +295,7 @@ function agent.wait_cancel(seconds, predicate)
     end
 end
 
+--- @async
 --- Asynchronously waits until the specified function returns true. Function is called once per agent tick.
 --- @param predicate function
 function agent.wait_until(predicate)
@@ -300,6 +304,8 @@ function agent.wait_until(predicate)
     end
 end
 
+--- @async
+--- Runs multiple agent tasks in parallel.
 --- @param ... function
 function agent.multi_task(...)
     local coroutines = table.map({...}, function(f) return {
@@ -308,7 +314,7 @@ function agent.multi_task(...)
         last_response_data = nil
     } end)
 
-    while true do 
+    while true do
         local tasks_running = false
         for _,state in pairs(coroutines) do
             if coroutine.status(state.co) ~= 'dead' then
@@ -333,18 +339,21 @@ function agent.caller_dialed_number()
     return _caller_dialed_number_impl()
 end
 
+--- @async
 --- Forwards the call to the specified number.
 --- @param number string
 function agent.forward_call(number)
     agent.intent(AGENT_INTENT_FORWARD_CALL, number)
 end
 
+--- @async
 --- Forwards the call to the specified agent ID.
 --- @param agent_id integer
 function agent.forward_call_id(agent_id)
     agent.intent(AGENT_INTENT_FORWARD_CALL_ID, agent_id)
 end
 
+--- @async
 --- Starts a call with the user, if the line is open.
 --- @return boolean
 function agent.start_call()
@@ -353,12 +362,14 @@ function agent.start_call()
     return data_code ~= AGENT_DATA_LINE_BUSY
 end
 
+--- @async
 --- Accepts a pending call.
 function agent.accept_call()
     assert_agent_caller()
     coroutine.yield(AGENT_INTENT_ACCEPT_CALL)
 end
 
+--- @async
 --- Ends the call.
 function agent.end_call()
     assert_agent_caller()
