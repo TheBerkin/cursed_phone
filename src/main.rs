@@ -25,7 +25,7 @@ const SOUNDBANKS_PATH: &str = "./res/soundbanks";
 const ENV_CONFIG_PATH: &str = "CURSED_CONFIG_PATH";
 
 #[allow(unreachable_code)]
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up logger
     TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
 
@@ -43,17 +43,17 @@ fn main() -> Result<(), String> {
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
-    let pbx = create_cursed_engine(&config, sound_engine);
-    pbx.listen_phone_input(phone.gen_phone_output());
-    phone.listen_from_pbx(pbx.gen_pbx_output());
-    pbx.load_cursed_lua_api()?;
-    pbx.load_agents();
+    let engine = create_cursed_engine(&config, sound_engine);
+    engine.listen_phone_input(phone.gen_phone_output());
+    phone.listen_from_pbx(engine.gen_pbx_output());
+    engine.load_lua_api()?;
+    engine.load_agents();
 
     loop {
         // Update engine state
         let tick_start = time::Instant::now();
         phone.tick();
-        pbx.tick();
+        engine.tick();
         let tick_end = time::Instant::now();
 
         // Lock tickrate at configured value

@@ -2,11 +2,12 @@
 #![allow(unreachable_patterns)]
 
 mod props;
-mod api;
+mod scripting;
 mod agent;
 
 use std::rc::Rc;
 use std::cell::{RefCell, Cell};
+use std::sync::Arc;
 use std::{thread, time, fs, sync::mpsc};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ use crate::sound::*;
 use crate::phone::*;
 use crate::config::*;
 
-pub use self::api::*;
+pub use self::scripting::*;
 pub use self::props::*;
 pub use self::agent::*;
 
@@ -295,17 +296,17 @@ impl<'lua> CursedEngine<'lua> {
         dialed
     }
 
-    fn run_script(&self, name: &str) -> Result<(), String> {
+    fn run_script(&self, name: &str) -> LuaResult<()> {
         let path = self.resolve_script_path(name);
         match fs::read_to_string(&path) {
-            Ok(lua_src) => self.lua.load(&lua_src).set_name(name).unwrap().exec(),
-            Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", path.to_str().unwrap(), err))
+            Ok(lua_src) => self.lua.load(&lua_src).set_name(name).unwrap().exec()?,
+            Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
         };
 
         Ok(())
     }
 
-    fn run_scripts_in_glob(&self, glob: &str) -> Result<(), String> {
+    fn run_scripts_in_glob(&self, glob: &str) -> LuaResult<()> {
         let search_path = self.resolve_script_path(glob);
         let search_path_str = search_path.to_str().expect("Failed to create search pattern from glob");
         for entry in globwalk::glob(search_path_str).expect("Unable to read script search pattern") {
@@ -314,8 +315,8 @@ impl<'lua> CursedEngine<'lua> {
                 let script_path_str = script_path.to_str().unwrap();
                 info!("Loading API script: {:?}", script_path.file_name().unwrap());
                 match fs::read_to_string(&script_path) {
-                    Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec(),
-                    Err(err) => return Err(format!("Failed to run lua file '{}': {:#?}", script_path_str, err))
+                    Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec()?,
+                    Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
                 };
             }
         }
