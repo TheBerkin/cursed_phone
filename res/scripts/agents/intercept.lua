@@ -16,6 +16,7 @@ function split_vsc(phone_number)
 end
 
 local vsc_handlers = {
+    -- Last-Call Return
     ["69"] = function(self) 
         local last_call_return_id = phone.last_caller_id()
         if last_call_return_id then
@@ -25,6 +26,21 @@ local vsc_handlers = {
         end
         --- @cast last_call_return_id integer
         agent.forward_call_id(last_call_return_id)
+    end,
+    -- Adjust Volume
+    ["11"] = function(self, phone_number)
+        if #phone_number == 0 then return end
+        local volume_raw = tonumber(string.sub(phone_number, 1, 1))
+        if not volume_raw then
+            return 
+        end
+        local volume = volume_raw / 9.0
+        print("Adjusting volume to " .. (volume * 100) .. "%")
+        sound.set_master_volume(volume)
+        sound.play("music/holding02", Channel.PHONE01, { looping = true })
+        agent.wait(20)
+        sound.fade_out(Channel.PHONE01, 10)
+        agent.end_call()
     end
 }
 
@@ -32,22 +48,22 @@ local reason_handlers = {
     -- Number is invalid or a vertical service code
     [CALL_REASON_NUMBER_REDIRECTED] = function(self)
         local vsc
-        local pn = agent.caller_dialed_number()
+        local phone_number = agent.caller_dialed_number()
         local vsc_handled = false
         repeat
-            vsc, pn = split_vsc(pn)
+            vsc, phone_number = split_vsc(phone_number)
             if vsc then
                 print("VSC " .. vsc)
                 local vsc_handler = vsc_handlers[vsc]
                 if vsc_handler then
-                    vsc_handler(self)
+                    vsc_handler(self, phone_number)
                 end
                 vsc_handled = true
             end
         until (not vsc)
         
-        if vsc_handled and pn and #pn > 0 then
-            agent.forward_call(pn)
+        if vsc_handled and phone_number and #phone_number > 0 then
+            agent.forward_call(phone_number)
         end
 
         sound.play_special_info_tone(SpecialInfoTone.INTERCEPT)
