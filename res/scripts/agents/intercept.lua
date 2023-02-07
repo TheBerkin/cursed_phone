@@ -29,18 +29,21 @@ local vsc_handlers = {
     end,
     -- Adjust Volume
     ["11"] = function(self, phone_number)
-        if #phone_number == 0 then return end
         local volume_raw = tonumber(string.sub(phone_number, 1, 1))
-        if not volume_raw then
-            return 
+        if volume_raw then
+            local volume = volume_raw / 9.0
+            print("Adjusting volume to " .. (volume * 100) .. "%")
+            sound.set_master_volume(volume)
         end
-        local volume = volume_raw / 9.0
-        print("Adjusting volume to " .. (volume * 100) .. "%")
-        sound.set_master_volume(volume)
         sound.play("music/holding02", Channel.PHONE01, { looping = true })
-        agent.wait(20)
-        sound.fade_out(Channel.PHONE01, 10)
-        agent.end_call()
+        while true do 
+            volume_raw = tonumber(agent.read_digit())
+            if volume_raw then
+                local volume = volume_raw / 9.0
+                print("Adjusting volume to " .. (volume * 100) .. "%")
+                sound.set_master_volume(volume)
+            end
+        end
     end
 }
 
