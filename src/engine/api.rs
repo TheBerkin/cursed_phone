@@ -175,6 +175,17 @@ impl<'lua> CursedEngine<'lua> {
             Ok(())
         }).unwrap());
 
+        // sound.get_master_volume()
+        tbl_sound.set("get_master_volume", lua.create_function(move |_, ()| {
+            Ok(self.sound_engine.borrow_mut().master_volume())
+        }).unwrap());
+
+        // sound.set_master_volume(volume)
+        tbl_sound.set("set_master_volume", lua.create_function(move |_, (volume): (f32)| {
+            self.sound_engine.borrow_mut().set_master_volume(volume);
+            Ok(())
+        }).unwrap());
+
         // sound.get_channel_fade_volume(channel)
         tbl_sound.set("get_channel_fade_volume", lua.create_function(move |_, channel: usize| {
             let vol = self.sound_engine.borrow().fade_volume(Channel::from(channel));
