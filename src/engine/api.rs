@@ -28,15 +28,16 @@ impl LuaCronSchedule {
         }
     }
 
-    fn tick(&self) -> bool {
+    fn tick(&self) -> Option<bool> {
+        if self.next_time.get().is_none() { return None }
         let now = Local::now();
         if let Some(next_time) = self.next_time.get() {
             if next_time <= now {
                 self.next_time.set(self.cron.after(&now).next());
-                return true
+                return Some(true)
             }
         }
-        return false
+        return Some(false)
     }
 }
 
@@ -320,7 +321,11 @@ impl<'lua> CursedEngine<'lua> {
 
         // cron.tick(schedule)
         tbl_cron.set("tick", lua.create_function(move |_, (schedule): (LuaCronSchedule)| {
-            return Ok(schedule.tick())
+            if let Some(triggered) = schedule.tick() {
+                return Ok((true, Some(triggered)))
+            } else {
+                return Ok((false, None))
+            }
         }).unwrap());
 
         globals.set("cron", tbl_cron);
