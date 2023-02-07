@@ -131,8 +131,8 @@ impl<'lua> AgentModule<'lua> {
         self.tbl_module.get("_is_suspended").unwrap_or(false)
     }
 
-    pub fn set_reason(&self, reason: CallReason) -> LuaResult<()> {
-        self.tbl_module.call_method("set_reason", reason.as_index())?;
+    pub fn set_call_reason(&self, reason: CallReason) -> LuaResult<()> {
+        self.tbl_module.call_method("set_call_reason", reason.as_index())?;
         Ok(())
     }
 

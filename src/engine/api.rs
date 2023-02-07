@@ -1,11 +1,46 @@
 
 use super::*;
-use std::cmp;
+use std::{cmp, str::FromStr};
+use enum_iterator::next;
 use log::{info};
+use cron::*;
+use chrono::prelude::*;
 use crate::sound::*;
 
 #[cfg(feature = "rpi")]
 use crate::gpio::*;
+
+#[derive(Clone)]
+struct LuaCronSchedule {
+    next_time: Rc<Cell<Option<DateTime<Local>>>>,
+    cron: Schedule,
+}
+
+impl LuaCronSchedule {
+    fn new(expr: &str) -> Option<Self> {
+        if let Ok(cron) = Schedule::from_str(expr) {
+            Some(Self {
+                next_time: Rc::new(Cell::new(cron.after_owned(Local::now()).next())),
+                cron
+            })
+        } else {
+            None
+        }
+    }
+
+    fn tick(&self) -> bool {
+        let now = Local::now();
+        if let Some(next_time) = self.next_time.get() {
+            if next_time <= now {
+                self.next_time.set(self.cron.after(&now).next());
+                return true
+            }
+        }
+        return false
+    }
+}
+
+impl LuaUserData for LuaCronSchedule {}
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {    
@@ -243,6 +278,7 @@ impl<'lua> CursedEngine<'lua> {
         // ====================================================
         // ==================== PHONE API =====================
         // ====================================================
+
         let tbl_phone = lua.create_table().unwrap();
 
         // phone.last_caller_id()
@@ -270,6 +306,24 @@ impl<'lua> CursedEngine<'lua> {
         }).unwrap());
 
         globals.set("phone", tbl_phone);
+        
+        // ====================================================
+        // ===================== CRON API =====================
+        // ====================================================
+        
+        let tbl_cron = lua.create_table().unwrap();
+
+        // cron.create(expr)
+        tbl_cron.set("create", lua.create_function(move |_, (expr): (String)| {
+            return Ok(LuaCronSchedule::new(expr.as_str()))
+        }).unwrap());
+
+        // cron.tick(schedule)
+        tbl_cron.set("tick", lua.create_function(move |_, (schedule): (LuaCronSchedule)| {
+            return Ok(schedule.tick())
+        }).unwrap());
+
+        globals.set("cron", tbl_cron);
     
         // ====================================================
         // ===================== GPIO API =====================

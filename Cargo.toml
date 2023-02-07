@@ -17,6 +17,8 @@ rpi = ["rppal"]
 no-log = ["log/release_max_level_off", "log/max_level_off"]
 
 [dependencies]
+chrono = "0.4.23"
+cron = "0.12.0"
 enum-iterator = "1.2.0"
 globset = "0.4.5"
 globwalk = "0.8.0"

@@ -86,7 +86,7 @@ module:state(AGENT_STATE_CALL, {
     enter = function(self)
     end,
     tick = function(self)
-        local reason = self:get_reason()
+        local reason = self:get_call_reason()
         local handler = reason_handlers[reason]
         if handler then
             handler(self)

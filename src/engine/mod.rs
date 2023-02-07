@@ -234,7 +234,7 @@ impl<'lua> CursedEngine<'lua> {
             DialTone | Busy | PDD | Connected => {
                 info!("Calling agent '{}' ({:?})", agent.name(), agent.phone_number());
                 // Inform the agent state machine that the user initiated the call
-                agent.set_reason(CallReason::UserInit);
+                agent.set_call_reason(CallReason::UserInit);
                 // Set other_party to requested agent
                 let agent = self.lookup_agent_id(agent.id().unwrap()).unwrap();
                 self.load_other_party(Rc::clone(&agent));
@@ -249,7 +249,7 @@ impl<'lua> CursedEngine<'lua> {
     fn call_intercept(&'lua self, reason: CallReason) {
         if let Some(intercept_agent) = self.intercept_agent.borrow().as_ref() {
             self.call_agent(Rc::clone(intercept_agent));
-            intercept_agent.set_reason(reason);
+            intercept_agent.set_call_reason(reason);
         } else {
             // Default to busy signal if there is no intercept agent
             warn!("No intercept agent; defaulting to busy signal.");
@@ -899,7 +899,7 @@ impl<'lua> CursedEngine<'lua> {
                         if self.config.features.enable_incoming_calls.unwrap_or(false) 
                         && self.state() == PhoneLineState::Idle 
                         && self.other_party.borrow().is_none() {
-                            agent.set_reason(CallReason::AgentInit);
+                            agent.set_call_reason(CallReason::AgentInit);
                             agent.transition_state(AgentState::OutgoingCall);
                             self.load_other_party(Rc::clone(agent));
                             self.set_state(PhoneLineState::IdleRinging);

@@ -102,9 +102,15 @@ AGENT_ROLE_INTERCEPT = 1
 --- Designates an agent as the Tollmaster.
 AGENT_ROLE_TOLLMASTER = 2
 
+--- @class StateFunctionTable
+--- @field enter async fun(self: AgentModule) @ Called when the state is entered.
+--- @field tick async fun(self: AgentModule) @ Called each tick after `enter`.
+--- @field exit async fun(self: AgentModule) @ Called when the state is exiting.
+--- @field message async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) @ Called when the agent receives a message. 
+
 --- @class AgentModule
 local _AgentModule_MEMBERS = {
-    tick = function(self, data_code, data)        
+    tick = function(self, data_code, data)
         local status, state = tick_agent_state(self, data_code, data)
         return status, state
     end,
@@ -174,7 +180,7 @@ local _AgentModule_MEMBERS = {
     --- Adds a function table for the specified state code.
     --- @param self AgentModule
     --- @param state AgentStateCode
-    --- @param func_table { enter: async fun(self: AgentModule), tick: async fun(self: AgentModule), exit: async fun(self: AgentModule), message: async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) }
+    --- @param func_table StateFunctionTable
     state = function(self, state, func_table)
         --- @diagnostic disable-next-line: undefined-field
         self._state_func_tables[state] = func_table
@@ -194,11 +200,11 @@ local _AgentModule_MEMBERS = {
     end,
     --- Sets the call reason.
     --- @param reason CallReason
-    set_reason = function(self, reason)
-        self._reason = reason
+    set_call_reason = function(self, reason)
+        self._call_reason = reason
     end,
-    get_reason = function(self)
-        return self._reason
+    get_call_reason = function(self)
+        return self._call_reason
     end,
     --- Sets the price to call the agent in payphone mode.
     set_custom_price = function(self, price)
