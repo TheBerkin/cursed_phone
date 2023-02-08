@@ -8,7 +8,7 @@ module:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 
 local talked_during_call = false
 
-module:state(AGENT_STATE_IDLE, {
+module:state(AgentState.IDLE, {
     enter = function(self)
         while true do
             --agent.wait(120.0 - rand_float(0.0, 60.0))
@@ -20,28 +20,28 @@ module:state(AGENT_STATE_IDLE, {
     end,
 })
 
-module:state(AGENT_STATE_CALL_OUT, {
+module:state(AgentState.CALL_OUT, {
     enter = function(self)
         agent.wait(rand_float(15.0, 30.0))
         agent.end_call()
     end
 })
 
-module:state(AGENT_STATE_CALL, {
+module:state(AgentState.CALL, {
     enter = function(self)
         -- Start soundscape
-        sound.play("$sewer/amb_drips", CHAN_PHONE2, { volume = 0.25, looping = true })
-        sound.play("$sewer/amb_flies", CHAN_PHONE3, { volume = 0.065, looping = true })
-        sound.play("$sewer/amb_hum", CHAN_PHONE4, { volume = 0.01, looping = true })
-        sound.play("$sewer/amb_pain", CHAN_PHONE5, { volume = 0.1, looping = true })
+        sound.play("$sewer/amb_drips", Channel.PHONE02, { volume = 0.25, looping = true })
+        sound.play("$sewer/amb_flies", Channel.PHONE03, { volume = 0.065, looping = true })
+        sound.play("$sewer/amb_hum", Channel.PHONE04, { volume = 0.01, looping = true })
+        sound.play("$sewer/amb_pain", Channel.PHONE05, { volume = 0.1, looping = true })
 
         talked_during_call = false
 
         -- Say a few things
         for i = 1, rand_int(2, 4) do
-            sound.wait(CHAN_PHONE1)
+            sound.wait(Channel.PHONE01)
             agent.wait(rand_float(4.0, 7.0))
-            sound.play("$mark/*", CHAN_PHONE1, { volume = 1 })
+            sound.play("$mark/*", Channel.PHONE01, { volume = 1 })
             talked_during_call = true
             if i == 1 or chance(0.7) then                
                 module:send('denise', i == 1 and 'mark_start' or 'mark_talk')

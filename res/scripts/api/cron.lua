@@ -35,6 +35,6 @@ function cron.run_job(cron_expr, job)
         if job_triggered then
             job()
         end
-        agent.intent(AGENT_INTENT_YIELD)
+        agent.intent(IntentCode.YIELD)
     until not has_jobs
 end

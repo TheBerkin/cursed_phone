@@ -20,6 +20,12 @@
 --- - `SOUL*`: Soul channels are for souls to speak freely outside of calls. Hanging up a call will not silence these channels.
 --- - `BG*`: Background channels are for miscellaneous use.
 Channel = {
+    --- Incoming signal channel (e.g. dial tone, SITs, busy signal...)
+    SIG_IN = 0,
+    --- Comfort noise channel
+    NOISE_IN = 1,
+    --- Outgoing signal channel (DTMF)
+    SIG_OUT = 2,
     --- Phone Channel 1
     PHONE01 = 3,
     --- Phone Channel 2
@@ -53,66 +59,6 @@ Channel = {
     --- Background Channel 4
     BG04 = 18
 }
-
---- @alias SoundChannel integer
-
---- Channel for incoming telephony signal tones.
---- @type SoundChannel
-CHAN_SIGIN = 0
---- Channel for incoming comfort noise.
---- @type SoundChannel
-CHAN_NOISEIN = 1
---- Channel for outgoing telephony signal tones.
---- @type SoundChannel
-CHAN_SIGOUT = 2
---- Phone Channel 1
---- @type SoundChannel
-CHAN_PHONE1 = 3
---- Phone Channel 2
---- @type SoundChannel
-CHAN_PHONE2 = 4
---- Phone Channel 3
---- @type SoundChannel
-CHAN_PHONE3 = 5
---- Phone Channel 4
---- @type SoundChannel
-CHAN_PHONE4 = 6
---- Phone Channel 5
---- @type SoundChannel
-CHAN_PHONE5 = 7
---- Phone Channel 6
---- @type SoundChannel
-CHAN_PHONE6 = 8
---- Phone Channel 7
---- @type SoundChannel
-CHAN_PHONE7 = 9
---- Phone Channel 8
---- @type SoundChannel
-CHAN_PHONE8 = 10
---- Soul Channel 1
---- @type SoundChannel
-CHAN_SOUL1 = 11
---- Soul Channel 2
---- @type SoundChannel
-CHAN_SOUL2 = 12
---- Soul Channel 3
---- @type SoundChannel
-CHAN_SOUL3 = 13
---- Soul Channel 4
---- @type SoundChannel
-CHAN_SOUL4 = 14
---- Background Channel 1
---- @type SoundChannel
-CHAN_BG1 = 15
---- Background Channel 2
---- @type SoundChannel
-CHAN_BG2 = 16
---- Background Channel 3
---- @type SoundChannel
-CHAN_BG3 = 17
---- Background Channel 4
---- @type SoundChannel
-CHAN_BG4 = 18
 
 
 --- @class SoundPlayOptions
@@ -215,7 +161,7 @@ end
 function sound.play_wait(path, channel, opts)
     sound.play(path, channel, opts)
     while sound.is_busy(channel) do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -234,7 +180,7 @@ function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)
     while not predicate() and sound.is_busy(channel) do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
     if not opts or opts.early_stop == nil or opts.early_stop == true then
         sound.stop(channel)
@@ -264,7 +210,7 @@ function sound.fade_out(channel, duration)
             local fade_volume = math.lerp(1, 0, progress, true)
             sound.set_channel_fade_volume(channel, fade_volume)
         end
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -300,7 +246,7 @@ function sound.fade_out_multi(channels, duration)
 
             if not is_any_channel_busy then return end
         end
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -311,7 +257,7 @@ end
 --- @param channel Channel @ The channel to wait for.
 function sound.wait(channel)
     while sound.is_busy(channel) do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -326,7 +272,7 @@ end
 function sound.wait_min(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) or engine_time() - start_time < duration do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -341,6 +287,6 @@ end
 function sound.wait_max(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) and engine_time() - start_time < duration do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end

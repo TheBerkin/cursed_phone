@@ -1,4 +1,4 @@
-local module = create_agent("intercept", nil, AGENT_ROLE_INTERCEPT)
+local module = create_agent("intercept", nil, AgentRole.INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 
@@ -15,32 +15,27 @@ function split_vsc(phone_number)
     end
 end
 
+--- @type table<string, fun(self: AgentModule, phone_number: string?)>
 local vsc_handlers = {
     -- Last-Call Return
     ["69"] = function(self) 
         local last_call_return_id = phone.last_caller_id()
         if last_call_return_id then
-            print("Returning last call to Agent ID: " .. last_call_return_id)
+            self:log("Returning last call to Agent ID: " .. last_call_return_id)
         else
-            print("No previous caller available for callback")
+            self:log("No previous caller available for callback")
         end
         --- @cast last_call_return_id integer
         agent.forward_call_id(last_call_return_id)
     end,
     -- Adjust Volume
     ["11"] = function(self, phone_number)
-        local volume_raw = tonumber(string.sub(phone_number, 1, 1))
-        if volume_raw then
-            local volume = volume_raw / 9.0
-            print("Adjusting volume to " .. (volume * 100) .. "%")
-            sound.set_master_volume(volume)
-        end
-        sound.play("music/holding02", Channel.PHONE01, { looping = true })
+        sound.play("music/holding02", Channel.PHONE01, { looping = true, fadein = 1 })
         while true do 
-            volume_raw = tonumber(agent.read_digit())
+            local volume_raw = tonumber(agent.read_digit())
             if volume_raw then
                 local volume = volume_raw / 9.0
-                print("Adjusting volume to " .. (volume * 100) .. "%")
+                self:log("Adjusting volume to " .. (volume * 100) .. "%")
                 sound.set_master_volume(volume)
             end
         end
@@ -56,7 +51,7 @@ local reason_handlers = {
         repeat
             vsc, phone_number = split_vsc(phone_number)
             if vsc then
-                print("VSC " .. vsc)
+                self:log("VSC " .. vsc)
                 local vsc_handler = vsc_handlers[vsc]
                 if vsc_handler then
                     vsc_handler(self, phone_number)
@@ -70,9 +65,9 @@ local reason_handlers = {
         end
 
         sound.play_special_info_tone(SpecialInfoTone.INTERCEPT)
-        sound.wait(CHAN_SIGIN)
+        sound.wait(Channel.SIG_IN)
         agent.wait(0.05)
-        sound.play_wait("intercept/intercept_disconnected_*", CHAN_PHONE1)
+        sound.play_wait("intercept/intercept_disconnected_*", Channel.PHONE01)
         sound.play_fast_busy_tone()
         agent.wait()
     end,
@@ -84,7 +79,7 @@ local reason_handlers = {
         end
 
         while not cancel_func() do
-            sound.play_wait_cancel("intercept/intercept_timeout_message_01", CHAN_PHONE1, cancel_func)
+            sound.play_wait_cancel("intercept/intercept_timeout_message_01", Channel.PHONE01, cancel_func)
             agent.wait_cancel(10, cancel_func)
         end
 
@@ -94,14 +89,14 @@ local reason_handlers = {
 }
 
 -- Immediately answer calls
-module:state(AGENT_STATE_CALL_IN, {
+module:state(AgentState.CALL_IN, {
     enter = function(self)
         agent.accept_call()
     end
 })
 
 -- Call handler for intercept reason
-module:state(AGENT_STATE_CALL, {
+module:state(AgentState.CALL, {
     enter = function(self)
     end,
     tick = function(self)

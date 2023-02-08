@@ -1,7 +1,7 @@
 local module = create_agent("operator", "0")
 module:set_custom_price(0)
 
-module:state(AGENT_STATE_CALL, {
+module:state(AgentState.CALL, {
     enter = function(self)
         print("Operator: call started")
     end,
@@ -18,7 +18,7 @@ module:state(AGENT_STATE_CALL, {
 })
 
 
-module:state(AGENT_STATE_CALL_IN, {
+module:state(AgentState.CALL_IN, {
     tick = function(self)
         agent.wait(rand_float(1.0, 3.0))
         agent.accept_call()

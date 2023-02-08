@@ -22,85 +22,67 @@ end
 
 local agent_messages = {}
 
--- ========================
--- AGENT STATE CODE CONSTANTS
--- ========================
---- @alias AgentStateCode integer
+--- @enum AgentState
+--- Defines possible state codes for agents.
+AgentState = {
+    --- Agent is not in a call.
+    IDLE = 0,
+    --- Agent is calling the host.
+    CALL_OUT = 1,
+    --- Agent is being called by the host.
+    CALL_IN = 2,
+    --- Agent is in a call.
+    CALL = 3
+}
 
---- @type AgentStateCode
---- Agent is idle and not in a call.
-AGENT_STATE_IDLE = 0
---- @type AgentStateCode
---- Agent is calling out.
-AGENT_STATE_CALL_OUT = 1
---- @type AgentStateCode
---- Agent is being called.
-AGENT_STATE_CALL_IN = 2
---- @type AgentStateCode
---- Agent is in a call.
-AGENT_STATE_CALL = 3
+--- @enum IntentCode
+--- Defines intent types that an agent can send to the engine.
+IntentCode = {
+    --- Agent performed no action.
+    YIELD = 0,
+    --- Agent wants to accept an incoming call.
+    ACCEPT_CALL = 1,
+    --- Agent wants to end an ongoing call.
+    END_CALL = 2,
+    --- Agent wants to call the user.
+    CALL_USER = 3,
+    --- Agent is waiting for an operation to complete.
+    WAIT = 4,
+    --- Agent wants to read a digit from the user.
+    READ_DIGIT = 5,
+    --- Agent wants to forward the call to a specific phone number.
+    FORWARD_CALL_NUMBER = 6,
+    --- Agent wants to end its current state and transition to another one.
+    STATE_END = 7,
+    --- Agent wants to forward the call to a specific Agent ID.
+    FORWARD_CALL_AGENT_ID = 7,
+    --- Agent wants the speech recognition engine to listen for and return a phrase.
+    READ_PHRASE = 8,
+}
 
--- ========================
--- AGENT STATUS CODE CONSTANTS
--- ========================
---- @alias AgentIntentCode integer
+--- @enum IntentResponseCode
+--- Defines response codes that an agent can receive after sending an intent.
+IntentResponseCode = {
+    --- Indicates no data was received.
+    NONE = 0,
+    --- Indicates a dialed digit.
+    DIGIT = 1,
+    --- Indicates that the line is currently busy.
+    LINE_BUSY = 2,
+    --- Indicates that a phrase was recognized.
+    SPEECH = 3,
+}
 
---- @type AgentIntentCode
---- Agent performed no action.
-AGENT_INTENT_IDLE = 0
---- @type AgentIntentCode
---- Agent is accepting an incoming call.
-AGENT_INTENT_ACCEPT_CALL = 1
---- @type AgentIntentCode
---- Agent is hanging up.
-AGENT_INTENT_END_CALL = 2
---- @type AgentIntentCode
---- Agent is calling the user.
-AGENT_INTENT_CALL_USER = 3
---- @type AgentIntentCode
---- Agent is waiting for an operation to complete.
-AGENT_INTENT_WAIT = 4
---- @type AgentIntentCode
---- Agent is waiting for the user to dial a digit.
-AGENT_INTENT_READ_DIGIT = 5
---- @type AgentIntentCode
---- Agent is forwarding the call to another number.
-AGENT_INTENT_FORWARD_CALL = 6
---- @type AgentIntentCode
---- Agent is finished with its current state and needs to transition to the next state.
-AGENT_INTENT_STATE_END = 7
---- @type AgentIntentCode
---- Agent is forwarding the call to another Agent ID.
-AGENT_INTENT_FORWARD_CALL_ID = 8
-
--- ========================
--- AGENT DATA CODE CONSTANTS
--- ========================
---- @alias AgentDataCode integer
-
---- @type AgentDataCode
---- Indicates no data was received.
-local AGENT_DATA_NONE = 0
---- Indicates that the user dialed a digit.
---- @type AgentDataCode
-local AGENT_DATA_DIGIT = 1
---- Indicates that the user line is busy.
-local AGENT_DATA_LINE_BUSY = 2
-
--- ========================
--- AGENT ROLE CONSTANTS
--- ========================
---- @alias AgentRole integer
-
---- @type AgentRole
---- A normal phone agent.
-AGENT_ROLE_NORMAL = 0
---- @type AgentRole
---- Designates an agent as an intercept system.
-AGENT_ROLE_INTERCEPT = 1
---- @type AgentRole
---- Designates an agent as the Tollmaster.
-AGENT_ROLE_TOLLMASTER = 2
+--- @enum AgentRole
+--- Defines available roles for agents.
+AgentRole = {
+    --- A normal phone agent.
+    NORMAL = 0,
+    --- Designates an agent as an intercept system.
+    INTERCEPT = 1,
+    --- Designates an agent as the Tollmaster.
+    TOLLMASTER = 2
+}
 
 --- @class StateFunctionTable
 --- @field enter async fun(self: AgentModule) @ Called when the state is entered.
@@ -155,7 +137,7 @@ local _AgentModule_MEMBERS = {
     --- Starts the agent's state machine, if it isn't already started.
     start = function(self)
         if self._state_coroutine then return false end
-        transition_agent_state(self, AGENT_STATE_IDLE)
+        transition_agent_state(self, AgentState.IDLE)
         return true
     end,
     --- Sends a message to another agent.
@@ -179,7 +161,7 @@ local _AgentModule_MEMBERS = {
     end,
     --- Adds a function table for the specified state code.
     --- @param self AgentModule
-    --- @param state AgentStateCode
+    --- @param state AgentState
     --- @param func_table StateFunctionTable
     state = function(self, state, func_table)
         --- @diagnostic disable-next-line: undefined-field
@@ -260,11 +242,11 @@ function create_agent(name, phone_number, role)
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
-        _role = role or AGENT_ROLE_NORMAL,
+        _role = role or AgentRole.NORMAL,
         _state_coroutine = nil,
         _message_coroutine = nil,
-        _prev_state = AGENT_STATE_IDLE,
-        _state = AGENT_STATE_IDLE,
+        _prev_state = AgentState.IDLE,
+        _state = AgentState.IDLE,
         _state_func_tables = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
@@ -281,13 +263,13 @@ end
 
 --- @async
 --- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
---- @param intent AgentIntentCode
+--- @param intent IntentCode
 --- @param intent_data any
---- @return AgentDataCode, any
+--- @return IntentResponseCode, any
 function agent.intent(intent, intent_data)
     assert_agent_caller()
     local data_code, response_data = coroutine.yield(intent, intent_data)
-    return (data_code or AGENT_DATA_NONE), response_data
+    return (data_code or IntentResponseCode.NONE), response_data
 end
 
 --- @async
@@ -298,11 +280,11 @@ function agent.wait(seconds)
     if seconds ~= nil then
         local start_time = engine_time()
         while engine_time() - start_time < seconds do
-            agent.intent(AGENT_INTENT_WAIT)
+            agent.intent(IntentCode.WAIT)
         end
     else
         while true do
-            agent.intent(AGENT_INTENT_WAIT)
+            agent.intent(IntentCode.WAIT)
         end
     end
 end
@@ -315,7 +297,7 @@ function agent.wait_cancel(seconds, predicate)
     if predicate == nil or predicate() then return end
     local start_time = engine_time()
     while not predicate() and engine_time() - start_time < seconds do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -324,7 +306,7 @@ end
 --- @param predicate function
 function agent.wait_until(predicate)
     while not predicate() do
-        agent.intent(AGENT_INTENT_WAIT)
+        agent.intent(IntentCode.WAIT)
     end
 end
 
@@ -334,7 +316,7 @@ end
 function agent.multi_task(...)
     local coroutines = table.map({...}, function(f) return {
         co = coroutine.create(f),
-        last_response_code = AGENT_DATA_NONE,
+        last_response_code = IntentResponseCode.NONE,
         last_response_data = nil
     } end)
 
@@ -367,14 +349,14 @@ end
 --- Forwards the call to the specified number.
 --- @param number string
 function agent.forward_call(number)
-    agent.intent(AGENT_INTENT_FORWARD_CALL, number)
+    agent.intent(IntentCode.FORWARD_CALL_NUMBER, number)
 end
 
 --- @async
 --- Forwards the call to the specified agent ID.
 --- @param agent_id integer
 function agent.forward_call_id(agent_id)
-    agent.intent(AGENT_INTENT_FORWARD_CALL_ID, agent_id)
+    agent.intent(IntentCode.FORWARD_CALL_AGENT_ID, agent_id)
 end
 
 --- @async
@@ -382,55 +364,67 @@ end
 --- @return boolean
 function agent.start_call()
     assert_agent_caller()
-    local data_code = agent.intent(AGENT_INTENT_CALL_USER)
-    return data_code ~= AGENT_DATA_LINE_BUSY
+    local data_code = agent.intent(IntentCode.CALL_USER)
+    return data_code ~= IntentResponseCode.LINE_BUSY
 end
 
 --- @async
 --- Accepts a pending call.
 function agent.accept_call()
     assert_agent_caller()
-    coroutine.yield(AGENT_INTENT_ACCEPT_CALL)
+    coroutine.yield(IntentCode.ACCEPT_CALL)
 end
 
 --- @async
 --- Ends the call.
 function agent.end_call()
     assert_agent_caller()
-    coroutine.yield(AGENT_INTENT_END_CALL)
+    coroutine.yield(IntentCode.END_CALL)
 end
 
 --- @async
 --- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
---- If a timeout is specified, and no digit is entered within that time, this function returns nil.
---- @param max_seconds number?
---- @return string|nil
-function agent.read_digit(max_seconds)
+--- If a timeout is specified, and no digit is entered within that time, this function returns `nil`.
+--- @param timeout number? @ The maximum amount of time in seconds to poll for.
+--- @return string?
+function agent.read_digit(timeout)
     assert_agent_caller()
-    local timed = is_number(max_seconds) and max_seconds > 0
+    local timed = is_number(timeout) and timeout > 0
     if timed then
         local start_time = engine_time()
-        while engine_time() - start_time < max_seconds do
-            local data_code, data = agent.intent(AGENT_INTENT_READ_DIGIT)
-            if data_code == AGENT_DATA_DIGIT and type(data) == "string" then
+        while engine_time() - start_time < timeout do
+            local data_code, data = agent.intent(IntentCode.READ_DIGIT)
+            if data_code == IntentResponseCode.DIGIT and type(data) == "string" then
                 return data
             end
         end
         return nil
     else
         while true do
-            local data_code, data = agent.intent(AGENT_INTENT_READ_DIGIT)
-            if data_code == AGENT_DATA_DIGIT and type(data) == "string" then
+            local data_code, data = agent.intent(IntentCode.READ_DIGIT)
+            if data_code == IntentResponseCode.DIGIT and type(data) == "string" then
                 return data
             end
         end
     end
 end
 
+--- @async
+function agent.read_digits(digit_count, digit_timeout)
+    assert_agent_caller()
+    local digits = ""
+    while #digits < digit_count do 
+        local next_digit = agent.read_digit(digit_timeout)
+        if not next_digit then return nil end
+        digits = digits .. next_digit
+    end
+    return digits
+end
+
 --- Generates an agent state machine coroutine.
 --- @param s AgentModule
---- @param new_state AgentStateCode
---- @param old_state PhoneStateCode
+--- @param new_state AgentState
+--- @param old_state AgentState
 --- @return thread
 local function gen_state_coroutine(s, new_state, old_state)
     local state_coroutine = coroutine.create(function()
@@ -443,15 +437,15 @@ local function gen_state_coroutine(s, new_state, old_state)
 
         prev_on_exit(s)
 
-        -- Emit AGENT_INTENT_STATE_END
+        -- Emit state-end intent
         if old_state then
-            coroutine.yield(AGENT_INTENT_STATE_END, old_state)
+            coroutine.yield(IntentCode.STATE_END, old_state)
         end
 
         on_enter(s)
         while true do
             on_tick(s)
-            agent.intent(AGENT_INTENT_IDLE)
+            agent.intent(IntentCode.YIELD)
         end
     end)
     ACTIVE_AGENT_MACHINES[state_coroutine] = state_coroutine
@@ -476,7 +470,7 @@ end
 --- Transitions to the specified state on a agent.
 --- Returns true if the transition was successful; otherwise, returns false.
 --- @param s AgentModule
---- @param state AgentStateCode
+--- @param state AgentState
 --- @return boolean
 function transition_agent_state(s, state)
     local prev_state = s._state
@@ -487,7 +481,7 @@ function transition_agent_state(s, state)
 end
 
 --- @param s AgentModule
---- @return AgentIntentCode, any
+--- @return IntentCode, any
 function tick_agent_state(s, data_code, data)
     -- Check if a state machine is even running
     local state_coroutine = s._state_coroutine
@@ -498,12 +492,12 @@ function tick_agent_state(s, data_code, data)
 
     -- If no state is active, there's no need to tick anything
     if active_coroutine == nil then
-        return AGENT_INTENT_IDLE, nil
+        return IntentCode.YIELD, nil
     end
 
     -- If the state has finished, inform the caller that we need to transition
     if coroutine.status(state_coroutine) == 'dead' then
-        return AGENT_INTENT_STATE_END, s._state
+        return IntentCode.STATE_END, s._state
     end
 
     -- Handle messages
@@ -521,16 +515,16 @@ function tick_agent_state(s, data_code, data)
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
         error(intent)
-        return AGENT_INTENT_STATE_END, s._state
+        return IntentCode.STATE_END, s._state
     end
 
     -- Return latest status and any associated data
-    return intent or AGENT_INTENT_IDLE, intent_data
+    return intent or IntentCode.YIELD, intent_data
 end
 
 --- Gets the current state of a agent.
 --- @param s AgentModule
---- @return AgentStateCode
+--- @return AgentState
 function get_agent_state(s)
-    return s._state or AGENT_STATE_IDLE
+    return s._state or AgentState.IDLE
 end
