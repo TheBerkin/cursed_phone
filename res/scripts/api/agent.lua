@@ -181,10 +181,12 @@ local _AgentModule_MEMBERS = {
         table.clear(self._messages)
     end,
     --- Sets the call reason.
+    --- @param self AgentModule
     --- @param reason CallReason
     set_call_reason = function(self, reason)
         self._call_reason = reason
     end,
+    --- @return CallReason
     get_call_reason = function(self)
         return self._call_reason
     end,
@@ -250,7 +252,7 @@ function create_agent(name, phone_number, role)
         _state_func_tables = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
-        _reason = CALL_REASON_NONE,
+        _reason = CallReason.NONE,
         _required_sound_banks = {},
         _has_custom_price = false,
         _custom_price = 0,

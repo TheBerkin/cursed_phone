@@ -60,6 +60,15 @@ Channel = {
     BG04 = 18
 }
 
+--- All `PHONE*` sound channels.
+ALL_PHONE_CHANNELS = { Channel.PHONE01, Channel.PHONE02, Channel.PHONE03, Channel.PHONE04, Channel.PHONE05, Channel.PHONE06, Channel.PHONE07, Channel.PHONE08 }
+
+--- All `SOUL*` sound channels.
+ALL_SOUL_CHANNELS = { Channel.SOUL01, Channel.SOUL02, Channel.SOUL03, Channel.SOUL04 }
+
+--- All `BG*` sound channels.
+ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
+
 
 --- @class SoundPlayOptions
 --- @field volume number? @ Amplitude is multiplied by this value (Default: `1.0`)

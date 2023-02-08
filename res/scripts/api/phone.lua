@@ -61,23 +61,20 @@ DIGIT_0 = 48
 --- The digit '#'.
 DIGIT_POUND = 35
 
---- @alias CallReason integer
-
---- @type CallReason
---- No call reason given.
-CALL_REASON_NONE = 0
---- @type CallReason
---- Call was placed because of an off-hook timeout.
-CALL_REASON_OFF_HOOK = 1
---- @type CallReason
---- Call was placed because the originally dialed number was redirected.
-CALL_REASON_NUMBER_REDIRECTED = 2
---- @type CallReason
---- Call was placed by the user.
-CALL_REASON_USER_INIT = 3
---- @type CallReason
---- Call was placed by an agent.
-CALL_REASON_AGENT_INIT = 4
+--- @enum CallReason
+--- Defines reason codes for phone calls.
+CallReason = {
+    --- No call reason given.
+    NONE = 0,
+    --- Call was placed because of an off-hook timeout.
+    OFF_HOOK = 1,
+    --- Call was placed because the originally dialed number was redirected.
+    REDIRECTED = 2,
+    --- Call was placed by the user.
+    USER_INIT = 3,
+    --- Call was placed by an agent.
+    AGENT_INIT = 4
+}
 
 
 --- @alias PhoneStateCode integer

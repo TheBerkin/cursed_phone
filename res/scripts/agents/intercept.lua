@@ -42,9 +42,10 @@ local vsc_handlers = {
     end
 }
 
+--- @type table<CallReason, async fun(self: AgentModule)>
 local reason_handlers = {
     -- Number is invalid or a vertical service code
-    [CALL_REASON_NUMBER_REDIRECTED] = function(self)
+    [CallReason.REDIRECTED] = function(self)
         local vsc
         local phone_number = agent.caller_dialed_number()
         local vsc_handled = false
@@ -73,7 +74,7 @@ local reason_handlers = {
     end,
 
     -- Phone was left off the hook
-    [CALL_REASON_OFF_HOOK] = function(self)
+    [CallReason.OFF_HOOK] = function(self)
         local cancel_func = function()
             return call_time() > MAX_MESSAGE_TIME
         end
