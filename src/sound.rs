@@ -256,6 +256,7 @@ impl SoundBank {
             users: Default::default()
         };
 
+        // TODO: If soundbank directory doesn't exist, just log a warning and return an empty soundbank instead of panicking
         let root_dir = root_dir.canonicalize().expect("Unable to expand soundbank root path");
         
         bank.sounds.clear();

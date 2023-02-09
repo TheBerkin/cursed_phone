@@ -167,6 +167,15 @@ local _AgentModule_MEMBERS = {
         --- @diagnostic disable-next-line: undefined-field
         self._state_func_tables[state] = func_table
     end,
+    --- Convenience function that calls `state` to configure a `CALL_IN` state that immediately accepts all calls.
+    --- @param self AgentModule
+    accept_all_calls = function(self) 
+        self:state(AgentState.CALL_IN, {
+            enter = function(self)
+                agent.accept_call()
+            end
+        })
+    end,
     suspend = function(self)
         self._is_suspended = true
     end,
@@ -266,7 +275,7 @@ end
 --- @async
 --- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
 --- @param intent IntentCode
---- @param intent_data any
+--- @param intent_data any?
 --- @return IntentResponseCode, any
 function agent.intent(intent, intent_data)
     assert_agent_caller()
@@ -292,6 +301,20 @@ function agent.wait(seconds)
 end
 
 --- @async
+--- Asynchronously waits for a dynamic number of seconds determined by calling the supplied function every tick.
+--- Stops as soon as the last returned duration exceeds the current waiting time.
+--- @param duration_func fun(): number @ The function that returns the amount of time to wait.
+function agent.wait_dynamic(duration_func)
+    assert_agent_caller()
+    local start_time = engine_time()
+    while true do
+        local current_duration = duration_func()
+        if is_number(current_duration) and engine_time() - start_time >= current_duration then return end
+        agent.intent(IntentCode.WAIT)
+    end
+end
+
+--- @async
 --- Asynchronously waits the specified number of seconds or until the specified function returns true.
 --- @param seconds number
 --- @param predicate function
@@ -307,9 +330,17 @@ end
 --- Asynchronously waits until the specified function returns true. Function is called once per agent tick.
 --- @param predicate function
 function agent.wait_until(predicate)
+    assert_agent_caller()
     while not predicate() do
         agent.intent(IntentCode.WAIT)
     end
+end
+
+--- @async
+--- Yields control from the current agent to the caller.
+function agent.yield()
+    assert_agent_caller()
+    coroutine.yield(IntentCode.YIELD)
 end
 
 --- @async
