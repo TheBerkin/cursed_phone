@@ -490,7 +490,7 @@ local function gen_state_coroutine(s, new_state, old_state)
 end
 
 --- @param s AgentModule
---- @return thread
+--- @return thread?
 local function gen_msg_handler_coroutine(s, msg)
     local state_table = s._state_func_tables[s._state]
     local handler = state_table and state_table.message

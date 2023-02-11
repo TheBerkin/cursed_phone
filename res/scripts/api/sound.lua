@@ -83,11 +83,15 @@ if not sound then
     --- Provides functions for controlling multi-channel sound playback.
     sound = {}
 
-    --- Plays a sound on a specific channel.
+    --- Plays a sound on a specific channel. 
+    --- Returns two values: 
+    --- 1. a boolean indicating whether the operation was successful
+    --- 2. the length of the sound in seconds, not accounting for modifiers (or `nil` if no sound could be played)
     --- @param path string @ A soundglob or path to the sound to play. Soundglobs will play a random matching sound.
     --- @param channel Channel @ The channel to play the sound on.
     --- @param opts SoundPlayOptions? @ The options to apply to the played sound.
-    function sound.play(path, channel, opts) end
+    --- @return boolean, number?
+    function sound.play(path, channel, opts) return false, nil end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
     --- @param channel Channel

@@ -249,6 +249,10 @@ struct SoundBank {
     users: HashSet<SoundBankUser>,
 }
 
+pub struct PlayedSoundInfo {
+    pub duration: Option<Duration>
+}
+
 impl SoundBank {
     pub fn from_dir(name: String, root_dir: &Path) -> Self {   
         
@@ -378,7 +382,7 @@ impl SoundEngine {
 }
 
 impl SoundEngine {
-    pub fn play(&self, key: &str, channel: Channel, wait: bool, interrupt: bool, opts: SoundPlayOptions) {
+    pub fn play(&self, key: &str, channel: Channel, wait: bool, interrupt: bool, opts: SoundPlayOptions) -> Option<PlayedSoundInfo> {
         let sound = self.find_sound(key);
         match sound {
             Some(sound) => {
@@ -387,6 +391,9 @@ impl SoundEngine {
                 }
 
                 let ch = &mut self.channels.borrow_mut()[channel.as_index()];
+                let info = PlayedSoundInfo {
+                    duration: sound.duration()
+                };
 
                 // Queue sound in sink
                 ch.set_volume(VolumeLayer::Fade, 1.0);
@@ -396,8 +403,13 @@ impl SoundEngine {
                 if wait {
                     ch.sink.sleep_until_end();
                 }
+
+                Some(info)
             },
-            None => warn!("WARNING: Tried to play nonexistent sound or soundglob '{}'", key)
+            None => {
+                warn!("WARNING: Tried to play nonexistent sound or soundglob '{}'", key);
+                None
+            }
         }
     }
 

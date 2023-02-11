@@ -25,7 +25,7 @@ impl<'lua> CursedEngine<'lua> {
                 take = opts_table.get::<&str, f32>("take").ok().map(|secs| Duration::from_secs_f32(secs));
                 fadein = opts_table.get::<&str, f32>("fadein").ok().map(|secs| Duration::from_secs_f32(secs));
             }
-            self.sound_engine.borrow().play(
+            let info = self.sound_engine.borrow().play(
                 path.as_str(), 
                 Channel::from(channel), 
                 false, 
@@ -39,7 +39,11 @@ impl<'lua> CursedEngine<'lua> {
                     fadein: fadein.unwrap_or_default(),
                 }
             );
-            Ok(())
+
+            Ok(match info {
+                Some(info) => (true, info.duration.map(|d| d.as_secs_f64())),
+                None => (false, None)
+            })
         })?)?;
     
         // sound.is_busy(channel)
