@@ -103,7 +103,7 @@ local function update_movement_controls()
                 -- go
                 game.walking = true
                 module:log("Victim: Moving.")
-            else
+            elseif game.walking then
                 -- stop
                 if not game.stop_digits_used[digit] then
                     -- allow stop
@@ -124,11 +124,19 @@ local function update_footsteps()
 
     while true do
         if game.walking then
-            sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.2, 0.3), speed = rand_float(0.9, 1.1), interrupt = true })
-            agent.wait_cancel(rand_float(0.8, 0.9), is_victim_stationary)
-        else
-            agent.yield()
+            agent.wait_cancel(rand_float(0.25, 0.6), is_victim_stationary)
+            while game.walking do 
+                sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.2, 0.3), speed = rand_float(0.9, 1.1), interrupt = true })
+                agent.wait_cancel(rand_float(0.8, 0.9), is_victim_stationary)
+            end
+            agent.wait(rand_float(0.2, 0.35))
+            sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.1, 0.2), speed = rand_float(0.8, 1), interrupt = true })
+            if chance(0.5) then 
+                agent.wait(rand_float(0.2, 0.4))
+                sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.1, 0.15), speed = rand_float(0.6, 0.8), interrupt = true })
+            end
         end
+        agent.yield()
     end
 end
 
