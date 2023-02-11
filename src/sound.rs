@@ -196,18 +196,22 @@ struct SoundChannel {
 
 struct Sound {
     path: String,
-    src: Buffered<rodio::source::SamplesConverter<rodio::Decoder<BufReader<File>>, i16>>
+    src: Buffered<rodio::source::SamplesConverter<rodio::Decoder<BufReader<File>>, i16>>,
 }
 
 impl Sound {
     fn from_file(path: &Path) -> Self {
         let file = File::open(path).unwrap();
-        let src = rodio::Decoder::new(BufReader::new(file)).unwrap().convert_samples::<i16>();
-
+        let src = rodio::Decoder::new(BufReader::new(file)).unwrap().convert_samples::<i16>().buffered();
+        
         Self {
             path: String::from(path.to_string_lossy()),
-            src: src.buffered()
+            src: src
         }
+    }
+
+    fn duration(&self) -> Option<Duration> {
+        self.src.total_duration()
     }
 }
 
@@ -256,24 +260,26 @@ impl SoundBank {
             users: Default::default()
         };
 
-        // TODO: If soundbank directory doesn't exist, just log a warning and return an empty soundbank instead of panicking
-        let root_dir = root_dir.canonicalize().expect("Unable to expand soundbank root path");
-        
-        bank.sounds.clear();
-        bank.sound_glob_cache.borrow_mut().clear();
-        let search_path = root_dir.join("**").join("*.{wav,ogg}");
-        let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound bank");
-        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound bank") {
-            if let Ok(path) = entry {
-                let sound_path = path.path().canonicalize().expect("Unable to expand path");
-                let sound_key = sound_path
-                .strip_prefix(&root_dir).expect("Unable to form sound key from path")
-                .with_extension("")
-                .to_string_lossy()
-                .replace("\\", "/");
-                let sound = Sound::from_file(&sound_path);
-                bank.sounds.insert(sound_key, Rc::new(sound));
+        match root_dir.canonicalize() {
+            Ok(root_dir) => {
+                bank.sounds.clear();
+                bank.sound_glob_cache.borrow_mut().clear();
+                let search_path = root_dir.join("**").join("*.{wav,ogg}");
+                let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound bank");
+                for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound bank") {
+                    if let Ok(path) = entry {
+                        let sound_path = path.path().canonicalize().expect("Unable to expand path");
+                        let sound_key = sound_path
+                        .strip_prefix(&root_dir).expect("Unable to form sound key from path")
+                        .with_extension("")
+                        .to_string_lossy()
+                        .replace("\\", "/");
+                        let sound = Sound::from_file(&sound_path);
+                        bank.sounds.insert(sound_key, Rc::new(sound));
+                    }
+                }
             }
+            Err(err) => warn!("Failed to load soundbank content at '{:?}': {}", root_dir.as_os_str(), err),
         }
 
         bank

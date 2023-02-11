@@ -80,7 +80,7 @@ impl CallReason {
 #[derive(Clone, Debug)]
 pub enum AgentIntent {
     /// Agent performed no action.
-    Idle,
+    Yield,
     /// Agent wants to accept an incoming call.
     AcceptCall,
     /// Agent wants to end an ongoing call.
@@ -97,12 +97,20 @@ pub enum AgentIntent {
     StateEnded(AgentState),
     /// Agent wants to forward the call to a specified Agent ID.
     ForwardCallToId(AgentId),
+    /// (Not Implemented)
+    ReadPhrase,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum AgentContinuation {
+    ThisAgent,
+    NextAgent
 }
 
 impl AgentIntent {
     pub fn from_lua_value(intent_code: i32, intent_data: LuaValue) -> AgentIntent {
         match intent_code {
-            0 => AgentIntent::Idle,
+            0 => AgentIntent::Yield,
             1 => AgentIntent::AcceptCall,
             2 => AgentIntent::EndCall,
             3 => AgentIntent::CallUser,
@@ -114,13 +122,14 @@ impl AgentIntent {
             },
             7 => match intent_data {
                 LuaValue::Integer(n) => AgentIntent::StateEnded(AgentState::from(n as usize)),
-                _ => AgentIntent::Idle
+                _ => AgentIntent::Yield
             },
             8 => match intent_data {
                 LuaValue::Integer(n) => AgentIntent::ForwardCallToId(n as usize),
-                _ => AgentIntent::Idle
+                _ => AgentIntent::Yield
             }
-            _ => AgentIntent::Idle
+            9 => AgentIntent::ReadPhrase,
+            _ => AgentIntent::Yield
         }
     }
 }

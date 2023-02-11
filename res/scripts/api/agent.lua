@@ -55,9 +55,9 @@ IntentCode = {
     --- Agent wants to end its current state and transition to another one.
     STATE_END = 7,
     --- Agent wants to forward the call to a specific Agent ID.
-    FORWARD_CALL_AGENT_ID = 7,
+    FORWARD_CALL_AGENT_ID = 8,
     --- Agent wants the speech recognition engine to listen for and return a phrase.
-    READ_PHRASE = 8,
+    READ_PHRASE = 9,
 }
 
 --- @enum IntentResponseCode
@@ -276,10 +276,11 @@ end
 --- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
 --- @param intent IntentCode
 --- @param intent_data any?
+--- @param should_continue boolean?
 --- @return IntentResponseCode, any
-function agent.intent(intent, intent_data)
+function agent.intent(intent, intent_data, should_continue)
     assert_agent_caller()
-    local data_code, response_data = coroutine.yield(intent, intent_data)
+    local data_code, response_data = coroutine.yield(intent, intent_data, should_continue or false)
     return (data_code or IntentResponseCode.NONE), response_data
 end
 
@@ -355,12 +356,15 @@ function agent.multi_task(...)
 
     while true do
         local tasks_running = false
-        for _,state in pairs(coroutines) do
+        local task_count = #coroutines
+
+        for i = 1, task_count do
+            local state = coroutines[i]
             if coroutine.status(state.co) ~= 'dead' then
                 local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
                 tasks_running = true
                 if success then
-                    local response_code, response_data = agent.intent(intent, intent_data)
+                    local response_code, response_data = agent.intent(intent, intent_data, i < task_count)
                     state.last_response_code = response_code
                     state.last_response_data = response_data
                 end

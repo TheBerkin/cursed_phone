@@ -142,23 +142,30 @@ impl<'lua> AgentModule<'lua> {
     }
 
     #[inline]
-    pub fn tick(&self, data: AgentIntentResponse) -> LuaResult<AgentIntent> {
+    pub fn tick(&self, data: AgentIntentResponse) -> LuaResult<(AgentIntent, AgentContinuation)> {
         if self.suspended() {
-            return Ok(AgentIntent::Idle)
+            return Ok((AgentIntent::Yield, AgentContinuation::NextAgent))
         }
 
         let agent_table = self.tbl_module.clone();
         let data_code = data.to_code();
 
         // Tick agent
-        let (intent_code, intent_data) = match data {
+        let (intent_code, intent_data, should_continue) = match data {
             AgentIntentResponse::None => self.func_tick.call((agent_table, data_code))?,
             AgentIntentResponse::Digit(digit) => self.func_tick.call((agent_table, data_code, digit.to_string()))?,
             AgentIntentResponse::LineBusy => self.func_tick.call((agent_table, data_code))?
         };
 
         let intent = AgentIntent::from_lua_value(intent_code, intent_data);
-        Ok(intent)
+
+        let continuation = if should_continue {
+            AgentContinuation::ThisAgent
+        } else {
+            AgentContinuation::NextAgent
+        };
+
+        Ok((intent, continuation))
     }
 
     pub fn transition_state(&self, state: AgentState) -> LuaResult<()> {

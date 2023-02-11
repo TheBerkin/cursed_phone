@@ -882,100 +882,109 @@ impl<'lua> CursedEngine<'lua> {
         let agent_modules = self.agents.borrow();
         let agent_iter = agent_modules.iter();
         for (_, agent) in agent_iter {
-            let mut intent = agent.tick(AgentIntentResponse::None);
+            let mut tick_result = agent.tick(AgentIntentResponse::None);
             let mut call_attempted = false;
-            'agrnt_next_intent: loop {
-                match intent {
-                    // Agent requests a digit from the user
-                    Ok(ReadDigit) => {
-                        if let Some(digit) = self.consume_dialed_digit() {
-                            intent = agent.tick(AgentIntentResponse::Digit(digit));
-                            continue;
-                        }
-                    },
-                    // Agent wants to call the user
-                    Ok(CallUser) => {
-                        // First, check that there's nobody on the line and the user's on-hook.
-                        // Also make sure that the config allows incoming calls.
-                        if self.config.features.enable_incoming_calls.unwrap_or(false) 
-                        && self.state() == PhoneLineState::Idle 
-                        && self.other_party.borrow().is_none() {
-                            agent.set_call_reason(CallReason::AgentInit);
-                            agent.transition_state(AgentState::OutgoingCall);
-                            self.load_other_party(Rc::clone(agent));
-                            self.set_state(PhoneLineState::IdleRinging);
-                            self.last_caller_id.replace(agent.id());
-                        } else {
-                            // Tell the agent they're busy
-                            intent = agent.tick(AgentIntentResponse::LineBusy);
-                            if call_attempted {
-                                break 'agrnt_next_intent
-                            }
-
-                            call_attempted = true;
-                            continue;
-                        }
-                    },
-                    // Agent wants to accept incoming call
-                    Ok(AcceptCall) => {
-                        if state == CallingOut { 
-                            self.set_state(Connected);
-                        }
-                    },
-                    // Agent wants to end current call
-                    Ok(EndCall) => {
-                        match state {
-                            // Transition to idle (hangs up at end of CALL state)
-                            Connected => {
-                                agent.transition_state(AgentState::Idle);
-                                info!("Agent '{}' has disconnected the call.", agent.name())
-                            },
-                            // Caller has given up, disconnect immediately
-                            IdleRinging => {
-                                agent.transition_state(AgentState::Idle);
-                                self.set_state(PhoneLineState::Idle);
-                                info!("Agent '{}' has disconnected the pending call.", agent.name())
-                            },
-                            _ => {}
-                        }
-                    },
-                    // Agent wants to forward call to a specific number
-                    Ok(ForwardCall(number)) => {
-                        match state {
-                            Connected => {
-                                agent.transition_state(AgentState::Idle);
-                                self.call_number(&number);
-                            },
-                            _ => {}
-                        }
-                    },
-                    // Agent has just exited CALL state
-                    Ok(StateEnded(AgentState::Call)) => {
-                        // Don't affect PBX state if the call is already ended
-                        match state {
-                            Connected => {
-                                // TODO: Allow user to customize behavior when agent ends call
-                                self.set_state(Busy);
-                            },
-                            _ => {}
-                        }
-                    },
-                    // Agent wants to forward call to a specific Agent ID
-                    Ok(ForwardCallToId(id)) => {
-                        match state {
-                            Connected => {
-                                agent.transition_state(AgentState::Idle);
-                                if let Some(agent) = self.lookup_agent_id(id) {
-                                    info!("Forwarding call to agent '{}' (id = {:?})", agent.name(), agent.id());
-                                    self.call_agent(agent);
-                                } else {
-                                    warn!("Agent '{}' tried to forward call to invalid Agent ID: {}", agent.name(), id);
+            'agent_next_intent: loop {
+                match &tick_result {
+                    Ok((intent, continuation)) => {
+                        match intent {
+                            // Agent requests a digit from the user
+                            ReadDigit => {
+                                if let Some(digit) = self.consume_dialed_digit() {
+                                    tick_result = agent.tick(AgentIntentResponse::Digit(digit));
+                                    continue;
                                 }
                             },
-                            _ => {}
+                            // Agent wants to call the user
+                            CallUser => {
+                                // First, check that there's nobody on the line and the user's on-hook.
+                                // Also make sure that the config allows incoming calls.
+                                if self.config.features.enable_incoming_calls.unwrap_or(false) 
+                                && self.state() == PhoneLineState::Idle 
+                                && self.other_party.borrow().is_none() {
+                                    agent.set_call_reason(CallReason::AgentInit);
+                                    agent.transition_state(AgentState::OutgoingCall);
+                                    self.load_other_party(Rc::clone(agent));
+                                    self.set_state(PhoneLineState::IdleRinging);
+                                    self.last_caller_id.replace(agent.id());
+                                } else {
+                                    // Tell the agent they're busy
+                                    tick_result = agent.tick(AgentIntentResponse::LineBusy);
+                                    if call_attempted {
+                                        break 'agent_next_intent
+                                    }
+    
+                                    call_attempted = true;
+                                    continue;
+                                }
+                            },
+                            // Agent wants to accept incoming call
+                            AcceptCall => {
+                                if state == CallingOut { 
+                                    self.set_state(Connected);
+                                }
+                            },
+                            // Agent wants to end current call
+                            EndCall => {
+                                match state {
+                                    // Transition to idle (hangs up at end of CALL state)
+                                    Connected => {
+                                        agent.transition_state(AgentState::Idle);
+                                        info!("Agent '{}' has disconnected the call.", agent.name())
+                                    },
+                                    // Caller has given up, disconnect immediately
+                                    IdleRinging => {
+                                        agent.transition_state(AgentState::Idle);
+                                        self.set_state(PhoneLineState::Idle);
+                                        info!("Agent '{}' has disconnected the pending call.", agent.name())
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            // Agent wants to forward call to a specific number
+                            ForwardCall(number) => {
+                                match state {
+                                    Connected => {
+                                        agent.transition_state(AgentState::Idle);
+                                        self.call_number(&number);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            // Agent has just exited CALL state
+                            StateEnded(AgentState::Call) => {
+                                // Don't affect PBX state if the call is already ended
+                                match state {
+                                    Connected => {
+                                        // TODO: Allow user to customize behavior when agent ends call
+                                        self.set_state(Busy);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            // Agent wants to forward call to a specific Agent ID
+                            ForwardCallToId(id) => {
+                                match state {
+                                    Connected => {
+                                        agent.transition_state(AgentState::Idle);
+                                        if let Some(agent) = self.lookup_agent_id(*id) {
+                                            info!("Forwarding call to agent '{}' (id = {:?})", agent.name(), agent.id());
+                                            self.call_agent(agent);
+                                        } else {
+                                            warn!("Agent '{}' tried to forward call to invalid Agent ID: {}", agent.name(), id);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => (),
                         }
-                    },
-                    Ok(_) => (),
+                        // Handle continuation
+                        match continuation {
+                            AgentContinuation::ThisAgent => (),
+                            AgentContinuation::NextAgent => break,
+                        }
+                    }
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
                         match err {
@@ -984,7 +993,6 @@ impl<'lua> CursedEngine<'lua> {
                         }
                     }
                 }
-                break;
             }
         }
     }

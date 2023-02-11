@@ -4,9 +4,11 @@
         "lowercase-global"
     ],
     "Lua.diagnostics.globals": [
+        "agent",
         "phone",
         "sound",
-        "agent",
+        "cron",
+        "toll",
         "_caller_dialed_number_impl",
         "_NATIVE_STUB"
     ],
