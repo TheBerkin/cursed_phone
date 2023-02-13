@@ -11,9 +11,14 @@ local HEART_RATE_START = 65
 local HEARTBEAT_WIDTH = 0.03
 local VICTIM_ESCAPE_DISTANCE = 30
 
+local MONSTER_STATE_IDLE = 0
+local MONSTER_STATE_MENACE = 1
+local MONSTER_STATE_ATTACK = 2
 
 --- @class RedGreenGame
 local game = {
+    --- Gameplay controls locked?
+    controls_locked = false,
     --- Is victim's heartbeat audible?
     heartbeat_enabled = true,
     --- Victim's current heart rate
@@ -24,9 +29,13 @@ local game = {
     victim_distance = VICTIM_ESCAPE_DISTANCE,
     --- Is victim currently walking?
     walking = false,
+    monster = {
+        state = MONSTER_STATE_IDLE,
+        state_time = time_since()
+    },
     --- @param self RedGreenGame
     reset = function(self)
-        self.heartbeat_enabled = false
+        self.heartbeat_enabled = true
         self.heart_rate = HEART_RATE_START
         table.clear(self.stop_digits_used)
         self.victim_distance = VICTIM_ESCAPE_DISTANCE
@@ -71,7 +80,44 @@ local function select_heartbeat_bank(bpm)
 end
 
 --- @async
-local function do_heartbeat()
+local function task_ambience()
+    sound.play("$redgreen/ambient/amb_dungeon", Channel.PHONE08, { looping = true, skip = rand_float(0, 30), volume = 0.1 })
+
+    agent.multi_task(
+    function()
+        local first_moment = true
+
+        while true do
+            agent.wait(first_moment and rand_float(0, 25) or rand_float(5, 30))
+            sound.play("$redgreen/ambient/moment_drip_*", Channel.PHONE07, { volume = rand_float(0.01, 0.1), speed = rand_float(0.85, 1.1), interrupt = false })
+            first_moment = false
+        end
+    end,
+    function()
+        while true do 
+            agent.wait(rand_float(5, 20))
+            if chance(0.35) then
+                sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.PHONE06, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.1) })
+            end
+        end
+    end)
+end
+
+local function task_monster_sounds()
+    sound.play("ambient/static", Channel.PHONE04, { looping = true, volume = 0.175 })
+    while true do 
+        agent.wait(rand_float(1, 5))
+        sound.play_wait("$redgreen/monster/croak_*", Channel.PHONE05, {
+            volume = 0.3,
+            fadein = chance(0.5) and 1 or 0,
+            speed = rand_float(0.8, 1.25),
+            skip = chance(0.4) and rand_float(0, 0.5) or 0 
+        })
+    end
+end
+
+--- @async
+local function task_update_heartbeat()
     while true do
         if game.heartbeat_enabled then
             gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
@@ -88,38 +134,42 @@ local function do_heartbeat()
 end
 
 --- @async
-local function update_heart_rate()
+local function task_update_heart_rate()
     while true do
         game.heart_rate = math.sin(engine_time() * TAU * 0.1) * 30 + 95
         agent.yield()
     end
 end
 
-local function update_movement_controls()
+--- @async
+local function task_update_controls()
     while true do
-        local digit = tonumber(agent.read_digit())
-        if digit then
-            if digit == 1 then
-                -- go
-                game.walking = true
-                module:log("Victim: Moving.")
-            elseif game.walking then
-                -- stop
-                if not game.stop_digits_used[digit] then
-                    -- allow stop
-                    game.stop_digits_used[digit] = true
-                    game.walking = false
-                    module:log("Victim: Stopped.")
-                else
-                    -- stop digit already used!
-                    module:log("Victim: Can't stop.")
+        if not game.controls_locked then
+            local digit = tonumber(agent.read_digit())
+            if digit then
+                if digit == 1 then
+                    -- go
+                    game.walking = true
+                    module:log("Victim: Moving.")
+                elseif game.walking then
+                    -- stop
+                    if not game.stop_digits_used[digit] then
+                        -- allow stop
+                        game.stop_digits_used[digit] = true
+                        game.walking = false
+                        module:log("Victim: Stopped.")
+                    else
+                        -- stop digit already used!
+                        module:log("Victim: Stop already used!")
+                    end
                 end
             end
         end
     end
 end
 
-local function update_footsteps()
+--- @async
+local function task_update_footsteps()
     local function is_victim_stationary() return not game.walking end
 
     while true do
@@ -140,13 +190,20 @@ local function update_footsteps()
     end
 end
 
+local function task_intro()
+
+end
+
 module:state(AgentState.CALL, {
     enter = function(self)
         agent.multi_task(
-            do_heartbeat,
-            update_heart_rate,
-            update_movement_controls,
-            update_footsteps
+            task_ambience,
+            -- task_intro,
+            task_update_heartbeat,
+            task_update_heart_rate,
+            task_update_controls,
+            task_update_footsteps,
+            task_monster_sounds
         )
     end,
 
