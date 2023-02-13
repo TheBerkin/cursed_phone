@@ -93,8 +93,8 @@ AgentRole = {
 --- @class AgentModule
 local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)
-        local status, state = tick_agent_state(self, data_code, data)
-        return status, state
+        local status, state, continuation = tick_agent_state(self, data_code, data)
+        return status, state, continuation
     end,
     transition = function(self, state)
         if state == self._state then return end
@@ -518,7 +518,7 @@ function transition_agent_state(s, state)
 end
 
 --- @param s AgentModule
---- @return IntentCode, any
+--- @return IntentCode, any, boolean
 function tick_agent_state(s, data_code, data)
     -- Check if a state machine is even running
     local state_coroutine = s._state_coroutine
@@ -529,12 +529,12 @@ function tick_agent_state(s, data_code, data)
 
     -- If no state is active, there's no need to tick anything
     if active_coroutine == nil then
-        return IntentCode.YIELD, nil
+        return IntentCode.YIELD, nil, false
     end
 
     -- If the state has finished, inform the caller that we need to transition
     if coroutine.status(state_coroutine) == 'dead' then
-        return IntentCode.STATE_END, s._state
+        return IntentCode.STATE_END, s._state, false
     end
 
     -- Handle messages
@@ -546,17 +546,17 @@ function tick_agent_state(s, data_code, data)
     end
 
     -- Resume the state machine
-    local success, intent, intent_data = coroutine.resume(active_coroutine, data_code, data)
+    local success, intent, intent_data, continuation = coroutine.resume(active_coroutine, data_code, data)
 
     -- If the coroutine is somehow dead/broken, transition the state
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
         error(intent)
-        return IntentCode.STATE_END, s._state
+        return IntentCode.STATE_END, s._state, false
     end
 
     -- Return latest status and any associated data
-    return intent or IntentCode.YIELD, intent_data
+    return intent or IntentCode.YIELD, intent_data, continuation
 end
 
 --- Gets the current state of a agent.

@@ -981,7 +981,9 @@ impl<'lua> CursedEngine<'lua> {
                         }
                         // Handle continuation
                         match continuation {
-                            AgentContinuation::ThisAgent => (),
+                            AgentContinuation::ThisAgent => {
+                                tick_result = agent.tick(AgentIntentResponse::None);
+                            },
                             AgentContinuation::NextAgent => break,
                         }
                     }
