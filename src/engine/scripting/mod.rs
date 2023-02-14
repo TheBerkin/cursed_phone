@@ -2,6 +2,7 @@
 use super::*;
 use std::{cmp};
 use log::{info};
+use perlin2d::PerlinNoise2D;
 
 mod cron;
 mod gpio;
@@ -28,25 +29,28 @@ impl<'lua> CursedEngine<'lua> {
         // ====================================================
     
         // sleep()
-        globals.set("sleep", lua.create_function(CursedEngine::lua_sleep)?)?;
+        globals.set("sleep", lua.create_function(Self::lua_sleep)?)?;
 
         // rand_int(min, max)
-        globals.set("rand_int", lua.create_function(CursedEngine::lua_rand_int)?)?;
+        globals.set("rand_int", lua.create_function(Self::lua_rand_int)?)?;
 
         // rand_int_skip(min, skip, max)
-        globals.set("rand_int_skip", lua.create_function(CursedEngine::lua_rand_int_skip)?)?;
+        globals.set("rand_int_skip", lua.create_function(Self::lua_rand_int_skip)?)?;
 
         // rand_int_bias_low(min, max)
-        globals.set("rand_int_bias_low", lua.create_function(CursedEngine::lua_rand_int_bias_low)?)?;
+        globals.set("rand_int_bias_low", lua.create_function(Self::lua_rand_int_bias_low)?)?;
 
         // rand_int_bias_high(min, max)
-        globals.set("rand_int_bias_high", lua.create_function(CursedEngine::lua_rand_int_bias_high)?)?;
+        globals.set("rand_int_bias_high", lua.create_function(Self::lua_rand_int_bias_high)?)?;
 
         // rand_float(min, max)
-        globals.set("rand_float", lua.create_function(CursedEngine::lua_rand_float)?)?;
+        globals.set("rand_float", lua.create_function(Self::lua_rand_float)?)?;
 
         // chance(p)
-        globals.set("chance", lua.create_function(CursedEngine::lua_chance)?)?;
+        globals.set("chance", lua.create_function(Self::lua_chance)?)?;
+
+        // perlin_sample(x, y, octaves, frequency, persistence, lacunarity, seed)
+        globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
 
         // engine_time()
         globals.set("engine_time", lua.create_function(move |_, ()| {
@@ -99,19 +103,25 @@ impl<'lua> CursedEngine<'lua> {
         Ok(())
     }
 
+    fn lua_perlin(_: &Lua, (x, y, octaves, frequency, persistence, lacunarity, seed): (f64, f64, i32, f64, f64, f64, i32)) -> LuaResult<f64> {
+        let perlin = PerlinNoise2D::new(octaves, 1.0, frequency, persistence, lacunarity, (1.0, 1.0), 0.0, seed);
+        let noise = perlin.get_noise(x, y);
+        Ok(noise)
+    }
+
     fn lua_sleep(_: &Lua, ms: u64) -> LuaResult<()> {
         thread::sleep(time::Duration::from_millis(ms));
         Ok(())
     }
 
-    fn lua_rand_int(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+    fn lua_rand_int(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
         if min >= max {
             return Ok(min);
         }
         Ok(rand::thread_rng().gen_range(min..max))
     }
 
-    fn lua_rand_int_bias_low(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+    fn lua_rand_int_bias_low(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
         if min >= max {
             return Ok(min);
         }
@@ -120,7 +130,7 @@ impl<'lua> CursedEngine<'lua> {
         Ok(cmp::min(a, b))
     }
 
-    fn lua_rand_int_bias_high(_: &Lua, (min, max): (i32, i32)) -> LuaResult<i32> {
+    fn lua_rand_int_bias_high(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
         if min >= max {
             return Ok(max);
         }

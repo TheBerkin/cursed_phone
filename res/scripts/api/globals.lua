@@ -66,6 +66,17 @@ if _NATIVE_STUB then
     --- @param p number
     --- @return boolean
     function chance(p) return false end
+
+    --- Calculates a 2-dimensional Perlin noise sample corresponding to the specified coordinates and noise parameters.
+    --- @param x number @ The X coordinate of the noise sample.
+    --- @param y number @ The Y coordinate of the noise sample.
+    --- @param octaves integer @ The number of octaves (layers) to add to the noise.
+    --- @param frequency number @ The number of noise cycles per unit length.
+    --- @param persistence number @ The amplitude multiplier for each successive octave.
+    --- @param lacunarity number @ The frequency multiplier for each successive octave.
+    --- @param seed integer @ The seed of the noise generator.
+    --- @return number
+    function perlin_sample(x, y, octaves, frequency, persistence, lacunarity, seed) return 0 end
 end
 
 function is_number(val)
@@ -74,4 +85,8 @@ end
 
 function is_string(val)
     return type(val) == 'string'
+end
+
+function rand_seed_32()
+    return rand_int(-2147483648, 2147483648)
 end
