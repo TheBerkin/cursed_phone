@@ -129,7 +129,7 @@ end
 
 --- @async
 local function task_monster_sounds()
-    sound.play("ambient/static", Channel.PHONE04, { looping = true, volume = 0.175 })
+    sound.play("ambient/static", Channel.PHONE04, { looping = true, volume = 0.1 })
     while true do 
         agent.wait(rand_float(1, 5))
         sound.play_wait("$redgreen/monster/croak_*", Channel.PHONE05, {
@@ -149,7 +149,7 @@ local function task_heartbeat_sounds()
         sound.play_wait("$redgreen/vo/computer_ekg_ready", Channel.PHONE06, { volume = 0.2 })
         while game.heartbeat_enabled do
             gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
-            sound.play("$redgreen/heart_monitor_beep", Channel.PHONE07, { volume = 0.05, interrupt = false })
+            sound.play("$redgreen/heart_monitor_beep", Channel.PHONE07, { volume = 0.05 })
             sound.play(select_heartbeat_bank(game.heart_rate), Channel.PHONE06, { speed = rand_float(0.9, 1.1) })
             agent.wait(HEARTBEAT_WIDTH)
             gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
