@@ -1,25 +1,21 @@
 # Cursed Phone
 
-This repository houses code for a hobby project of mine, the Cursed Phone.
+An audio-only game engine for the Raspberry Pi that emulates various styles of analog telephones. Not a VoIP service.
 
-The Cursed Phone is a repurposed rotary phone with a Raspberry Pi as its brain. It's not a "real" telephone; it instead does whatever I want through the convenient and universally understood interface of a rotary dial.
+Phone numbers are assigned to scripts (known as "agents") rather than people-- simply call the number to call the script. Agents can also be scripted to call the phone back.
 
-## What is this?
-
-It's a sort of audio-only game engine for the Raspberry Pi that emulates various styles of telephones. Phone numbers are assigned to scripts (known as "agents") rather than people-- call the number to call the script. You can even make your scripts call the phone. Imagine the possibilities!
+## Features
 
 What you get out of the box:
 
-* Emulation of rotary, touch-tone, and pay phones via GPIO
+* Emulation of rotary, touch-tone, and pay phones-- includes configurable GPIO inputs for switchhook, rotary dial, keypad, and coin triggers
 * Lua scripting system
-* Fully-configurable everything
+* GPIO pin access from Lua
+* WAV/OGG multi-channel audio playback support
 * Realistic call progress/DTMF tones
-* WAV/OGG audio playback support
-* GPIO access in scripts
 * Switchhook dialing (WIP)
-* Intercept services
 * Comfort noise
-* Mock GPIO interface for desktop testing via stdin
+* Intercept services
 * Compatibility with all Raspberry Pi models
 
 ## Building
