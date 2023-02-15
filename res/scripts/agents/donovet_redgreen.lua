@@ -8,7 +8,7 @@ SOUND CHANNEL LAYOUT:
 * PHONE03:  Victim Footsteps
 * PHONE04:  Monster Proximity SFX
 * PHONE05:  Monster Voice
-* PHONE06:  Heart Monitor
+* PHONE06:  VO (Computer) / Heart Monitor
 * PHONE07:  --
 * Phone08:  --
 * BG01:     Soundscape (Loop)
@@ -30,7 +30,9 @@ local HEART_RATE_START = 65
 local HEARTBEAT_WIDTH = 0.03
 local VICTIM_ESCAPE_DISTANCE = 120
 local VICTIM_SPEED = 1
-local FOOTSTEP_VOLUME = 0.65
+local FOOTSTEP_VOLUME = 1
+local HEART_MONITOR_VOLUME = 0.015
+local VO_COMPUTER_VOLUME = 0.02
 
 local MONSTER_STATE_IDLE = 0
 local MONSTER_STATE_MENACE = 1
@@ -40,16 +42,23 @@ local MONSTER_STATE_ATTACK = 2
 local game = {
     --- Gameplay controls locked?
     controls_locked = false,
-    --- Is victim's heartbeat audible?
-    heartbeat_enabled = true,
-    --- Victim's current heart rate
-    heart_rate = HEART_RATE_START,
     --- Stop digits already used by player
     stop_digits_used = {},
-    --- Victim's distance from the exit
-    victim_distance = VICTIM_ESCAPE_DISTANCE,
-    --- Is victim currently walking?
-    walking = false,
+    --- @class RedGreenVictim
+    victim = {
+        --- Victim's current heart rate
+        heart_rate = HEART_RATE_START,
+        --- Victim's current stress level (persistent)
+        stress = 0.0,
+        --- Victim's temporary stress level (decaying)
+        temp_stress = 0.0,
+        --- Victim's distance from the exit
+        goal_distance = VICTIM_ESCAPE_DISTANCE,
+        --- Is heart monitor running?
+        ekg_enabled = true,
+        --- Is victim currently walking?
+        walking = false,
+    },
     --- Monster state
     monster = {
         --- State code of the current state
@@ -59,11 +68,7 @@ local game = {
     },
     --- @param self RedGreenGame
     reset = function(self)
-        self.heartbeat_enabled = true
-        self.heart_rate = HEART_RATE_START
         table.clear(self.stop_digits_used)
-        self.victim_distance = VICTIM_ESCAPE_DISTANCE
-        self.walking = false
     end
 }
 
@@ -144,16 +149,17 @@ end
 --- @async
 local function task_heartbeat_sounds()
     agent.wait(1.0)
+    local v = game.victim
     while true do
-        agent.wait_until(function() return game.heartbeat_enabled end)
-        sound.play_wait("$redgreen/vo/computer_ekg_ready", Channel.PHONE06, { volume = 0.2 })
-        while game.heartbeat_enabled do
+        agent.wait_until(function() return v.ekg_enabled end)
+        sound.play_wait("$redgreen/vo/computer_ekg_ready", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
+        while v.ekg_enabled do
             gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
-            sound.play("$redgreen/heart_monitor_beep", Channel.PHONE07, { volume = 0.05 })
-            sound.play(select_heartbeat_bank(game.heart_rate), Channel.PHONE06, { speed = rand_float(0.9, 1.1) })
+            sound.play("$redgreen/heart_monitor_beep", Channel.PHONE07, { volume = HEART_MONITOR_VOLUME })
+            sound.play(select_heartbeat_bank(v.heart_rate), Channel.PHONE06, { speed = rand_float(0.9, 1.1) })
             agent.wait(HEARTBEAT_WIDTH)
             gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
-            if game.heartbeat_enabled then
+            if v.ekg_enabled then
                 agent.wait_dynamic(get_post_heartbeat_wait_time)
             end
         end
@@ -222,7 +228,12 @@ local function task_footstep_sounds()
 end
 
 local function task_update_victim()
-
+    local v = game.victim
+    while true do
+        if v.walking then
+        end
+        agent.yield()
+    end
 end
 
 local function task_intro()
@@ -237,6 +248,7 @@ module:state(AgentState.CALL, {
             task_heartbeat_sounds,
             task_update_heart_rate,
             task_update_controls,
+            task_update_victim,
             task_footstep_sounds,
             task_monster_sounds
         )
