@@ -8,9 +8,11 @@ SOUND CHANNEL LAYOUT:
 * PHONE03:  Victim Footsteps
 * PHONE04:  Monster Proximity SFX
 * PHONE05:  Monster Voice A
-* PHONE06:  VO (Computer) / Heart Monitor
+* PHONE06:  VO (Computer)
 * PHONE07:  Victim Heartbeat
-* Phone08:  Monster Voice B
+* Phone08:  Heart Monitor
+* Phone09:  --
+* Phone10:  Monster Voice B
 * BG01:     Soundscape (Loop)
 * BG02:     Soundscape (Moments - Dripping)
 * BG03:     Soundscape (Moments - Rare)
@@ -28,11 +30,26 @@ local OUT_VIBRATE = 27
 
 local SOUNDSCAPE_VOLUME = 0.9
 
-local HEART_RATE_BASE = 85
+local VO_COMPUTER_DISTANCE_LINES = {
+    [10] = "$redgreen/vo/computer_10",
+    [20] = "$redgreen/vo/computer_20",
+    [30] = "$redgreen/vo/computer_30",
+    [40] = "$redgreen/vo/computer_40",
+    [50] = "$redgreen/vo/computer_50",
+    [60] = "$redgreen/vo/computer_60",
+    [70] = "$redgreen/vo/computer_70",
+    [80] = "$redgreen/vo/computer_80",
+    [90] = "$redgreen/vo/computer_90",
+    [100] = "$redgreen/vo/computer_100",
+    [110] = "$redgreen/vo/computer_110",
+    [120] = "$redgreen/vo/computer_120",
+}
+
+local HEART_RATE_BASE = 80
 local HEART_RATE_MIN = 20
 local HEART_RATE_MAX = 150
-local HEART_RATE_LETHAL_MIN = 140
-local HEART_RATE_STRESS_FACTOR = 6.5
+local HEART_RATE_LETHAL_MIN = 145
+local HEART_RATE_STRESS_FACTOR = 2.8
 local HEART_RATE_NOISE_FACTOR = 18.0
 local HEART_MONITOR_VOLUME = 0.015
 local HEARTBEAT_B_THRESHOLD = 65
@@ -42,12 +59,12 @@ local HEARTBEAT_WIDTH = 0.03
 local VICTIM_ESCAPE_DISTANCE = 120
 local VICTIM_SPEED = 1.0
 local VICTIM_FOOTSTEP_VOLUME = 1.0
-local VICTIM_STATIONARY_STRESS_RATE = 0.065
-local VICTIM_WALK_TEMP_STRESS = 3.0
-local VICTIM_STOP_TEMP_STRESS_MIN = 3.0
-local VICTIM_STOP_TEMP_STRESS_MAX = 4.5
-local VICTIM_STOP_STRESS_MIN = 2.5
-local VICTIM_STOP_STRESS_MAX = 4.75
+local VICTIM_STATIONARY_STRESS_RATE = 0.08
+local VICTIM_WALK_TEMP_STRESS = 2.0
+local VICTIM_STOP_TEMP_STRESS_MIN = 2.5
+local VICTIM_STOP_TEMP_STRESS_MAX = 3.75
+local VICTIM_STOP_STRESS_MIN = 1.25
+local VICTIM_STOP_STRESS_MAX = 2.75
 local VICTIM_TEMP_STRESS_MAX = 10.0
 local VICTIM_TEMP_STRESS_DECAY_RATE = 0.45
 
@@ -92,6 +109,8 @@ local game = {
         temp_stress = 0.0,
         --- Victim's distance from the exit
         goal_distance = VICTIM_ESCAPE_DISTANCE,
+        --- Last distance that the computer VO reported
+        last_reported_distance = VICTIM_ESCAPE_DISTANCE,
         --- Is heart monitor running?
         ekg_enabled = false,
         --- Is the heart monitor FREAKING OUT?
@@ -122,6 +141,27 @@ function game.victim:add_stress(amount)
     self.stress = math.max(self.stress + amount, 0.0)
 end
 
+--- @return number?
+function game.victim:get_last_reportable_distance()
+    local min_rd = nil
+    for k, _ in pairs(VO_COMPUTER_DISTANCE_LINES) do
+        if self.goal_distance < k and (not min_rd or k < min_rd) then
+            min_rd = k
+        end
+    end
+    return min_rd
+end
+
+--- @return boolean
+function game.victim:update_distance_report()
+    local last_reportable_distance = self:get_last_reportable_distance()
+    if last_reportable_distance ~= self.last_reported_distance then
+        self.last_reported_distance = last_reportable_distance
+        return true
+    end
+    return false
+end
+
 local function check_victim_detectable()
     return game.victim.walking or game.victim.heart_rate >= HEART_RATE_LETHAL_MIN
 end
@@ -148,10 +188,10 @@ local MONSTER_STATES = {
         game.victim.walking = false
         game.monster.vocals_enabled = false
         sound.wait(Channel.PHONE05)
-        sound.play("$redgreen/monster/scream", Channel.PHONE08, { volume = 0.35 })
+        sound.play("$redgreen/monster/scream", Channel.PHONE10, { volume = 0.35 })
         agent.wait(1.25)
         game.victim.ekg_panic_mode = true
-        sound.wait(Channel.PHONE08)
+        sound.wait(Channel.PHONE10)
         agent.end_call()
     end
 }
@@ -167,6 +207,7 @@ function game:reset()
     self.victim.heart_rate = HEART_RATE_BASE
     self.victim.stress = 0.0
     self.victim.temp_stress = 0.0
+    self.victim.last_reported_distance = VICTIM_ESCAPE_DISTANCE
     self.victim.goal_distance = VICTIM_ESCAPE_DISTANCE
     self.victim.ekg_enabled = false
     self.victim.ekg_panic_mode = false
@@ -307,8 +348,8 @@ local function task_heartbeat_sounds()
                 agent.yield()
             else 
                 gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
-                sound.play("$redgreen/heart_monitor_beep", Channel.PHONE06, { volume = HEART_MONITOR_VOLUME })
                 sound.play(select_heartbeat_bank(victim.heart_rate), Channel.PHONE07, { speed = rand_float(0.9, 1.1) })
+                sound.play("$redgreen/heart_monitor_beep", Channel.PHONE08, { volume = HEART_MONITOR_VOLUME })
                 agent.wait(HEARTBEAT_WIDTH)
                 gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
                 if victim.ekg_enabled then
@@ -323,12 +364,17 @@ end
 local function task_update_heart_rate()
     local victim = game.victim
     local noise_seed = rand_seed_32()
+    local is_critical = false
 
     while true do
         local noise = perlin_sample(engine_time(), 0, 3, 1, 0.5, 2.0, noise_seed)
         local bpm_factor_stress = (victim.stress + victim.temp_stress) * HEART_RATE_STRESS_FACTOR
         local bpm_factor_noise = noise * HEART_RATE_NOISE_FACTOR
         victim.heart_rate = math.clamp(HEART_RATE_BASE + bpm_factor_stress + bpm_factor_noise, HEART_RATE_MIN, HEART_RATE_MAX)
+        if not is_critical and victim.heart_rate >= HEART_RATE_LETHAL_MIN then
+            is_critical = true
+            module:log("Victim heart rate is critical!")
+        end
         agent.yield()
     end
 end
@@ -408,6 +454,12 @@ local function task_update_victim()
 
             -- Quick and dirty log of victim distance
             if math.abs(math.ceil(distance_prev) - math.ceil(distance_updated)) >= 1 then
+                if victim:update_distance_report() then
+                    local report_sound_path = VO_COMPUTER_DISTANCE_LINES[victim.last_reported_distance]
+                    if report_sound_path then
+                        sound.play(report_sound_path, Channel.PHONE06, { volume = VO_COMPUTER_VOLUME, interrupt = false })
+                    end
+                end
                 module:log("Victim: " .. math.ceil(distance_updated) .. "m from exit.")
             end
         else
