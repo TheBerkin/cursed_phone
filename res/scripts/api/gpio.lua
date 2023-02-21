@@ -55,6 +55,7 @@ if not gpio then
     --- Reads the logic level from an input pin.
     --- @param pin integer
     --- @return GpioLogicLevel
+    --- @nodiscard
     function gpio.read_pin(pin) return GPIO_LOW end
 
     --- Sets the logic level on an output pin.

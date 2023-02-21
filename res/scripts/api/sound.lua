@@ -81,6 +81,7 @@ ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
 
 if not sound then
     --- Provides functions for controlling multi-channel sound playback.
+    --- @class SoundLib
     sound = {}
 
     --- Plays a sound on a specific channel. 
@@ -96,6 +97,7 @@ if not sound then
     --- Returns a boolean indicating whether the specified channel is playing something.
     --- @param channel Channel
     --- @return boolean
+    --- @nodiscard
     function sound.is_busy(channel) return false end
 
     --- Stops playback on a specific channel.
@@ -108,11 +110,13 @@ if not sound then
     --- Gets the volume of the specified channel.
     --- @param channel Channel
     --- @return number
+    --- @nodiscard
     function sound.get_channel_volume(channel) return 0 end
 
     --- Gets the fade volume of the specified channel.
     --- @param channel Channel
     --- @return number
+    --- @nodiscard
     function sound.get_channel_fade_volume(channel) return 0 end
 
     --- Sets the fade volume of the specified channel.
@@ -122,11 +126,13 @@ if not sound then
 
     --- Gets the master volume.
     --- @return number
+    --- @nodiscard
     function sound.get_master_volume() return 0 end
 
     --- Gets a boolean value indicating whether the specified sound channel is muted.
     --- @param channel Channel @ The sound channel whose muted status to retrieve.
     --- @return boolean
+    --- @nodiscard
     function sound.is_channel_muted(channel) return false end
 
     --- Sets the muted status of the specified sound channel.

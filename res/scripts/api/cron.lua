@@ -7,6 +7,7 @@ if not cron then
     --- Creates a new cron schedule from the specified expression.
     --- @param expr string @ The cron expression to use for the schedule.
     --- @return CronSchedule?
+    --- @nodiscard
     --- @diagnostic disable-next-line: missing-return
     function cron.create(expr) end
 

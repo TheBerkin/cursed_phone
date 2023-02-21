@@ -412,6 +412,8 @@ end
 --- Returns the number that was used to reach the current agent.
 ---
 --- For intercept agents, this can be any value.
+--- @return string
+--- @nodiscard
 function agent.caller_dialed_number()
     assert_agent_caller()
     return _caller_dialed_number_impl()
