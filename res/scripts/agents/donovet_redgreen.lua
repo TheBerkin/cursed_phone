@@ -7,10 +7,10 @@ SOUND CHANNEL LAYOUT:
 * PHONE02:  VO (Victim)
 * PHONE03:  Victim Footsteps
 * PHONE04:  Monster Proximity SFX
-* PHONE05:  Monster Voice
+* PHONE05:  Monster Voice 1
 * PHONE06:  VO (Computer) / Heart Monitor
-* PHONE07:  --
-* Phone08:  --
+* PHONE07:  Victim Heartbeat
+* Phone08:  Monster Voice 2
 * BG01:     Soundscape (Loop)
 * BG02:     Soundscape (Moments - Dripping)
 * BG03:     Soundscape (Moments - Rare)
@@ -25,6 +25,8 @@ module:accept_all_calls() -- TODO: Remove this later!
 local TAU = math.pi * 2.0
 
 local OUT_VIBRATE = 27
+
+local SOUNDSCAPE_VOLUME = 0.9
 
 local HEART_RATE_START = 65
 local HEART_MONITOR_VOLUME = 0.015
@@ -49,15 +51,16 @@ local MONSTER_IDLE_INTERVAL = 3.63
 local MONSTER_IDLE_INTERVAL_P = 0.2
 local MONSTER_IDLE_INTERVAL_TIMEOUT = MONSTER_IDLE_MAX_TIME - MONSTER_IDLE_MIN_TIME
 
-local MONSTER_MENACE_DELAY = 2.9
+local MONSTER_MENACE_DELAY = 3.5
 local MONSTER_MENACE_MIN_TIME = 5.6
 local MONSTER_MENACE_MAX_TIME = 13.0
-local MONSTER_MENACE_STATIC_VOLUME = 0.075
-local MONSTER_MENACE_STATIC_FADEIN_RATE = 0.3
-local MONSTER_MENACE_VOCAL_FADEIN_RATE = 0.15
+local MONSTER_MENACE_STATIC_VOLUME = 0.15
+local MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE = 0.4
+local MONSTER_MENACE_STATIC_FADEIN_RATE = 0.4
 local MONSTER_MENACE_STATIC_FADEOUT_RATE = 0.2
+local MONSTER_MENACE_VOCAL_VOLUME = 0.4
+local MONSTER_MENACE_VOCAL_FADEIN_RATE = 0.15
 local MONSTER_MENACE_VOCAL_FADEOUT_RATE = 0.4
-local MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE = 0.35
 
 --- @package
 --- @class RedGreenGame
@@ -78,6 +81,8 @@ local game = {
         goal_distance = VICTIM_ESCAPE_DISTANCE,
         --- Is heart monitor running?
         ekg_enabled = false,
+        --- Is the heart monitor FREAKING OUT?
+        ekg_panic_mode = false,
         --- Is victim currently walking?
         walking = false,
     },
@@ -116,8 +121,12 @@ local MONSTER_STATES = {
     [MONSTER_STATE_ATTACK] = function(self)
         game.controls_locked = true
         game.victim.walking = false
-        -- insert bloodcurdling screams
-        agent.wait(3.0)
+        game.monster.vocals_enabled = false
+        agent.wait(1.6)
+        sound.play("$redgreen/monster/scream", Channel.PHONE08, { volume = 0.2 })
+        agent.wait(1.25)
+        game.victim.ekg_panic_mode = true
+        sound.wait(Channel.PHONE08)
         agent.end_call()
     end
 }
@@ -135,6 +144,7 @@ function game:reset()
     self.victim.temp_stress = 0.0
     self.victim.goal_distance = VICTIM_ESCAPE_DISTANCE
     self.victim.ekg_enabled = false
+    self.victim.ekg_panic_mode = false
     self.victim.walking = false
     -- reset monster
     local monster_ai = Fsm.new(MONSTER_STATES, MONSTER_STATE_IDLE)
@@ -181,6 +191,11 @@ end
 
 --- @async
 local function task_soundscape()
+    sound.set_channel_volume(Channel.BG01, SOUNDSCAPE_VOLUME)
+    sound.set_channel_volume(Channel.BG02, SOUNDSCAPE_VOLUME)
+    sound.set_channel_volume(Channel.BG03, SOUNDSCAPE_VOLUME)
+    sound.set_channel_volume(Channel.BG04, SOUNDSCAPE_VOLUME)
+
     sound.play("$redgreen/ambient/amb_dungeon", Channel.BG01, { looping = true, skip = rand_float(0, 30), volume = 0.15 })
 
     agent.multi_task(
@@ -214,12 +229,14 @@ local function task_monster_sounds()
             sound.play("$redgreen/monster/proximity", Channel.PHONE04, { looping = true, volume = MONSTER_MENACE_STATIC_VOLUME })
             while true do
                 agent.wait(rand_float(1, 5))
-                sound.play_wait("$redgreen/monster/croak_*", Channel.PHONE05, {
-                    volume = rand_float(0.275, 0.4),
-                    fadein = chance(0.5) and 1 or 0,
-                    speed = rand_float(0.8, 1.25),
-                    skip = chance(0.4) and rand_float(0, 0.5) or 0
-                })
+                if game.monster.vocals_enabled then
+                    sound.play_wait("$redgreen/monster/croak_*", Channel.PHONE05, {
+                        volume = rand_float(0.69, 1) * MONSTER_MENACE_VOCAL_VOLUME,
+                        fadein = chance(0.5) and 1 or 0,
+                        speed = rand_float(0.8, 1.25),
+                        skip = chance(0.4) and rand_float(0, 0.5) or 0
+                    })
+                end
             end
         end,
         -- Volume control
@@ -260,13 +277,18 @@ local function task_heartbeat_sounds()
         agent.wait_until(function() return victim.ekg_enabled end)
         sound.play_wait("$redgreen/vo/computer_ekg_ready", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
         while victim.ekg_enabled do
-            gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
-            sound.play("$redgreen/heart_monitor_beep", Channel.PHONE07, { volume = HEART_MONITOR_VOLUME })
-            sound.play(select_heartbeat_bank(victim.heart_rate), Channel.PHONE06, { speed = rand_float(0.9, 1.1) })
-            agent.wait(HEARTBEAT_WIDTH)
-            gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
-            if victim.ekg_enabled then
-                agent.wait_dynamic(get_post_heartbeat_wait_time)
+            if victim.ekg_panic_mode then 
+                gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
+                agent.yield()
+            else 
+                gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
+                sound.play("$redgreen/heart_monitor_beep", Channel.PHONE06, { volume = HEART_MONITOR_VOLUME })
+                sound.play(select_heartbeat_bank(victim.heart_rate), Channel.PHONE07, { speed = rand_float(0.9, 1.1) })
+                agent.wait(HEARTBEAT_WIDTH)
+                gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
+                if victim.ekg_enabled then
+                    agent.wait_dynamic(get_post_heartbeat_wait_time)
+                end
             end
         end
     end
@@ -342,18 +364,18 @@ local function task_footstep_sounds()
 end
 
 local function task_update_victim()
-    local v = game.victim
+    local victim = game.victim
     local last_tick_time = engine_time()
     while true do
         local time = engine_time()
         local dt = time - last_tick_time
         last_tick_time = time
 
-        if v.walking then
+        if victim.walking then
             local distance_delta = VICTIM_SPEED * dt
-            local distance_prev = v.goal_distance
+            local distance_prev = victim.goal_distance
             local distance_updated = math.max(0, distance_prev - distance_delta)
-            v.goal_distance = distance_updated
+            victim.goal_distance = distance_updated
 
             -- Quick and dirty log of victim distance
             if math.abs(math.ceil(distance_prev) - math.ceil(distance_updated)) >= 1 then
@@ -379,12 +401,12 @@ end
 local function task_intro()
     agent.wait(3)
 
-    -- sound.play_wait("$redgreen/vo/intro/01_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
-    -- agent.wait(1.2)
-    -- sound.play_wait("$redgreen/vo/intro/02_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
-    -- agent.wait(1.2)
-    -- sound.play("$redgreen/vo/intro/03_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
-    -- agent.wait(9.7)
+    sound.play_wait("$redgreen/vo/intro/01_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
+    agent.wait(1.2)
+    sound.play_wait("$redgreen/vo/intro/02_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
+    agent.wait(1.2)
+    sound.play("$redgreen/vo/intro/03_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
+    agent.wait(9.7)
 
     game.victim.ekg_enabled = true
     agent.wait(1.6)
