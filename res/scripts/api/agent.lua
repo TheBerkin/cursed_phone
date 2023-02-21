@@ -22,6 +22,11 @@ end
 
 local agent_messages = {}
 
+--- @class AgentMessage
+--- @field sender string
+--- @field type string
+--- @field data any
+
 --- @enum AgentState
 --- Defines possible state codes for agents.
 AgentState = {
@@ -91,6 +96,10 @@ AgentRole = {
 --- @field message async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) @ Called when the agent receives a message. 
 
 --- @class AgentModule
+--- @field _state_coroutine thread?
+--- @field _message_coroutine thread?
+--- @field _state AgentState
+--- @field _state_func_tables table<AgentState, StateFunctionTable>
 local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)
         local status, state, continuation = tick_agent_state(self, data_code, data)
@@ -212,7 +221,7 @@ local _AgentModule_MEMBERS = {
     end,
     --- Removes the oldest message from the queue and returns it.
     --- If the message queue is empty, the function returns nil.
-    --- @return table|nil
+    --- @return AgentMessage?
     pop_message = function(self)
         local messages = self._messages
         local msgc = #messages
@@ -318,13 +327,19 @@ end
 --- @async
 --- Asynchronously waits the specified number of seconds or until the specified function returns true.
 --- @param seconds number
---- @param predicate function
+--- @param predicate fun(): boolean
+--- @return boolean @ Indicates whether the predicate returned true and canceled the waiting period.
 function agent.wait_cancel(seconds, predicate)
-    if predicate == nil or predicate() then return end
-    local start_time = engine_time()
-    while not predicate() and engine_time() - start_time < seconds do
-        agent.intent(IntentCode.WAIT)
+    if predicate then
+        local start_time = engine_time()
+        while engine_time() - start_time < seconds do
+            if predicate() then return true end
+            agent.intent(IntentCode.WAIT)
+        end
+    else
+        agent.wait(seconds)
     end
+    return false
 end
 
 --- @async
@@ -333,6 +348,26 @@ end
 function agent.wait_until(predicate)
     assert_agent_caller()
     while not predicate() do
+        agent.intent(IntentCode.WAIT)
+    end
+end
+
+--- @async
+--- @param interval number
+--- @param p number
+--- @param timeout number?
+function agent.chance_interval(interval, p, timeout)
+    local start_time = engine_time()
+    local last_interval_start_time = start_time
+
+    if interval > 0 and chance(p) then return end
+
+    while not timeout or engine_time() - start_time < timeout do
+        local time = engine_time()
+        if time - last_interval_start_time > interval then
+            last_interval_start_time = last_interval_start_time + interval
+            if chance(p) then return end
+        end
         agent.intent(IntentCode.WAIT)
     end
 end
@@ -489,16 +524,17 @@ local function gen_state_coroutine(s, new_state, old_state)
     return state_coroutine
 end
 
---- @param s AgentModule
+--- @param a AgentModule
+--- @param msg AgentMessage
 --- @return thread?
-local function gen_msg_handler_coroutine(s, msg)
-    local state_table = s._state_func_tables[s._state]
+local function gen_msg_handler_coroutine(a, msg)
+    local state_table = a._state_func_tables[a._state]
     local handler = state_table and state_table.message
     if not handler then return nil end
 
     local msg_coroutine = coroutine.create(function()
-        handler(s, msg.sender, msg.type, msg.data)
-        s._message_coroutine = nil
+        handler(a, msg.sender, msg.type, msg.data)
+        a._message_coroutine = nil
     end)
 
     return msg_coroutine
@@ -506,23 +542,30 @@ end
 
 --- Transitions to the specified state on a agent.
 --- Returns true if the transition was successful; otherwise, returns false.
---- @param s AgentModule
+--- @param a AgentModule
 --- @param state AgentState
 --- @return boolean
-function transition_agent_state(s, state)
-    local prev_state = s._state
-    local state_coroutine = gen_state_coroutine(s, state, prev_state)
-    s._state = state
-    s._state_coroutine = state_coroutine
+function transition_agent_state(a, state)
+    local prev_state = a._state
+    local state_coroutine = gen_state_coroutine(a, state, prev_state)
+    a._state = state
+    a._state_coroutine = state_coroutine
     return state_coroutine ~= nil
 end
 
---- @param s AgentModule
+--- Ticks the state machine of the specified agent.
+--- Returns 3 values:
+--- 1. the next intent code
+--- 2. the data associated with the intent
+--- 3. a boolean indicating whether to continue ticking this agent
+--- @param a AgentModule
+--- @param data_code IntentResponseCode
+--- @param data any
 --- @return IntentCode, any, boolean
-function tick_agent_state(s, data_code, data)
+function tick_agent_state(a, data_code, data)
     -- Check if a state machine is even running
-    local state_coroutine = s._state_coroutine
-    local message_coroutine = s._message_coroutine
+    local state_coroutine = a._state_coroutine
+    local message_coroutine = a._message_coroutine
 
     -- Message handling takes priority over state ticks
     local active_coroutine = message_coroutine or state_coroutine
@@ -533,26 +576,28 @@ function tick_agent_state(s, data_code, data)
     end
 
     -- If the state has finished, inform the caller that we need to transition
-    if coroutine.status(state_coroutine) == 'dead' then
-        return IntentCode.STATE_END, s._state, false
+    if state_coroutine and coroutine.status(state_coroutine) == 'dead' then
+        return IntentCode.STATE_END, a._state, false
     end
 
     -- Handle messages
-    if message_coroutine == nil and s:has_messages() then
-        local msg = s:pop_message()
-        message_coroutine = gen_msg_handler_coroutine(s, msg)
-        s._message_coroutine = message_coroutine
+    if message_coroutine == nil and a:has_messages() then
+        local msg = a:pop_message()
+        --- @cast msg AgentMessage
+        message_coroutine = gen_msg_handler_coroutine(a, msg)
+        a._message_coroutine = message_coroutine
         active_coroutine = message_coroutine
     end
 
     -- Resume the state machine
+    --- @cast active_coroutine thread
     local success, intent, intent_data, continuation = coroutine.resume(active_coroutine, data_code, data)
 
     -- If the coroutine is somehow dead/broken, transition the state
     if not success then
         -- TODO: Handle this in a way that doesn't cause UB
         error(intent)
-        return IntentCode.STATE_END, s._state, false
+        return IntentCode.STATE_END, a._state, false
     end
 
     -- Return latest status and any associated data

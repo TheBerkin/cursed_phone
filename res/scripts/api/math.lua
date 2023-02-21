@@ -68,3 +68,12 @@ end
 function math.remap(x, src_a, src_b, dest_a, dest_b, clamp)
     return math.lerp(dest_a, dest_b, math.invlerp(x, src_a, src_b, clamp))
 end
+
+function math.step_to(x, target, amount)
+    if x == target then return x end
+    if target > x then
+        return math.min(target, x + amount)
+    else
+        return math.max(target, x - amount)
+    end
+end

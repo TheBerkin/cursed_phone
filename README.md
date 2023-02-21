@@ -8,7 +8,7 @@ Phone numbers are assigned to scripts (known as "agents") rather than people-- s
 
 What you get out of the box:
 
-* Emulation of rotary, touch-tone, and pay phones-- includes configurable GPIO inputs for switchhook, rotary dial, keypad, and coin triggers
+* Emulation of rotary, touch-tone, and pay phones-- includes built-in GPIO support for switchhook, rotary dial, keypad, ringer, and coin triggers
 * Lua scripting system
 * GPIO pin access from Lua
 * WAV/OGG multi-channel audio playback support

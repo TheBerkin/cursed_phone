@@ -138,6 +138,11 @@ if not sound then
     --- @param volume number
     function sound.set_master_volume(volume) end
 
+    --- Sets the volume of the specified channel.
+    --- @param channel Channel
+    --- @param volume number
+    function sound.set_channel_volume(channel, volume) end
+
     --- Plays a busy tone on `CHAN_SIGIN`.
     function sound.play_busy_tone() end
 
@@ -178,6 +183,9 @@ function sound.play_wait(path, channel, opts)
     end
 end
 
+--- @class SoundPlayWaitCancelOptions: SoundPlayOptions
+--- @field early_stop boolean
+
 --- @async
 --- *(Agent use only)*
 ---
@@ -188,7 +196,7 @@ end
 --- @param path string
 --- @param channel Channel
 --- @param predicate function
---- @param opts SoundPlayOptions?
+--- @param opts SoundPlayWaitCancelOptions?
 function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)

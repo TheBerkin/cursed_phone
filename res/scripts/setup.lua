@@ -9,6 +9,23 @@
 
 ]]
 
+--- Represents a unique, opaque, atomic value with no intrinsic meaning.
+--- @class Symbol
+
+local M_Symbol = {
+    __index = function(self, k) error("can't index a symbol", 2) end,
+    __newindex = function(self, k, v) error("can't index a symbol", 2) end,
+    __metatable = function(self) return nil end
+}
+
+--- Creates and returns a new symbol.
+--- @return Symbol
+function create_symbol()
+    local s = {}
+    setmetatable(s, M_Symbol)
+    return s
+end
+
 function print_info()
     local is_luajit = type(jit) == 'table'
     if is_luajit then

@@ -348,7 +348,7 @@ impl SoundBank {
 impl SoundEngine {
     pub fn new(sounds_root_path: &str, sound_banks_root_path: &str, config: &Rc<CursedConfig>) -> Self {
         // Load output device
-        let (stream, stream_handle) = rodio::OutputStream::try_default().expect("Failed to open default audio output device!");
+        let (stream, stream_handle) = rodio::OutputStream::try_default().expect("Failed to open audio output device!");
         let channels = RefCell::from(Vec::<SoundChannel>::new());
         let config = Rc::clone(config);
         let master_volume = config.sound.master_volume;

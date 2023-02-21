@@ -18,7 +18,7 @@ module:state(AgentState.CALL_OUT, {
 
 module:state(AgentState.CALL, {
     enter = function(self)
-        print("Hangman: call started")
+        self:log("Hangman: call started")
     end,
     tick = function(self)
         agent.wait(rand_float(0.5, 1.5))
@@ -33,7 +33,7 @@ module:state(AgentState.CALL, {
         end
 
         -- Start chainsaw
-        sound.play("$hangman/chainsaw_start", Channel.PHONE02)
+        sound.play_wait("$hangman/chainsaw_start", Channel.PHONE02)
         sound.play("$hangman/chainsaw_idle", Channel.PHONE02, { interrupt = false, looping = true })
         agent.wait(rand_float(2.0, 3.0))
 
@@ -47,7 +47,7 @@ module:state(AgentState.CALL, {
         end
     end,
     exit = function(self)
-        print("Hangman: ending call")
+        self:log("Hangman: ending call")
     end
 })
 
