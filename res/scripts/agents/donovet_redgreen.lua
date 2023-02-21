@@ -39,9 +39,9 @@ local VICTIM_FOOTSTEP_VOLUME = 1
 local VO_COMPUTER_VOLUME = 0.075
 local VO_DONOVET_VOLUME = 0.125
 
-local MONSTER_STATE_IDLE = 0
-local MONSTER_STATE_MENACE = 1
-local MONSTER_STATE_ATTACK = 2
+local MONSTER_STATE_IDLE = 'idle'
+local MONSTER_STATE_MENACE = 'menace'
+local MONSTER_STATE_ATTACK = 'attack'
 
 local MONSTER_IDLE_MIN_TIME = 5.0
 local MONSTER_IDLE_MAX_TIME = 30.0
@@ -49,13 +49,15 @@ local MONSTER_IDLE_INTERVAL = 3.63
 local MONSTER_IDLE_INTERVAL_P = 0.2
 local MONSTER_IDLE_INTERVAL_TIMEOUT = MONSTER_IDLE_MAX_TIME - MONSTER_IDLE_MIN_TIME
 
-local MONSTER_MENACE_DELAY = 2.75
+local MONSTER_MENACE_DELAY = 2.9
 local MONSTER_MENACE_MIN_TIME = 5.6
 local MONSTER_MENACE_MAX_TIME = 13.0
+local MONSTER_MENACE_STATIC_VOLUME = 0.075
 local MONSTER_MENACE_STATIC_FADEIN_RATE = 0.3
-local MONSTER_MENACE_VOCAL_FADEIN_RATE = 0.2
+local MONSTER_MENACE_VOCAL_FADEIN_RATE = 0.15
 local MONSTER_MENACE_STATIC_FADEOUT_RATE = 0.2
-local MONSTER_MENACE_VOCAL_FADEOUT_RATE = 0.5
+local MONSTER_MENACE_VOCAL_FADEOUT_RATE = 0.4
+local MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE = 0.35
 
 --- @package
 --- @class RedGreenGame
@@ -97,14 +99,12 @@ end
 --- @type FsmStateTable
 local MONSTER_STATES = {
     [MONSTER_STATE_IDLE] = function(self, from_state)
-        module:log("Monster is idle.")
         game.monster.vocals_enabled = false
         agent.wait(MONSTER_IDLE_MIN_TIME)
         agent.chance_interval(MONSTER_IDLE_INTERVAL, MONSTER_IDLE_INTERVAL_P, MONSTER_IDLE_INTERVAL_TIMEOUT)
         self:transition(MONSTER_STATE_MENACE)
     end,
     [MONSTER_STATE_MENACE] = function(self)
-        module:log("Monster is menacing.")
         game.monster.vocals_enabled = true
         agent.wait(MONSTER_MENACE_DELAY)
         local menace_time = rand_float(MONSTER_MENACE_MIN_TIME, MONSTER_MENACE_MAX_TIME)
@@ -114,7 +114,6 @@ local MONSTER_STATES = {
         self:transition(MONSTER_STATE_IDLE)
     end,
     [MONSTER_STATE_ATTACK] = function(self)
-        module:log("Monster is attacking.")
         game.controls_locked = true
         game.victim.walking = false
         -- insert bloodcurdling screams
@@ -122,6 +121,10 @@ local MONSTER_STATES = {
         agent.end_call()
     end
 }
+
+local function on_monster_state_change(fsm, from, to)
+    module:log("Monster state: " .. from .. " -> " .. to)
+end
 
 function game:reset()
     self.controls_locked = true
@@ -134,8 +137,10 @@ function game:reset()
     self.victim.ekg_enabled = false
     self.victim.walking = false
     -- reset monster
+    local monster_ai = Fsm.new(MONSTER_STATES, MONSTER_STATE_IDLE)
+    monster_ai:on_transition(on_monster_state_change)
     self.monster.active = false
-    self.monster.ai = Fsm.new(MONSTER_STATES, MONSTER_STATE_IDLE)
+    self.monster.ai = monster_ai
 end
 
 module:state(AgentState.IDLE, {
@@ -199,14 +204,14 @@ local function task_soundscape()
 end
 
 --- @async
-local function task_monster_sounds()
+local function task_monster_sounds()    
     sound.set_channel_volume(Channel.PHONE04, 0)
     sound.set_channel_volume(Channel.PHONE05, 0)
 
     agent.multi_task(
         -- Vocalizations
         function()
-            sound.play("$redgreen/monster/proximity", Channel.PHONE04, { looping = true, volume = 0.14 })
+            sound.play("$redgreen/monster/proximity", Channel.PHONE04, { looping = true, volume = MONSTER_MENACE_STATIC_VOLUME })
             while true do
                 agent.wait(rand_float(1, 5))
                 sound.play_wait("$redgreen/monster/croak_*", Channel.PHONE05, {
@@ -219,12 +224,15 @@ local function task_monster_sounds()
         end,
         -- Volume control
         function()
+            local proximity_noise_seed = rand_seed_32()
             local prev_time = engine_time()
             local static_volume = 0.0
             local vocal_volume = 0.0
             while true do
                 local current_time = engine_time()
                 local dt = current_time - prev_time
+                local static_volume_noise = (perlin_sample(current_time, 0, 3, 12, 0.9, 2.0, proximity_noise_seed) + 1) * 0.5
+                local static_volume_scale = 1.0 - static_volume_noise * MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE
 
                 if game.monster.vocals_enabled then
                     static_volume = math.step_to(static_volume, 1.0, dt * MONSTER_MENACE_STATIC_FADEIN_RATE)
@@ -234,7 +242,7 @@ local function task_monster_sounds()
                     vocal_volume = math.step_to(vocal_volume, 0.0, dt * MONSTER_MENACE_VOCAL_FADEOUT_RATE)
                 end
 
-                sound.set_channel_volume(Channel.PHONE04, static_volume ^ 2)
+                sound.set_channel_volume(Channel.PHONE04, (static_volume * static_volume_scale) ^ 2)
                 sound.set_channel_volume(Channel.PHONE05, vocal_volume ^ 2)
 
                 prev_time = current_time

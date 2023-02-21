@@ -18,6 +18,7 @@ end
 --- @field private _coroutine thread
 --- @field private _state_key any
 --- @field private _state_table FsmStateTable
+--- @field private _on_transition fun(fsm: Fsm, from: any?, to: any?)?
 Fsm = {}
 
 local M_Fsm = {
@@ -81,6 +82,13 @@ function Fsm.new(state_table, init_state)
     return fsm
 end
 
+--- Sets the handler function that fires when a state transition occurs.
+--- @param handler fun(fsm: Fsm, from: any, to: any)
+function Fsm:on_transition(handler)
+    assert(type(handler) == 'function', 'handler must be a function')
+    self._on_transition = handler
+end
+
 --- @async
 --- Asynchronously runs the state machine. It is not guaranteed to exit.
 function Fsm:run()
@@ -118,6 +126,10 @@ function Fsm:transition(to)
     local from_state_key = self._state_key
     self._state_key = to
     self._coroutine = gen_transition_coroutine(self, from_state_key, to)
+
+    if self._on_transition then
+        self._on_transition(self, from_state_key, to)
+    end
 
     if called_by_fsm then agent.yield() end
     return true
