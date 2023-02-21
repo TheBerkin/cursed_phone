@@ -135,11 +135,18 @@ function Fsm:transition(to)
     return true
 end
 
+--- Returns the current state's key.
+function Fsm:state()
+    return self._state_key
+end
+
 --- Transitions the FSM to the exit state next time it's ticked.
 function Fsm:exit_next()
     self:transition(FSM_EXIT)
 end
 
+--- Returns a boolean indicating whether the state machine is in-progress.
+--- @return boolean
 function Fsm:is_active()
     return self._coroutine and coroutine.status(self._coroutine) ~= 'dead'
 end
