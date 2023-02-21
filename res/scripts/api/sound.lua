@@ -42,26 +42,30 @@ Channel = {
     PHONE07 = 9,
     --- Phone Channel 8
     PHONE08 = 10,
+    --- Phone Channel 9
+    PHONE09 = 11,
+    --- Phone Channel 10
+    PHONE10 = 12,
     --- Soul Channel 1
-    SOUL01 = 11,
+    SOUL01 = 13,
     --- Soul Channel 2
-    SOUL02 = 12,
+    SOUL02 = 14,
     --- Soul Channel 3
-    SOUL03 = 13,
+    SOUL03 = 15,
     --- Soul Channel 4
-    SOUL04 = 14,
+    SOUL04 = 16,
     --- Background Channel 1
-    BG01 = 15,
+    BG01 = 17,
     --- Background Channel 2
-    BG02 = 16,
+    BG02 = 18,
     --- Background Channel 3
-    BG03 = 17,
+    BG03 = 19,
     --- Background Channel 4
-    BG04 = 18
+    BG04 = 20
 }
 
 --- All `PHONE*` sound channels.
-ALL_PHONE_CHANNELS = { Channel.PHONE01, Channel.PHONE02, Channel.PHONE03, Channel.PHONE04, Channel.PHONE05, Channel.PHONE06, Channel.PHONE07, Channel.PHONE08 }
+ALL_PHONE_CHANNELS = { Channel.PHONE01, Channel.PHONE02, Channel.PHONE03, Channel.PHONE04, Channel.PHONE05, Channel.PHONE06, Channel.PHONE07, Channel.PHONE08, Channel.Phone09, Channel.Phone10 }
 
 --- All `SOUL*` sound channels.
 ALL_SOUL_CHANNELS = { Channel.SOUL01, Channel.SOUL02, Channel.SOUL03, Channel.SOUL04 }

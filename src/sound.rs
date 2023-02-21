@@ -28,21 +28,25 @@ pub enum Channel {
     /// Channel for outgoing telephony signal tones.
     SignalOut,
     /// Phone Channel 1.
-    Phone1,
+    Phone01,
     /// Phone Channel 2.
-    Phone2,
+    Phone02,
     /// Phone Channel 3.
-    Phone3,
+    Phone03,
     /// Phone Channel 4.
-    Phone4,
+    Phone04,
     /// Phone Channel 5.
-    Phone5,
+    Phone05,
     /// Phone Channel 6.
-    Phone6,
+    Phone06,
     /// Phone Channel 7.
-    Phone7,
+    Phone07,
     /// Phone Channel 8.
-    Phone8,
+    Phone08,
+    /// Phone Channel 9.
+    Phone09,
+    /// Phone Channel 10.
+    Phone10,
     /// Soul Channel 1.
     Soul1,
     /// Soul Channel 2.
@@ -75,8 +79,8 @@ impl From<usize> for Channel {
     }
 }
 
-const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
-const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone1, Phone2, Phone3, Phone4, Phone5, Phone6, Phone7, Phone8] };
+const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
+const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10] };
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
 
