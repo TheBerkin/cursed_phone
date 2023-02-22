@@ -11,7 +11,7 @@ SOUND CHANNEL LAYOUT:
 * PHONE06:  VO (Computer)
 * PHONE07:  Victim Heartbeat
 * Phone08:  Heart Monitor
-* Phone09:  --
+* Phone09:  Escape Door
 * Phone10:  Monster Voice B
 * BG01:     Soundscape (Loop)
 * BG02:     Soundscape (Moments - Dripping)
@@ -51,7 +51,7 @@ local VO_COMPUTER_DISTANCE_LINES = {
 local HEART_RATE_BASE = 80
 local HEART_RATE_MIN = 20
 local HEART_RATE_MAX = 150
-local HEART_RATE_LETHAL_MIN = 145
+local HEART_RATE_LETHAL_MIN = 150
 local HEART_RATE_STRESS_FACTOR = 2.8
 local HEART_RATE_NOISE_FACTOR = 18.0
 local HEART_MONITOR_VOLUME = 0.015
@@ -78,15 +78,15 @@ local MONSTER_STATE_IDLE = 'idle'
 local MONSTER_STATE_MENACE = 'menace'
 local MONSTER_STATE_ATTACK = 'attack'
 
-local MONSTER_IDLE_MIN_TIME = 6.0
+local MONSTER_IDLE_MIN_TIME_A = 20.0
+local MONSTER_IDLE_MIN_TIME_B = 3.2
 local MONSTER_IDLE_MAX_TIME = 30.0
-local MONSTER_IDLE_INTERVAL = 3.63
-local MONSTER_IDLE_INTERVAL_P = 0.18
-local MONSTER_IDLE_INTERVAL_TIMEOUT = MONSTER_IDLE_MAX_TIME - MONSTER_IDLE_MIN_TIME
+local MONSTER_IDLE_INTERVAL = 3.23
+local MONSTER_IDLE_INTERVAL_P = 0.19
 
-local MONSTER_MENACE_DELAY = 3.75
+local MONSTER_MENACE_DELAY = 3.6
 local MONSTER_MENACE_MIN_TIME = 5.6
-local MONSTER_MENACE_MAX_TIME = 13.0
+local MONSTER_MENACE_MAX_TIME = 14.5
 local MONSTER_MENACE_STATIC_VOLUME = 0.15
 local MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE = 0.4
 local MONSTER_MENACE_STATIC_FADEIN_RATE = 0.4
@@ -173,8 +173,11 @@ end
 local MONSTER_STATES = {
     [MONSTER_STATE_IDLE] = function(self, from_state)
         game.monster.vocals_enabled = false
-        agent.wait(MONSTER_IDLE_MIN_TIME)
-        agent.chance_interval(MONSTER_IDLE_INTERVAL, MONSTER_IDLE_INTERVAL_P, MONSTER_IDLE_INTERVAL_TIMEOUT)
+        local victim_distance_percent = math.invlerp(game.victim.goal_distance, 0.0, VICTIM_ESCAPE_DISTANCE)
+        local wait_time_min = math.lerp(MONSTER_IDLE_MIN_TIME_A, MONSTER_IDLE_MIN_TIME_B, 1.0 - (victim_distance_percent ^ 2))
+        agent.wait(wait_time_min)
+        local timeout = MONSTER_IDLE_MAX_TIME - wait_time_min
+        agent.chance_interval(MONSTER_IDLE_INTERVAL, MONSTER_IDLE_INTERVAL_P, timeout)
         self:transition(MONSTER_STATE_MENACE)
     end,
     [MONSTER_STATE_MENACE] = function(self)
@@ -473,6 +476,7 @@ end
 local function task_scenario_win()
     local victim = game.victim
     game.monster.active = false
+    game.monster.vocals_enabled = false
     game.controls_locked = true
     victim.walking = false
     victim:add_temp_stress(5.0)
