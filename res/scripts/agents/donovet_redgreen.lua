@@ -58,7 +58,7 @@ local HEARTBEAT_WIDTH = 0.03
 
 local VICTIM_ESCAPE_DISTANCE = 120
 local VICTIM_SPEED = 1.0
-local VICTIM_FOOTSTEP_VOLUME = 1.0
+local VICTIM_FOOTSTEP_VOLUME = 0.8
 local VICTIM_STATIONARY_STRESS_RATE = 0.08
 local VICTIM_WALK_TEMP_STRESS = 2.0
 local VICTIM_STOP_TEMP_STRESS_MIN = 2.5
@@ -423,7 +423,7 @@ local function task_footstep_sounds()
             agent.wait_cancel(rand_float(0.25, 0.6), is_victim_stationary)
             while v.walking do 
                 sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.4, 0.6) * VICTIM_FOOTSTEP_VOLUME, speed = rand_float(0.9, 1.1), interrupt = true })
-                agent.wait_cancel(rand_float(0.8, 0.9), is_victim_stationary)
+                agent.wait_cancel(rand_float(0.675, 0.8), is_victim_stationary)
             end
             agent.wait(rand_float(0.2, 0.35))
             sound.play("$redgreen/footstep_*", Channel.PHONE03, { volume = rand_float(0.2, 0.4) * VICTIM_FOOTSTEP_VOLUME, speed = rand_float(0.8, 1), interrupt = true })
@@ -436,10 +436,25 @@ local function task_footstep_sounds()
     end
 end
 
+local function task_scenario_win()
+    local victim = game.victim
+    game.monster.active = false
+    game.controls_locked = true
+    victim.walking = false
+    victim:add_temp_stress(5.0)
+    sound.play_wait("$redgreen/escape_door", Channel.PHONE09, { volume = 0.35 })
+    agent.wait(2.5)
+    agent.end_call()
+end
+
 local function task_update_victim()
     local victim = game.victim
     local last_tick_time = engine_time()
     while true do
+        if victim.goal_distance <= 0.0 and game.monster.ai:state() == MONSTER_STATE_IDLE then
+            task_scenario_win()
+        end
+
         local time = engine_time()
         local dt = time - last_tick_time
         last_tick_time = time
