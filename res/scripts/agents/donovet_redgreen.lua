@@ -16,7 +16,7 @@ SOUND CHANNEL LAYOUT:
 * BG01:     Soundscape (Loop)
 * BG02:     Soundscape (Moments - Dripping)
 * BG03:     Soundscape (Moments - Rare)
-* BG04:     --
+* BG04:     Soundscape (Phantom Footsteps)
 ]]
 
 local module = create_agent("donovet_redgreen", "6661")
@@ -29,6 +29,9 @@ local TAU = math.pi * 2.0
 local OUT_VIBRATE = 27
 
 local SOUNDSCAPE_VOLUME = 0.9
+local PHANTOM_FOOTSTEP_VOLUME = 0.75
+local PHANTOM_FOOTSTEP_TEMP_STRESS_MIN = 1.5
+local PHANTOM_FOOTSTEP_TEMP_STRESS_MAX = 3.0
 
 local VO_COMPUTER_DISTANCE_LINES = {
     [10] = "$redgreen/vo/computer_10",
@@ -262,26 +265,58 @@ local function task_soundscape()
     sound.set_channel_volume(Channel.BG03, SOUNDSCAPE_VOLUME)
     sound.set_channel_volume(Channel.BG04, SOUNDSCAPE_VOLUME)
 
+    local victim = game.victim
+
     sound.play("$redgreen/ambient/amb_dungeon", Channel.BG01, { looping = true, skip = rand_float(0, 30), volume = 0.15 })
 
     agent.multi_task(
-    function()
-        local first_moment = true
+        -- Water drops
+        function()
+            local first_moment = true
 
-        while true do
-            agent.wait(first_moment and rand_float(0, 25) or rand_float(5, 30))
-            sound.play("$redgreen/ambient/moment_drip_*", Channel.BG02, { volume = rand_float(0.01, 0.1), speed = rand_float(0.8, 1.15), interrupt = false })
-            first_moment = false
-        end
-    end,
-    function()
-        while true do
-            agent.wait(rand_float(5, 18))
-            if chance(0.35) then
-                sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.BG03, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.15) })
+            while true do
+                agent.wait(first_moment and rand_float(0, 25) or rand_float(5, 30))
+                sound.play("$redgreen/ambient/moment_drip_*", Channel.BG02, { volume = rand_float(0.01, 0.1), speed = rand_float(0.8, 1.15), interrupt = false })
+                first_moment = false
+            end
+        end,
+        -- Rare moments
+        function()
+            while true do
+                agent.wait(rand_float(5, 18))
+                if chance(0.35) then
+                    sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.BG03, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.15) })
+                end
+            end
+        end,
+        -- Phantom footsteps
+        function()
+            while true do
+                agent.wait(rand_float(8, 20))
+                if chance(0.1 + 0.05 * math.clamp(victim.stress + victim.temp_stress, 0, 5)) then
+                    local interval_modifier = rand_float(0.75, 1.2)
+                    local pitch_modifier = rand_float(0.8, 1.1)
+                    local volume_atten_accum = rand_float(0.5, 1.0)
+                    local volume_atten_delta = rand_float(-0.15, -0.05)
+                    local volume_buildup_accum = rand_float(0.05, 0.125)
+                    local volume_buildup_delta = rand_float(0.175, 0.35)
+                    for i = 1, rand_int_bias_high(3, 15) do
+                        if not victim.walking then break end
+                        local volume_modifier = (volume_buildup_accum ^ 2) * (volume_atten_accum ^ 2) * 2
+                        sound.play("$redgreen/footstep_*", Channel.BG04, {
+                            volume = rand_float(0.4, 0.6) * PHANTOM_FOOTSTEP_VOLUME * volume_modifier,
+                            speed = rand_float(1.2, 1.25) * pitch_modifier,
+                            interrupt = true
+                        })
+                        agent.wait(rand_float(0.2, 0.22) * interval_modifier)
+                        volume_buildup_accum = math.clamp(volume_buildup_accum + volume_buildup_delta, 0, 1)
+                        volume_atten_accum = math.clamp(volume_atten_accum + volume_atten_delta, 0, 1)
+                    end
+                    victim:add_temp_stress(rand_float(PHANTOM_FOOTSTEP_TEMP_STRESS_MIN, PHANTOM_FOOTSTEP_TEMP_STRESS_MAX))
+                end
             end
         end
-    end)
+    )
 end
 
 --- @async
@@ -442,7 +477,8 @@ local function task_scenario_win()
     game.controls_locked = true
     victim.walking = false
     victim:add_temp_stress(5.0)
-    sound.play_wait("$redgreen/escape_door", Channel.PHONE09, { volume = 0.35 })
+    sound.play_wait("$redgreen/escape_door", Channel.PHONE09, { volume = 0.3 })
+    victim.ekg_enabled = false
     agent.wait(2.5)
     agent.end_call()
 end
