@@ -376,7 +376,6 @@ local function task_heartbeat_sounds()
     local victim = game.victim
     while true do
         agent.wait_until(function() return victim.ekg_enabled end)
-        sound.play_wait("$redgreen/vo/computer_ekg_ready", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
         while victim.ekg_enabled do
             if victim.ekg_panic_mode then 
                 gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
@@ -483,6 +482,13 @@ local function task_scenario_win()
     agent.end_call()
 end
 
+local function report_victim_distance()
+    local report_sound_path = VO_COMPUTER_DISTANCE_LINES[game.victim.last_reported_distance]
+    if report_sound_path then
+        sound.play(report_sound_path, Channel.PHONE06, { volume = VO_COMPUTER_VOLUME, interrupt = false })
+    end
+end
+
 local function task_update_victim()
     local victim = game.victim
     local last_tick_time = engine_time()
@@ -506,10 +512,7 @@ local function task_update_victim()
             -- Quick and dirty log of victim distance
             if math.abs(math.ceil(distance_prev) - math.ceil(distance_updated)) >= 1 then
                 if victim:update_distance_report() then
-                    local report_sound_path = VO_COMPUTER_DISTANCE_LINES[victim.last_reported_distance]
-                    if report_sound_path then
-                        sound.play(report_sound_path, Channel.PHONE06, { volume = VO_COMPUTER_VOLUME, interrupt = false })
-                    end
+                    report_victim_distance()
                 end
                 module:log("Victim: " .. math.ceil(distance_updated) .. "m from exit.")
             end
@@ -543,10 +546,13 @@ local function task_intro()
     -- sound.play("$redgreen/vo/intro/03_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
     -- agent.wait(9.7)
 
+    sound.play_wait("$redgreen/vo/computer_monitor_ready", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
     game.victim.ekg_enabled = true
     agent.wait(1.6)
+    sound.play_wait("$redgreen/vo/computer_measuring_distance", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
     game.controls_locked = false
     game.monster.active = true
+    report_victim_distance()
 end
 
 module:state(AgentState.CALL, {
