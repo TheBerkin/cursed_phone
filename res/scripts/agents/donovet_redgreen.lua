@@ -15,7 +15,7 @@ SOUND CHANNEL LAYOUT:
 * Phone10:  Monster Voice B
 * BG01:     Soundscape (Loop)
 * BG02:     Soundscape (Moments - Dripping)
-* BG03:     Soundscape (Moments - Rare)
+* BG03:     Soundscape (Moments - Rare + Screams)
 * BG04:     Soundscape (Phantom Footsteps)
 ]]
 
@@ -67,8 +67,8 @@ local BREATH_A_INTERVAL_MIN = 0.25
 local BREATH_A_INTERVAL_MAX = 0.6
 local BREATH_B_INTERVAL_MIN = 0.1
 local BREATH_B_INTERVAL_MAX = 0.3
-local GASP_DELAY_MIN = 0.0
-local GASP_DELAY_MAX = 0.25
+local GASP_DELAY_MIN = 0.25
+local GASP_DELAY_MAX = 0.35
 local GASP_VOLUME_MIN = 1.75
 local GASP_VOLUME_MAX = 2.5
 
@@ -101,7 +101,7 @@ local MONSTER_IDLE_INTERVAL_P = 0.19
 
 local MONSTER_MENACE_DELAY = 3.6
 local MONSTER_MENACE_MIN_TIME = 5.6
-local MONSTER_MENACE_MAX_TIME = 14.5
+local MONSTER_MENACE_MAX_TIME = 16.5
 local MONSTER_MENACE_STATIC_VOLUME = 0.15
 local MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE = 0.4
 local MONSTER_MENACE_STATIC_FADEIN_RATE = 0.4
@@ -147,7 +147,7 @@ local game = {
         --- @type Fsm
         ai = nil,
         --- Is the monster vocalizing?
-        vocals_enabled = false
+        vocals_enabled = false,
     }
 }
 
@@ -203,7 +203,6 @@ local MONSTER_STATES = {
         agent.wait(wait_time_min)
         local timeout = MONSTER_IDLE_MAX_TIME - wait_time_min
         agent.chance_interval(MONSTER_IDLE_INTERVAL, MONSTER_IDLE_INTERVAL_P, timeout)
-        self:transition(MONSTER_STATE_MENACE)
     end,
     [MONSTER_STATE_MENACE] = function(self)
         game.monster.vocals_enabled = true
@@ -316,8 +315,26 @@ local function task_soundscape()
         function()
             while true do
                 agent.wait(rand_float(5, 18))
-                if chance(0.35) then
+                if not sound.is_busy(Channel.BG03) and chance(0.35) then
                     sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.BG03, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.15) })
+                end
+            end
+        end,
+        -- Screams
+        function()
+            local monster = game.monster
+            while true do
+                agent.wait(rand_float(12, 45))
+                if not sound.is_busy(Channel.BG03) and chance(0.055) then
+                    sound.play("$redgreen/ambient/moment_scream_*", Channel.BG03, { volume = rand_float(0.1, 0.2), speed = rand_float(0.9, 1.1) })
+                    if not game.controls_locked then
+                        victim.shocked = true
+                        victim:add_temp_stress(3.0)
+                        local monster_state = monster.ai:state()
+                        if monster_state == MONSTER_STATE_MENACE or monster_state == MONSTER_STATE_IDLE then
+                            monster.ai:transition(MONSTER_STATE_IDLE)
+                        end
+                    end
                 end
             end
         end,
@@ -551,25 +568,26 @@ local function task_victim_breathing()
     local function check_victim_shocked() return victim.shocked end
 
     while true do
-        if victim.shocked then
-            victim.shocked = false
-            local gasp_volume = rand_float(GASP_VOLUME_MIN, GASP_VOLUME_MAX)
-            agent.wait(rand_float(GASP_DELAY_MIN, GASP_DELAY_MAX))
-            sound.play_wait("$redgreen/vo/victim_gasp_*", Channel.PHONE02, { volume = VO_VICTIM_VOLUME * gasp_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1), interrupt = true })
-        else
-            local breath_bank, breath_interval, breath_volume = select_victim_breath_params(victim.stress, victim.temp_stress)
-    
-            if victim.breath_enabled then
-                if agent.wait_cancel(breath_interval, check_victim_shocked) then break end
-                sound.play(breath_bank, Channel.PHONE02, { volume = VO_VICTIM_VOLUME * breath_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1), interrupt = true })
-                while sound.is_busy(Channel.PHONE02) and not victim.shocked do
-                    agent.yield()
-                end
+        if victim.breath_enabled then
+            if victim.shocked then
+                victim.shocked = false
+                local gasp_volume = rand_float(GASP_VOLUME_MIN, GASP_VOLUME_MAX)
+                --agent.wait(rand_float(GASP_DELAY_MIN, GASP_DELAY_MAX))
+                sound.fade_out(Channel.PHONE02, rand_float(GASP_DELAY_MIN, GASP_DELAY_MAX))
+                sound.play_wait("$redgreen/vo/victim_gasp_*", Channel.PHONE02, { volume = VO_VICTIM_VOLUME * gasp_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1), interrupt = true })
             else
-                agent.yield()
+                local breath_bank, breath_interval, breath_volume = select_victim_breath_params(victim.stress, victim.temp_stress)
+        
+                if not agent.wait_cancel(breath_interval, check_victim_shocked) then
+                    sound.play(breath_bank, Channel.PHONE02, { volume = VO_VICTIM_VOLUME * breath_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1), interrupt = true })
+                    while sound.is_busy(Channel.PHONE02) and not victim.shocked do
+                        agent.yield()
+                    end
+                end
             end
+        else
+            agent.yield()
         end
-
     end
 end
 
