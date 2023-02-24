@@ -75,7 +75,8 @@ local GASP_VOLUME_MAX = 2.5
 local VICTIM_ESCAPE_DISTANCE = 120
 local VICTIM_SPEED = 1.0
 local VICTIM_FOOTSTEP_VOLUME = 0.8
-local VICTIM_STATIONARY_STRESS_RATE = 0.08
+local VICTIM_STATIONARY_STRESS_RATE_A = 0.03
+local VICTIM_STATIONARY_STRESS_RATE_B = 0.08
 local VICTIM_STOP_TEMP_STRESS_MIN = 2.5
 local VICTIM_STOP_TEMP_STRESS_MAX = 3.75
 local VICTIM_STOP_STRESS_MIN = 1.25
@@ -509,6 +510,7 @@ local function task_footstep_sounds()
     end
 end
 
+--- @async
 local function task_scenario_win()
     module:log("Victim escaped!")
     local victim = game.victim
@@ -543,6 +545,7 @@ local function select_victim_breath_params(stress, temp_stress)
     end
 end
 
+--- @async
 local function task_victim_breathing()
     local victim = game.victim
     local function check_victim_shocked() return victim.shocked end
@@ -570,6 +573,7 @@ local function task_victim_breathing()
     end
 end
 
+--- @async
 local function task_update_victim()
     local victim = game.victim
     local last_tick_time = engine_time()
@@ -598,13 +602,15 @@ local function task_update_victim()
                 module:log("Victim: " .. math.ceil(distance_updated) .. "m from exit.")
             end
         else
-            victim:add_stress(dt * VICTIM_STATIONARY_STRESS_RATE)
+            local stationary_stress_rate = math.remap(victim.goal_distance, VICTIM_ESCAPE_DISTANCE, 0.0, VICTIM_STATIONARY_STRESS_RATE_A, VICTIM_STATIONARY_STRESS_RATE_B, true)
+            victim:add_stress(dt * stationary_stress_rate)
         end
         
         agent.yield()
     end
 end
 
+--- @async
 local function task_update_monster_ai()
     local monster = game.monster
 
@@ -617,6 +623,7 @@ local function task_update_monster_ai()
     end
 end
 
+--- @async
 local function task_intro()
     agent.wait(3)
 
