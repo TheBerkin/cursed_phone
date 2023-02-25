@@ -203,6 +203,7 @@ local MONSTER_STATES = {
         agent.wait(wait_time_min)
         local timeout = MONSTER_IDLE_MAX_TIME - wait_time_min
         agent.chance_interval(MONSTER_IDLE_INTERVAL, MONSTER_IDLE_INTERVAL_P, timeout)
+        self:transition(MONSTER_STATE_MENACE)
     end,
     [MONSTER_STATE_MENACE] = function(self)
         game.monster.vocals_enabled = true
