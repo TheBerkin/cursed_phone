@@ -61,7 +61,9 @@ Channel = {
     --- Background Channel 3
     BG03 = 19,
     --- Background Channel 4
-    BG04 = 20
+    BG04 = 20,
+    --- Debug Channel
+    DEBUG = 21,
 }
 
 --- All `PHONE*` sound channels.
