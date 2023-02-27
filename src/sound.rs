@@ -79,7 +79,7 @@ impl From<usize> for Channel {
     }
 }
 
-const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
+const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, NoiseIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
 const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10] };
 const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
 const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };

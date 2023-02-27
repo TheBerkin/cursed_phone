@@ -4,7 +4,7 @@ local module = create_agent("keepalive")
 module:state(AgentState.IDLE, {
     enter = function(self)
         while true do
-            agent.wait(300)
+            agent.wait(60)
             sound.play("silence", Channel.DEBUG)
         end
     end
