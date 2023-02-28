@@ -226,6 +226,7 @@ pub struct SoundPlayOptions {
     pub looping: bool,
     pub skip: Duration,
     pub take: Option<Duration>,
+    pub delay: Option<Duration>,
     pub fadein: Duration,
 }
 
@@ -237,6 +238,7 @@ impl Default for SoundPlayOptions {
             looping: false, 
             skip: Default::default(), 
             take: Default::default(),
+            delay: Default::default(),
             fadein: Default::default(),
         }
     }
@@ -682,6 +684,9 @@ impl SoundChannel {
 
     fn queue(&self, snd: Rc<Sound>, opts: SoundPlayOptions) {
         let src = snd.src.clone().amplify(opts.volume);
+        if let Some(delay) = opts.delay {
+            self.sink.append(rodio::source::Empty::<i16>::new().delay(delay))
+        }
         let is_nonstandard_speed = opts.speed != 1.0;
         if let Some(take) = opts.take {
             if opts.looping {

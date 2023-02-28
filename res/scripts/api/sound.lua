@@ -83,6 +83,7 @@ ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
 --- @field looping boolean? @ Indicates whether to make the sound loop forever (Default: `false`)
 --- @field skip number? @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
 --- @field take number? @ Cut sound to maximum of `take` seconds (before speed adjustment) (Default: `nil`)
+--- @field delay number? @ Add `delay` seconds of silence before the sound (after speed adjustment) (Default: `nil`)
 --- @field fadein number? @ Fades in the sound over `fadein` seconds (after speed adjustment) (Default: `0`)
 
 if not sound then

@@ -15,6 +15,7 @@ impl<'lua> CursedEngine<'lua> {
             let mut volume: Option<f32> = None;
             let mut skip: Option<Duration> = None;
             let mut take: Option<Duration> = None;
+            let mut delay: Option<Duration> = None;
             let mut fadein: Option<Duration> = None;
             if let Some(opts_table) = opts {
                 speed = opts_table.get::<&str, f32>("speed").ok();
@@ -23,6 +24,7 @@ impl<'lua> CursedEngine<'lua> {
                 volume = opts_table.get::<&str, f32>("volume").ok();
                 skip = opts_table.get::<&str, f32>("skip").ok().map(|secs| Duration::from_secs_f32(secs));
                 take = opts_table.get::<&str, f32>("take").ok().map(|secs| Duration::from_secs_f32(secs));
+                delay = opts_table.get::<&str, f32>("delay").ok().map(|secs| Duration::from_secs_f32(secs));
                 fadein = opts_table.get::<&str, f32>("fadein").ok().map(|secs| Duration::from_secs_f32(secs));
             }
             let info = self.sound_engine.borrow().play(
@@ -36,6 +38,7 @@ impl<'lua> CursedEngine<'lua> {
                     volume: volume.unwrap_or(1.0),
                     skip: skip.unwrap_or_default(),
                     take,
+                    delay,
                     fadein: fadein.unwrap_or_default(),
                 }
             );
