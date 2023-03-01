@@ -373,10 +373,21 @@ function agent.chance_interval(interval, p, timeout)
 end
 
 --- @async
---- Yields control from the current agent to the caller.
-function agent.yield()
+--- @overload fun()
+--- @overload fun(n: integer)
+--- Yields control from the current agent to the caller, optionally specifying a custom number of ticks to yield for.
+---
+--- Calling this function with `n > 1` is especially useful for rate-limiting computationally expensive tasks.
+--- @param n integer? @ Indicates how many ticks to yield for. If excluded, yields once.
+function agent.yield(n)
     assert_agent_caller()
-    coroutine.yield(IntentCode.YIELD)
+    if n then
+        for i = 1, n do
+            coroutine.yield(IntentCode.YIELD)
+        end
+    else
+        coroutine.yield(IntentCode.YIELD)
+    end
 end
 
 --- @async

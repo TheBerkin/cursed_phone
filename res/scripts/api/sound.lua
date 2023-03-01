@@ -81,24 +81,22 @@ ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
 --- @field interrupt boolean? @ Indicates whether to stop other sounds on the channel before playing (Default: `true`)
 --- @field speed number? @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
 --- @field looping boolean? @ Indicates whether to make the sound loop forever (Default: `false`)
---- @field skip number? @ Skip forward by `skip` seconds (before speed adjustment) (Default: `0.0`)
---- @field take number? @ Cut sound to maximum of `take` seconds (before speed adjustment) (Default: `nil`)
---- @field delay number? @ Add `delay` seconds of silence before the sound (after speed adjustment) (Default: `nil`)
---- @field fadein number? @ Fades in the sound over `fadein` seconds (after speed adjustment) (Default: `0`)
+--- @field skip number? @ Skip forward by `skip` seconds. Affected by `speed`. (Default: `0.0`)
+--- @field take number? @ Cut sound to maximum of `take` seconds Affected by `speed`. (Default: `nil`)
+--- @field delay number? @ Add `delay` seconds of silence before the sound. Not affected by `speed`. (Default: `nil`)
+--- @field fadein number? @ Fades in the sound over `fadein` seconds. Not affected by `speed`. (Default: `0`)
 
 if not sound then
     --- Provides functions for controlling multi-channel sound playback.
     --- @class SoundLib
     sound = {}
 
-    --- Plays a sound on a specific channel. 
-    --- Returns two values: 
-    --- 1. a boolean indicating whether the operation was successful
-    --- 2. the length of the sound in seconds, not accounting for modifiers (or `nil` if no sound could be played)
+    --- Begins playing a sound on a specific channel.
     --- @param path string @ A soundglob or path to the sound to play. Soundglobs will play a random matching sound.
     --- @param channel Channel @ The channel to play the sound on.
     --- @param opts SoundPlayOptions? @ The options to apply to the played sound.
-    --- @return boolean, number?
+    --- @return boolean @ Indicates whether playback was successfully started.
+    --- @return number? @ The duration of the sound in seconds, if known and finite. Due to a limitation of the underlying sound engine, Vorbis (.ogg) sounds cannot currently report their length. 
     function sound.play(path, channel, opts) return false, nil end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
@@ -189,10 +187,15 @@ end
 --- @param path string
 --- @param channel Channel
 --- @param opts SoundPlayOptions?
-function sound.play_wait(path, channel, opts)
-    sound.play(path, channel, opts)
-    while sound.is_busy(channel) do
-        agent.intent(IntentCode.WAIT)
+--- @param wait_time_offset number?
+function sound.play_wait(path, channel, opts, wait_time_offset)
+    local success, duration = sound.play(path, channel, opts)
+    if wait_time_offset then
+        agent.wait(duration + wait_time_offset)
+    else
+        while sound.is_busy(channel) do
+            agent.intent(IntentCode.WAIT)
+        end
     end
 end
 
@@ -239,6 +242,7 @@ function sound.fade_out(channel, duration)
 
         if progress >= 1 then
             sound.stop(channel)
+            sound.set_channel_fade_volume(channel, 1)
             return
         else
             local fade_volume = math.lerp(1, 0, progress, true)
