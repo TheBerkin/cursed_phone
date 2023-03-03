@@ -190,7 +190,7 @@ end
 --- @param wait_time_offset number?
 function sound.play_wait(path, channel, opts, wait_time_offset)
     local success, duration = sound.play(path, channel, opts)
-    if wait_time_offset then
+    if wait_time_offset and duration then
         agent.wait(duration + wait_time_offset)
     else
         while sound.is_busy(channel) do

@@ -29,11 +29,58 @@ local TAU = math.pi * 2.0
 local OUT_VIBRATE = 27
 
 local SOUNDSCAPE_VOLUME = 0.9
-local PHANTOM_FOOTSTEP_VOLUME = 0.75
+
+local PHANTOM_FOOTSTEP_VOLUME = 0.8
 local PHANTOM_FOOTSTEP_TEMP_STRESS_MIN = 8.0
 local PHANTOM_FOOTSTEP_TEMP_STRESS_MAX = 16.0
-local PHANTOM_FOOTSTEP_SENSITIVITY = 0.3
+local PHANTOM_FOOTSTEP_SENSITIVITY = 0.75
 
+local HEART_RATE_BASE = 75
+local HEART_RATE_MIN = 20
+local HEART_RATE_MAX = 175
+local HEART_RATE_CRITICAL_THRESHOLD = 150
+local HEART_RATE_STRESS_FACTOR = 2.8
+local HEART_RATE_TEMP_STRESS_CURVE = 0.6
+local HEART_RATE_NOISE_FACTOR = 1.5
+local HEART_RATE_WALKING_FACTOR = 12.0
+local HEART_MONITOR_VOLUME = 0.0175
+local HEARTBEAT_B_THRESHOLD = 60
+local HEARTBEAT_C_THRESHOLD = 110
+local HEARTBEAT_WIDTH = 0.03
+
+local BREATH_VOLUME_MUL = 0.85
+local BREATH_B_STRESS_THRESHOLD = 6.5
+local BREATH_A_INTERVAL_MIN = 0.25
+local BREATH_A_INTERVAL_MAX = 0.6
+local BREATH_B_INTERVAL_MIN = 0.1
+local BREATH_B_INTERVAL_MAX = 0.3
+local BREATH_C_INTERVAL_MIN = 0.0
+local BREATH_C_INTERVAL_MAX = 0.05
+local GASP_DELAY_MIN = 0.25
+local GASP_DELAY_MAX = 0.35
+local GASP_VOLUME_MIN = 1.75
+local GASP_VOLUME_MAX = 2.5
+
+local VICTIM_ESCAPE_DISTANCE = 130
+local VICTIM_SPEED = 1.0
+local VICTIM_FOOTSTEP_VOLUME = 0.8
+local VICTIM_STATIONARY_STRESS_RATE_A = 0.02
+local VICTIM_STATIONARY_STRESS_RATE_B = 0.07
+local VICTIM_STOP_TEMP_STRESS_MIN = 1.75
+local VICTIM_STOP_TEMP_STRESS_MAX = 3.5
+local VICTIM_STOP_STRESS_MIN = 1.0
+local VICTIM_STOP_STRESS_MAX = 2.5
+local VICTIM_TEMP_STRESS_MAX = 20.0
+local VICTIM_TEMP_STRESS_DECAY_RATE = 0.75
+local VICTIM_SHOCKING_STRESS_MIN = 4.0
+local VICTIM_TEMP_STRESS_SPILLOVER_RATE = 0.0125
+local VICTIM_TEMP_STRESS_DECAY_ATTEN = 0.75
+local VICTIM_TEMP_STRESS_DECAY_STRESS_POWER_UNIT = 5.0
+local VICTIM_REMARK_ALMOST_THERE_THRESHOLD = 20
+
+local VO_DONOVET_VOLUME = 0.125
+local VO_VICTIM_VOLUME = 0.2
+local VO_COMPUTER_VOLUME = 0.075
 local VO_COMPUTER_DISTANCE_LINES = {
     [10] = "$redgreen/vo/computer_10",
     [20] = "$redgreen/vo/computer_20",
@@ -57,50 +104,6 @@ local VO_COMPUTER_DISTANCE_LINES = {
     [200] = "$redgreen/vo/computer_200"
 }
 
-local HEART_RATE_BASE = 75
-local HEART_RATE_MIN = 20
-local HEART_RATE_MAX = 175
-local HEART_RATE_CRITICAL_THRESHOLD = 150
-local HEART_RATE_STRESS_FACTOR = 2.8
-local HEART_RATE_TEMP_STRESS_CURVE = 0.6
-local HEART_RATE_NOISE_FACTOR = 1.5
-local HEART_RATE_WALKING_FACTOR = 12.0
-local HEART_MONITOR_VOLUME = 0.0175
-local HEARTBEAT_B_THRESHOLD = 60
-local HEARTBEAT_C_THRESHOLD = 110
-local HEARTBEAT_WIDTH = 0.03
-
-local BREATH_VOLUME_MUL = 0.85
-local BREATH_B_STRESS_THRESHOLD = 6.5
-local BREATH_A_INTERVAL_MIN = 0.25
-local BREATH_A_INTERVAL_MAX = 0.6
-local BREATH_B_INTERVAL_MIN = 0.1
-local BREATH_B_INTERVAL_MAX = 0.3
-local GASP_DELAY_MIN = 0.25
-local GASP_DELAY_MAX = 0.35
-local GASP_VOLUME_MIN = 1.75
-local GASP_VOLUME_MAX = 2.5
-
-local VICTIM_ESCAPE_DISTANCE = 130
-local VICTIM_SPEED = 1.0
-local VICTIM_FOOTSTEP_VOLUME = 0.8
-local VICTIM_STATIONARY_STRESS_RATE_A = 0.02
-local VICTIM_STATIONARY_STRESS_RATE_B = 0.08
-local VICTIM_STOP_TEMP_STRESS_MIN = 1.75
-local VICTIM_STOP_TEMP_STRESS_MAX = 3.5
-local VICTIM_STOP_STRESS_MIN = 1.0
-local VICTIM_STOP_STRESS_MAX = 2.5
-local VICTIM_TEMP_STRESS_MAX = 20.0
-local VICTIM_TEMP_STRESS_DECAY_RATE = 0.5
-local VICTIM_SHOCKING_STRESS_MIN = 4.0
-local VICTIM_TEMP_STRESS_SPILLOVER_RATE = 0.01
-local VICTIM_TEMP_STRESS_DECAY_ATTEN = 0.75
-local VICTIM_TEMP_STRESS_DECAY_STRESS_POWER_UNIT = 5.0
-
-local VO_COMPUTER_VOLUME = 0.075
-local VO_DONOVET_VOLUME = 0.125
-local VO_VICTIM_VOLUME = 0.2
-
 local MONSTER_STATE_IDLE = 'idle'
 local MONSTER_STATE_MENACE = 'menace'
 local MONSTER_STATE_ATTACK = 'attack'
@@ -111,8 +114,8 @@ local MONSTER_IDLE_MAX_TIME = 30.0
 local MONSTER_IDLE_INTERVAL = 3.23
 local MONSTER_IDLE_INTERVAL_P = 0.19
 
-local MONSTER_MENACE_DELAY_A = 3.85
-local MONSTER_MENACE_DELAY_B = 3.3
+local MONSTER_MENACE_DELAY_A = 4.0
+local MONSTER_MENACE_DELAY_B = 3.0
 local MONSTER_MENACE_DELAY_CURVE = 2.0
 local MONSTER_MENACE_MIN_TIME = 5.6
 local MONSTER_MENACE_MAX_TIME = 16.5
@@ -133,6 +136,8 @@ local game = {
     controls_locked = true,
     --- Stop digits already used by player
     stop_digits_used = {},
+    --- Is the soundscape currently supposed to be active?
+    soundscape_active = true,
     --- @class RedGreenVictim
     victim = {
         --- Victim's current heart rate
@@ -186,13 +191,20 @@ function game.victim:add_temp_stress(amount, allow_shock)
         self.shocked = true
     end
 
+    module:log("Victim: " .. string.format("%+.1f", amount) .. " Ts.")
+
     self.temp_stress = math.clamp(self.temp_stress + amount, 0.0, VICTIM_TEMP_STRESS_MAX)
 end
 
-function game.victim:add_stress(amount)
+function game.victim:add_stress(amount, is_accum)
     if amount >= VICTIM_SHOCKING_STRESS_MIN then
         self.shocked = true
     end
+
+    if not is_accum then
+        module:log("Victim: " .. string.format("%+.1f", amount) .. " Ps.")
+    end
+
     self.stress = math.max(self.stress + amount, 0.0)
 end
 
@@ -282,6 +294,7 @@ end
 
 function game:reset()
     self.controls_locked = true
+    self.soundscape_active = true
     table.clear(self.stop_digits_used)
     -- reset victim
     self.victim.heart_rate = HEART_RATE_BASE
@@ -350,76 +363,88 @@ local function task_soundscape()
 
     sound.play("$redgreen/ambient/amb_dungeon", Channel.BG01, { looping = true, skip = rand_float(0, 30), volume = 0.15 })
 
-    agent.multi_task(
-        -- Water drops
+    agent.do_task_while(
         function()
-            local first_moment = true
+        agent.multi_task(
+                -- Water drops
+                function()
+                    local first_moment = true
 
-            while true do
-                agent.wait(first_moment and rand_float(0, 25) or rand_float(5, 30))
-                sound.play("$redgreen/ambient/moment_drip_*", Channel.BG02, { volume = rand_float(0.01, 0.1), speed = rand_float(0.8, 1.15), interrupt = false })
-                first_moment = false
-            end
-        end,
-        -- Rare moments
-        function()
-            while true do
-                agent.wait(rand_float(5, 18))
-                if not sound.is_busy(Channel.BG03) and chance(0.35) then
-                    sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.BG03, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.15) })
-                end
-            end
-        end,
-        -- Screams
-        function()
-            local monster = game.monster
-            while true do
-                agent.wait(rand_float(12, 45))
-                if not game.controls_locked and not sound.is_busy(Channel.BG03) and chance(0.055) then
-                    sound.play("$redgreen/ambient/moment_scream_*", Channel.BG03, { volume = rand_float(0.1, 0.2), speed = rand_float(0.9, 1.1) })
-                    victim.shocked = true
-                    victim:add_temp_stress(3.0)
-                    local monster_state = monster.ai:state()
-                    if monster_state == MONSTER_STATE_MENACE or monster_state == MONSTER_STATE_IDLE then
-                        monster.ai:transition(MONSTER_STATE_IDLE)
+                    while true do
+                        agent.wait(first_moment and rand_float(0, 25) or rand_float(5, 30))
+                        sound.play("$redgreen/ambient/moment_drip_*", Channel.BG02, { volume = rand_float(0.01, 0.1), speed = rand_float(0.8, 1.15), interrupt = false })
+                        first_moment = false
                     end
-                end
-            end
-        end,
-        -- Phantom footsteps
-        function()
-            while true do
-                agent.wait(rand_float(8, 20))
-                if chance(0.05 + 0.025 * math.clamp(victim.stress + victim.temp_stress, 0, 5)) then
-                    local interval_modifier = rand_float(0.75, 1.2)
-                    local pitch_modifier = rand_float(0.8, 1.1)
-                    local volume_atten_accum = rand_float(0.5, 1.0)
-                    local volume_atten_delta = rand_float(-0.15, -0.05)
-                    local volume_buildup_accum = rand_float(0.05, 0.125)
-                    local volume_buildup_delta = rand_float(0.175, 0.35)
-                    local victim_heard = false
-                    for i = 1, rand_int_bias_high(3, 15) do
-                        if not victim.walking then break end
-                        local volume_modifier = (volume_buildup_accum ^ 2) * (volume_atten_accum ^ 2) * 2
-                        sound.play("$redgreen/footstep_*", Channel.BG04, {
-                            volume = rand_float(0.4, 0.6) * PHANTOM_FOOTSTEP_VOLUME * volume_modifier,
-                            speed = rand_float(1.2, 1.25) * pitch_modifier,
-                            interrupt = true
-                        })
-                        agent.wait(rand_float(0.2, 0.22) * interval_modifier)
-                        volume_buildup_accum = math.clamp(volume_buildup_accum + volume_buildup_delta, 0, 1)
-                        volume_atten_accum = math.clamp(volume_atten_accum + volume_atten_delta, 0, 1)
-
-                        if not victim_heard and volume_modifier > PHANTOM_FOOTSTEP_SENSITIVITY then
-                            victim_heard = true
-                            victim:add_temp_stress(rand_float(PHANTOM_FOOTSTEP_TEMP_STRESS_MIN, PHANTOM_FOOTSTEP_TEMP_STRESS_MAX))
+                end,
+                -- Rare moments
+                function()
+                    while true do
+                        agent.wait(rand_float(5, 18))
+                        if not sound.is_busy(Channel.BG03) and chance(0.375) then
+                            sound.play_wait("$redgreen/ambient/moment_rare_*", Channel.BG03, { volume = rand_float(0.005, 0.125), speed = rand_float(0.9, 1.15) })
                         end
                     end
-                    
+                end,
+                -- Screams
+                function()
+                    local monster = game.monster
+                    while true do
+                        agent.wait(rand_float(12, 45))
+                        if not game.controls_locked and not sound.is_busy(Channel.BG03) and chance(0.055) then
+                            sound.play("$redgreen/ambient/moment_scream_*", Channel.BG03, { volume = rand_float(0.1, 0.2), speed = rand_float(0.9, 1.1) })
+                            victim.shocked = true
+                            module:log("[Distant scream]")
+                            victim:add_temp_stress(3.0)
+                            local monster_state = monster.ai:state()
+                            if monster_state == MONSTER_STATE_MENACE or monster_state == MONSTER_STATE_IDLE then
+                                monster.ai:transition(MONSTER_STATE_IDLE)
+                            end
+                        end
+                    end
+                end,
+                -- Phantom footsteps
+                function()
+                    while true do
+                        agent.wait(rand_float(8, 20))
+                        if chance(0.05 + 0.025 * math.clamp(victim.stress + victim.temp_stress, 0, 5)) and not game.controls_locked and victim.walking then
+                            local interval_modifier = rand_float(0.75, 1.2)
+                            local pitch_modifier = rand_float(0.8, 1.1)
+                            local volume_atten_accum = rand_float(0.5, 1.0)
+                            local volume_atten_delta = rand_float(-0.15, -0.05)
+                            local volume_buildup_accum = rand_float(0.05, 0.125)
+                            local volume_buildup_delta = rand_float(0.125, 0.35)
+                            local victim_heard = false
+                            module:log("[Phantom footsteps approach!]")
+                            for i = 1, rand_int_bias_high(6, 16) do
+                                if not victim.walking then
+                                    module:log("[Phantom footsteps interrupted.]")
+                                    break 
+                                end
+                                local volume_modifier = (volume_buildup_accum ^ 2) * (volume_atten_accum ^ 0.5) * 2
+                                sound.play("$redgreen/footstep_*", Channel.BG04, {
+                                    volume = rand_float(0.4, 0.6) * PHANTOM_FOOTSTEP_VOLUME * volume_modifier,
+                                    speed = rand_float(1.2, 1.25) * pitch_modifier,
+                                    interrupt = true
+                                })
+                                agent.wait(rand_float(0.19, 0.23) * interval_modifier)
+                                volume_buildup_accum = math.clamp(volume_buildup_accum + volume_buildup_delta, 0, 1)
+                                volume_atten_accum = math.clamp(volume_atten_accum + volume_atten_delta, 0, 1)
+
+                                if not victim_heard and volume_modifier > PHANTOM_FOOTSTEP_SENSITIVITY then
+                                    victim_heard = true
+                                    local stress_penalty = rand_float(PHANTOM_FOOTSTEP_TEMP_STRESS_MIN, PHANTOM_FOOTSTEP_TEMP_STRESS_MAX)
+                                    victim:add_temp_stress(stress_penalty)
+                                    module:log("Victim: Footsteps heard. Stress increasing.")
+                                end
+                            end
+                        end
+                    end
                 end
-            end
-        end
+            )
+        end,
+        function() return game.soundscape_active end
     )
+    sound.fade_out_multi(ALL_BG_CHANNELS, 0.85)
 end
 
 --- @async
@@ -485,8 +510,9 @@ local function task_heartbeat_sounds()
                 agent.yield()
             else 
                 gpio.write_pin(OUT_VIBRATE, GPIO_HIGH)
-                sound.play(select_heartbeat_bank(victim.heart_rate), Channel.PHONE07, { speed = rand_float(0.9, 1.1) })
-                sound.play("$redgreen/heart_monitor_beep", Channel.PHONE08, { volume = HEART_MONITOR_VOLUME, speed = victim.heart_rate > HEART_RATE_CRITICAL_THRESHOLD and 1.1 or 1.0 })
+                sound.play(select_heartbeat_bank(victim.heart_rate), Channel.PHONE07, { speed = rand_float(0.9, 1.1), interrupt = true })
+                local beep_speed = (victim.heart_rate > HEART_RATE_CRITICAL_THRESHOLD and 1.1 or 1.0) * rand_float(0.9985, 1.0015)
+                sound.play("$redgreen/heart_monitor_beep", Channel.PHONE08, { volume = HEART_MONITOR_VOLUME, speed = beep_speed, interrupt = true })
                 agent.wait(HEARTBEAT_WIDTH)
                 gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
                 if victim.ekg_enabled then
@@ -613,20 +639,30 @@ local function task_scenario_win()
     game.monster.vocals_enabled = false
     game.controls_locked = true
     victim.walking = false
-    victim:add_temp_stress(5.0)
-    sound.play_wait("$redgreen/escape_door", Channel.PHONE09, { volume = 0.3 })
+    victim:add_temp_stress(15.0)
+    sound.play_wait("$redgreen/escape_door", Channel.PHONE09, { volume = 0.3 }, -2.0)
+    game.soundscape_active = false
+    agent.wait(2.0)
     victim.ekg_enabled = false
-    agent.wait(2.5)
+    agent.wait(1.25)
+    sound.play_wait("$redgreen/vo/computer_congrats", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
+    victim.breath_enabled = false
+    agent.wait(2.0)
     agent.end_call()
 end
 
 --- @param wait boolean?
-local function report_victim_distance(wait)
+--- @param wait_time_offset number?
+local function report_victim_distance(wait, wait_time_offset)
     local report_sound_path = VO_COMPUTER_DISTANCE_LINES[game.victim.last_reported_distance]
     if report_sound_path then
-        sound.play(report_sound_path, Channel.PHONE06, { volume = VO_COMPUTER_VOLUME, interrupt = false })
+        local success, length = sound.play(report_sound_path, Channel.PHONE06, { volume = VO_COMPUTER_VOLUME, interrupt = false })
         if wait then
-            sound.wait(Channel.PHONE06)
+            if length and wait_time_offset then
+                sound.wait(length + wait_time_offset)
+            else
+                sound.wait(Channel.PHONE06)
+            end
         end
     end
 end
@@ -634,13 +670,25 @@ end
 --- @return string @ The selected sound bank name
 --- @return number @ The interval time in seconds to wait before playing the breath
 --- @return number @ The volume multiplier for the breath
-local function select_victim_breath_params(stress, temp_stress)
+--- @return number @ The speed multiplier for the breath
+local function select_victim_breath_params(stress, temp_stress, heart_bpm)
     local combined_stress = stress + temp_stress
     local volume_influence = math.invlerp(temp_stress, 0, VICTIM_TEMP_STRESS_MAX) ^ 2
-    if combined_stress > BREATH_B_STRESS_THRESHOLD then
-        return "$redgreen/vo/victim_breath_b_*", rand_float(BREATH_B_INTERVAL_MIN, BREATH_B_INTERVAL_MAX), math.lerp(1.0, rand_float(1.35, 2.25), volume_influence)
+    if heart_bpm >= HEART_RATE_CRITICAL_THRESHOLD then
+        return "$redgreen/vo/victim_breath_c_*", 
+        rand_float(BREATH_C_INTERVAL_MIN, BREATH_C_INTERVAL_MAX), 
+        math.lerp(1.0, rand_float(1.35, 2.25), volume_influence),
+        rand_float(0.98, 1.05)
+    elseif combined_stress > BREATH_B_STRESS_THRESHOLD then
+        return "$redgreen/vo/victim_breath_b_*", 
+        rand_float(BREATH_B_INTERVAL_MIN, BREATH_B_INTERVAL_MAX), 
+        math.lerp(1.0, rand_float(1.35, 2.25), volume_influence),
+        rand_float(0.9, 1.1)
     else
-        return "$redgreen/vo/victim_breath_a_*", rand_float(BREATH_A_INTERVAL_MIN, BREATH_A_INTERVAL_MAX), rand_float(0.8, 1.3)
+        return "$redgreen/vo/victim_breath_a_*", 
+        rand_float(BREATH_A_INTERVAL_MIN, BREATH_A_INTERVAL_MAX), 
+        rand_float(0.8, 1.3),
+        rand_float(0.9, 1.1)
     end
 end
 
@@ -658,10 +706,10 @@ local function task_victim_breathing_speech()
                 sound.fade_out(Channel.PHONE02, rand_float(GASP_DELAY_MIN, GASP_DELAY_MAX))
                 sound.play_wait("$redgreen/vo/victim_gasp_*", Channel.PHONE02, { volume = VO_VICTIM_VOLUME * gasp_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1), interrupt = true })
             else
-                local breath_bank, breath_interval, breath_volume = select_victim_breath_params(victim.stress, victim.temp_stress)
+                local breath_bank, breath_interval, breath_volume, breath_speed = select_victim_breath_params(victim.stress, victim.temp_stress, victim.heart_rate)
         
                 if not agent.wait_cancel(breath_interval, check_breath_interruptable) then
-                    sound.play(breath_bank, Channel.PHONE02, { volume = VO_VICTIM_VOLUME * breath_volume * BREATH_VOLUME_MUL, speed = rand_float(0.9, 1.1) })
+                    sound.play(breath_bank, Channel.PHONE02, { volume = VO_VICTIM_VOLUME * breath_volume * BREATH_VOLUME_MUL, speed = breath_speed })
                     while sound.is_busy(Channel.PHONE02) and not check_breath_interruptable() do
                         agent.yield()
                     end
@@ -679,7 +727,7 @@ local function task_update_victim()
     local last_tick_time = engine_time()
     local last_report_time = engine_time()
     while true do
-        if victim.goal_distance <= 0.0 and game.monster.ai:state() == MONSTER_STATE_IDLE then
+        if victim.walking and victim.goal_distance <= 0.0 and game.monster.ai:state() == MONSTER_STATE_IDLE then
             task_scenario_win()
         end
 
@@ -703,10 +751,10 @@ local function task_update_victim()
                 end
             else
                 local stationary_stress_rate = math.remap(victim.goal_distance, VICTIM_ESCAPE_DISTANCE, 0.0, VICTIM_STATIONARY_STRESS_RATE_A, VICTIM_STATIONARY_STRESS_RATE_B, true)
-                victim:add_stress(dt * stationary_stress_rate)
+                victim:add_stress(dt * stationary_stress_rate, true)
             end
             
-            victim:add_stress(victim.temp_stress * VICTIM_TEMP_STRESS_SPILLOVER_RATE * dt)
+            victim:add_stress(victim.temp_stress * VICTIM_TEMP_STRESS_SPILLOVER_RATE * dt, true)
         end
         
         if not victim.walking then
@@ -720,6 +768,24 @@ local function task_update_victim()
             module:log("☹️ = " .. string.format("%.1f", victim.stress) .. " (+ " .. string.format("%.1f", victim.temp_stress) .. ") | ♥ = " .. report_bpm .. (victim.heart_rate >= HEART_RATE_CRITICAL_THRESHOLD and " (!)" or ""))
         end
         
+        agent.yield()
+    end
+end
+
+--- @async
+local function task_victim_remarks()
+    local victim = game.victim
+    local remarked_almost_there = false
+    while true do
+        if not game.controls_locked then
+            if not remarked_almost_there and victim.last_reported_distance <= VICTIM_REMARK_ALMOST_THERE_THRESHOLD and victim.walking then
+                remarked_almost_there = true
+                victim.breath_enabled = false
+                sound.fade_out(Channel.PHONE02, 0.25)
+                sound.play("$redgreen/vo/victim_reaction_almost_there", Channel.PHONE02, { volume = VO_VICTIM_VOLUME })
+                victim.breath_enabled = true
+            end
+        end
         agent.yield()
     end
 end
@@ -743,23 +809,30 @@ local function task_intro()
     agent.wait(3)
 
     -- Intro dialogue
-    sound.play_wait("$redgreen/vo/intro/01_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME }, -2.1)
-    sound.play_wait("$redgreen/vo/intro/02_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, -2.7)
-    sound.play_wait("$redgreen/vo/intro/03_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME }, -3.1)
+    sound.play_wait("$redgreen/vo/intro/01_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME }, -1.75)
+    sound.play_wait("$redgreen/vo/intro/02_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, -2.1)
+    sound.play_wait("$redgreen/vo/intro/03_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME }, -1.8)
+    game.victim:add_temp_stress(20.0, false)
     game.victim.breath_enabled = true
-    sound.play_wait("$redgreen/vo/intro/04_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
+    sound.play_wait("$redgreen/vo/intro/04_donovet_01", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, -4.5)
+    victim.breath_enabled = false
+    sound.fade_out(Channel.PHONE02, 0.25)
+    sound.play("$redgreen/vo/intro/04_victim_reaction", Channel.PHONE02, { volume = VO_VICTIM_VOLUME })
+    victim.breath_enabled = true
+    sound.play_wait("$redgreen/vo/intro/04_donovet_02", Channel.PHONE01, { volume = VO_DONOVET_VOLUME })
     sound.play_wait("$redgreen/vo/computer_monitor_ready", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME })
     game.victim.ekg_enabled = true
     agent.wait(0.25)
-    game.victim:add_temp_stress(5.0, false)
-    sound.play_wait("$redgreen/vo/intro/05_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, -1.0)
+    game.victim:add_temp_stress(10.0, false)
+    sound.play_wait("$redgreen/vo/intro/05_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, -2.0)
     game.victim:add_temp_stress(15.0, false)
     game.victim.breath_enabled = false
+    agent.wait(1.0)
     sound.fade_out(Channel.PHONE02, 0.2)
     sound.play_wait("$redgreen/vo/intro/06_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME }, -1.25)
-    sound.play_wait("$redgreen/vo/intro/07_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, 0.5)
-    sound.play_wait("$redgreen/vo/computer_measuring_distance", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME }, -2.35)
-    report_victim_distance(true)
+    sound.play_wait("$redgreen/vo/intro/07_donovet", Channel.PHONE01, { volume = VO_DONOVET_VOLUME }, 0.0)
+    sound.play_wait("$redgreen/vo/computer_measuring_distance", Channel.PHONE06, { volume = VO_COMPUTER_VOLUME }, 0)
+    report_victim_distance(true, -1.0)
     sound.play_wait("$redgreen/vo/intro/08_victim", Channel.PHONE02, { volume = VO_VICTIM_VOLUME })
 
     -- Start the game
@@ -782,6 +855,7 @@ module:state(AgentState.CALL, {
             task_update_controls,
             task_update_victim,
             task_victim_breathing_speech,
+            task_victim_remarks,
             task_update_monster_ai
         )
     end,

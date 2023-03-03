@@ -420,6 +420,22 @@ function agent.multi_task(...)
     end
 end
 
+--- @async
+--- Runs a task until the specified predicate (run every tick) returns a falsy value or the task ends on its own.
+function agent.do_task_while(task, predicate)
+    local co = coroutine.create(task)
+    local last_response_code = IntentResponseCode.NONE
+    local last_response_data = nil
+
+    while predicate() do
+        if coroutine.status(co) == 'dead' then return end
+        local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
+        if success then
+            last_response_code, last_response_data = agent.intent(intent, intent_data)
+        end
+    end
+end
+
 --- Returns the number that was used to reach the current agent.
 ---
 --- For intercept agents, this can be any value.

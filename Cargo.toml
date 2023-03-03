@@ -24,7 +24,7 @@ globset = "0.4.5"
 globwalk = "0.8.0"
 indexmap = "1.4.0"
 log = { version = "0.4.8" }
-mlua = { version = "0.8.7", default-features = false, features = ["vendored", "luajit"] }
+mlua = { version = "0.8.7", default-features = false, features = ["vendored", "luajit52"] }
 perlin2d = { version = "0.2.6" }
 rand = "0.8.5"
 rodio = { version = "0.17.0", default-features = false, features = ["wav", "vorbis"] }
