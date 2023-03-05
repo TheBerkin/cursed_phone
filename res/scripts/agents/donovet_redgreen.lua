@@ -31,8 +31,9 @@ local OUT_VIBRATE = 27
 local SOUNDSCAPE_VOLUME = 0.9
 
 local PHANTOM_FOOTSTEP_VOLUME = 0.8
-local PHANTOM_FOOTSTEP_TEMP_STRESS_MIN = 8.0
-local PHANTOM_FOOTSTEP_TEMP_STRESS_MAX = 16.0
+local PHANTOM_FOOTSTEP_PLAYBACK_SPEED = 0.8
+local PHANTOM_FOOTSTEP_TEMP_STRESS_MIN = 6.0
+local PHANTOM_FOOTSTEP_TEMP_STRESS_MAX = 12.0
 local PHANTOM_FOOTSTEP_SENSITIVITY = 0.75
 
 local HEART_RATE_BASE = 75
@@ -48,7 +49,7 @@ local HEARTBEAT_B_THRESHOLD = 60
 local HEARTBEAT_C_THRESHOLD = 110
 local HEARTBEAT_WIDTH = 0.03
 
-local BREATH_VOLUME_MUL = 0.85
+local BREATH_VOLUME_MUL = 0.65
 local BREATH_B_STRESS_THRESHOLD = 6.5
 local BREATH_A_INTERVAL_MIN = 0.25
 local BREATH_A_INTERVAL_MAX = 0.6
@@ -63,7 +64,7 @@ local GASP_VOLUME_MAX = 2.5
 
 local VICTIM_ESCAPE_DISTANCE = 130
 local VICTIM_SPEED = 1.0
-local VICTIM_FOOTSTEP_VOLUME = 0.8
+local VICTIM_FOOTSTEP_VOLUME = 0.5
 local VICTIM_STATIONARY_STRESS_RATE_A = 0.02
 local VICTIM_STATIONARY_STRESS_RATE_B = 0.07
 local VICTIM_STOP_TEMP_STRESS_MIN = 1.75
@@ -77,6 +78,11 @@ local VICTIM_TEMP_STRESS_SPILLOVER_RATE = 0.0125
 local VICTIM_TEMP_STRESS_DECAY_ATTEN = 0.75
 local VICTIM_TEMP_STRESS_DECAY_STRESS_POWER_UNIT = 5.0
 local VICTIM_REMARK_ALMOST_THERE_THRESHOLD = 20
+local VICTIM_BRAVERY_INITIAL = 10.0
+local VICTIM_BRAVERY_USAGE_RATE = 1.0
+local VICTIM_BRAVERY_EFFICIENCY_A = 1.0
+local VICTIM_BRAVERY_EFFICIENCY_B = 0.75
+local VICTIM_BRAVERY_INEFFICIENT_STRESS = 15.0
 
 local VO_DONOVET_VOLUME = 0.125
 local VO_VICTIM_VOLUME = 0.2
@@ -142,9 +148,11 @@ local game = {
     victim = {
         --- Victim's current heart rate
         heart_rate = HEART_RATE_BASE,
-        --- Victim's current stress level (persistent)
+        --- Victim's current persistent stress (Ps) level
         stress = 0.0,
-        --- Victim's temporary stress level (decaying)
+        --- Victim's bravery (Br) level. Bravery removes Ts over time and does not replenish.
+        bravery = VICTIM_BRAVERY_INITIAL,
+        --- Victim's temporary stress (Ts) level
         temp_stress = 0.0,
         --- Victim's distance from the exit
         goal_distance = VICTIM_ESCAPE_DISTANCE,
@@ -178,6 +186,18 @@ local game = {
 
 function game.victim:decay_temp_stress(delta_time, modifier)
     self.temp_stress = math.clamp(self.temp_stress - VICTIM_TEMP_STRESS_DECAY_RATE * modifier * delta_time, 0.0, VICTIM_TEMP_STRESS_MAX)
+end
+
+function game.victim:update_bravery(delta_time)
+    -- Bravery decay
+    if self.temp_stress > 0 then
+        local efficiency = math.remap(self.stress, 0.0, VICTIM_BRAVERY_INEFFICIENT_STRESS, VICTIM_BRAVERY_EFFICIENCY_A, VICTIM_BRAVERY_EFFICIENCY_B, true)
+        local bravery_usage_max = math.min(self.bravery, delta_time * VICTIM_BRAVERY_USAGE_RATE)
+        local temp_stress_drain_max = math.min(self.temp_stress, bravery_usage_max * efficiency)
+        local bravery_usage = temp_stress_drain_max / efficiency
+        self.temp_stress = math.max(0.0, self.temp_stress - temp_stress_drain_max)
+        self.bravery = math.max(0.0, self.bravery - bravery_usage)
+    end
 end
 
 --- @param amount number
@@ -300,6 +320,7 @@ function game:reset()
     self.victim.heart_rate = HEART_RATE_BASE
     self.victim.stress = 0.0
     self.victim.temp_stress = 0.0
+    self.victim.bravery = VICTIM_BRAVERY_INITIAL
     self.victim.last_reported_distance = VICTIM_ESCAPE_DISTANCE
     self.victim.goal_distance = VICTIM_ESCAPE_DISTANCE
     self.victim.ekg_enabled = false
@@ -423,7 +444,7 @@ local function task_soundscape()
                                 local volume_modifier = (volume_buildup_accum ^ 2) * (volume_atten_accum ^ 0.5) * 2
                                 sound.play("$redgreen/footstep_*", Channel.BG04, {
                                     volume = rand_float(0.4, 0.6) * PHANTOM_FOOTSTEP_VOLUME * volume_modifier,
-                                    speed = rand_float(1.2, 1.25) * pitch_modifier,
+                                    speed = pitch_modifier * PHANTOM_FOOTSTEP_PLAYBACK_SPEED,
                                     interrupt = true
                                 })
                                 agent.wait(rand_float(0.19, 0.23) * interval_modifier)
@@ -478,7 +499,7 @@ local function task_monster_sounds()
                 local current_time = engine_time()
                 local dt = current_time - prev_time
                 local static_volume_noise = (perlin_sample(current_time, 0, 3, 12, 0.9, 2.0, proximity_noise_seed) + 1) * 0.5
-                local static_volume_scale = 1.0 - static_volume_noise * MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE
+                local static_volume_noise_scale = 1.0 - static_volume_noise * MONSTER_MENACE_STATIC_VOLUME_NOISE_SCALE
 
                 if game.monster.vocals_enabled then
                     static_volume = math.step_to(static_volume, 1.0, dt * MONSTER_MENACE_STATIC_FADEIN_RATE)
@@ -488,7 +509,7 @@ local function task_monster_sounds()
                     vocal_volume = math.step_to(vocal_volume, 0.0, dt * MONSTER_MENACE_VOCAL_FADEOUT_RATE)
                 end
 
-                sound.set_channel_volume(Channel.PHONE04, (static_volume * static_volume_scale) ^ 2)
+                sound.set_channel_volume(Channel.PHONE04, math.clamp(static_volume * static_volume_noise_scale, 0, 1))
                 sound.set_channel_volume(Channel.PHONE05, vocal_volume ^ 2)
 
                 prev_time = current_time
@@ -762,10 +783,12 @@ local function task_update_victim()
             victim:decay_temp_stress(dt, temp_stress_decay_modifier)
         end
 
+        victim:update_bravery(dt)
+
         if victim.ekg_enabled and time - last_report_time > 2.5 then
             last_report_time = time
             local report_bpm = math.floor(victim.heart_rate)
-            module:log("☹️ = " .. string.format("%.1f", victim.stress) .. " (+ " .. string.format("%.1f", victim.temp_stress) .. ") | ♥ = " .. report_bpm .. (victim.heart_rate >= HEART_RATE_CRITICAL_THRESHOLD and " (!)" or ""))
+            module:log(string.format("Ps = %.1f | Ts = %.1f | Br = %.1f | ♥ = %d%s", victim.stress, victim.temp_stress, victim.bravery, victim.heart_rate, (victim.heart_rate >= HEART_RATE_CRITICAL_THRESHOLD and " (!)" or "")))
         end
         
         agent.yield()
@@ -838,6 +861,7 @@ local function task_intro()
     -- Start the game
     game.controls_locked = false
     game.monster.active = true
+    game.victim.ekg_enabled = true
     game.victim.breath_enabled = true
 end
 
