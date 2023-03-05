@@ -774,7 +774,8 @@ local function task_update_victim()
                 local stationary_stress_rate = math.remap(victim.goal_distance, VICTIM_ESCAPE_DISTANCE, 0.0, VICTIM_STATIONARY_STRESS_RATE_A, VICTIM_STATIONARY_STRESS_RATE_B, true)
                 victim:add_stress(dt * stationary_stress_rate, true)
             end
-            
+
+            victim:update_bravery(dt)            
             victim:add_stress(victim.temp_stress * VICTIM_TEMP_STRESS_SPILLOVER_RATE * dt, true)
         end
         
@@ -782,8 +783,6 @@ local function task_update_victim()
             local temp_stress_decay_modifier = math.pow(VICTIM_TEMP_STRESS_DECAY_ATTEN, victim.stress / VICTIM_TEMP_STRESS_DECAY_STRESS_POWER_UNIT)
             victim:decay_temp_stress(dt, temp_stress_decay_modifier)
         end
-
-        victim:update_bravery(dt)
 
         if victim.ekg_enabled and time - last_report_time > 2.5 then
             last_report_time = time
