@@ -68,6 +68,19 @@ impl<'lua> CursedEngine<'lua> {
             }
         })?)?;
 
+        // set_agent_sounds_loaded(agent_id, loaded)
+        globals.set("set_agent_sounds_loaded", lua.create_function(move |_, (agent_id, load): (AgentId, bool)| {
+            let sound_engine = &self.sound_engine;
+            if let Some(agent) = self.lookup_agent_id(agent_id) {
+                if load {
+                    agent.load_sound_banks(sound_engine)
+                } else {
+                    agent.unload_sound_banks(sound_engine)
+                }
+            }
+            Ok(())
+        })?)?;
+
         // _caller_dialed_number_impl()
         globals.set("_caller_dialed_number_impl", lua.create_function(move |_, ()| {
             return Ok(self.called_number.borrow().clone())

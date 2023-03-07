@@ -96,10 +96,12 @@ AgentRole = {
 --- @field message async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) @ Called when the agent receives a message. 
 
 --- @class AgentModule
+--- @field _id integer?
 --- @field _state_coroutine thread?
 --- @field _message_coroutine thread?
 --- @field _state AgentState
 --- @field _state_func_tables table<AgentState, StateFunctionTable>
+--- @field _sound_bank_states AgentState[]
 local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)
         local status, state, continuation = tick_agent_state(self, data_code, data)
@@ -232,6 +234,21 @@ local _AgentModule_MEMBERS = {
     --- Requires the specified sound bank during calls.
     require_sound_bank = function(self, bank_name)
         self._required_sound_banks[bank_name] = true
+    end,
+    --- Sets the agent states during which required sound banks will be loaded.
+    --- @param self AgentModule
+    --- @param states AgentState | AgentState[]?
+    load_sound_banks_during = function(self, states)
+        local set = {}
+        local t_states = type(states)
+        if t_states == 'table' then
+            for k, v in pairs(states) do
+                set[v] = true
+            end
+        elseif t_states == 'number' or t_states == 'integer' then
+            set[states] = true
+        end
+        self._sound_bank_states = set
     end
 }
 
@@ -259,6 +276,7 @@ function create_agent(name, phone_number, role)
     local messages = {}
     agent_messages[name] = messages
 
+    --- @type AgentModule
     local module = setmetatable({
         _name = name,
         _phone_number = phone_number,
@@ -268,6 +286,7 @@ function create_agent(name, phone_number, role)
         _prev_state = AgentState.IDLE,
         _state = AgentState.IDLE,
         _state_func_tables = {},
+        _sound_bank_states = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
         _reason = CallReason.NONE,
@@ -277,6 +296,8 @@ function create_agent(name, phone_number, role)
         _is_suspended = false,
         _messages = messages
     }, M_AgentModule)
+
+    module:load_sound_banks_during(AgentState.CALL)
 
     return module
 end
@@ -523,29 +544,32 @@ function agent.read_digits(digit_count, digit_timeout)
 end
 
 --- Generates an agent state machine coroutine.
---- @param s AgentModule
+--- @param a AgentModule
 --- @param new_state AgentState
 --- @param old_state AgentState
 --- @return thread
-local function gen_state_coroutine(s, new_state, old_state)
+local function gen_state_coroutine(a, new_state, old_state)
     local state_coroutine = coroutine.create(function()
-        local old_func_table = s._state_func_tables[old_state]
-        local new_func_table = s._state_func_tables[new_state]
+        local old_func_table = a._state_func_tables[old_state]
+        local new_func_table = a._state_func_tables[new_state]
 
         local on_enter = new_func_table and new_func_table.enter or stub
         local on_tick = new_func_table and new_func_table.tick or stub
         local prev_on_exit = old_func_table and old_func_table.exit or stub
 
-        prev_on_exit(s)
+        prev_on_exit(a)
 
         -- Emit state-end intent
         if old_state then
             coroutine.yield(IntentCode.STATE_END, old_state)
         end
 
-        on_enter(s)
+        -- Load/unload sound banks as needed
+        set_agent_sounds_loaded(a._id, coerce_boolean(a._sound_bank_states[new_state]))
+
+        on_enter(a)
         while true do
-            on_tick(s)
+            on_tick(a)
             agent.intent(IntentCode.YIELD)
         end
     end)

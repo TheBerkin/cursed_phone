@@ -77,6 +77,10 @@ if _NATIVE_STUB then
     --- @param seed integer @ The seed of the noise generator.
     --- @return number
     function perlin_sample(x, y, octaves, frequency, persistence, lacunarity, seed) return 0 end
+
+    --- @param agent_id integer
+    --- @param loaded boolean
+    function set_agent_sounds_loaded(agent_id, loaded) end
 end
 
 function is_number(val)

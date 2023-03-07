@@ -389,21 +389,18 @@ impl<'lua> CursedEngine<'lua> {
         None
     }
 
-    /// Removes the other party and unloads any associated non-static resources.
+    /// Unsets the current other party.
     fn unload_other_party(&self) {
         if let Some(agent) = self.other_party.borrow().as_ref() {
             agent.transition_state(AgentState::Idle);
-            agent.unload_sound_banks(&self.sound_engine);
+            //agent.unload_sound_banks(&self.sound_engine);
         }
         self.other_party.replace(None);
     }
 
     /// Sets the other party to the specified agent.
     fn load_other_party(&self, agent: Rc<AgentModule<'lua>>) {
-        agent.load_sound_banks(&self.sound_engine);
-        if let Some(prev_agent) = self.other_party.replace(Some(agent)) {
-            prev_agent.unload_sound_banks(&self.sound_engine);
-        }
+        self.other_party.replace(Some(agent));
     }
 
     fn play_comfort_noise(&self) {
