@@ -81,7 +81,7 @@ local VICTIM_REMARK_ALMOST_THERE_THRESHOLD = 20
 local VICTIM_BRAVERY_INITIAL = 10.0
 local VICTIM_BRAVERY_USAGE_RATE = 1.0
 local VICTIM_BRAVERY_EFFICIENCY_A = 1.0
-local VICTIM_BRAVERY_EFFICIENCY_B = 0.75
+local VICTIM_BRAVERY_EFFICIENCY_B = 0.7
 local VICTIM_BRAVERY_INEFFICIENT_STRESS = 15.0
 
 local VO_DONOVET_VOLUME = 0.125
@@ -144,6 +144,9 @@ local game = {
     stop_digits_used = {},
     --- Is the soundscape currently supposed to be active?
     soundscape_active = true,
+    --- Is the current game state considered 'won'?
+    --- Determines whether player can hang up
+    won = false,
     --- @class RedGreenVictim
     victim = {
         --- Victim's current heart rate
@@ -242,7 +245,7 @@ end
 --- @return boolean
 function game.victim:update_distance_report()
     local last_reportable_distance = self:get_last_reportable_distance()
-    if last_reportable_distance ~= self.last_reported_distance then
+    if last_reportable_distance and last_reportable_distance ~= self.last_reported_distance then
         self.last_reported_distance = last_reportable_distance
         return true
     end
@@ -315,6 +318,7 @@ end
 function game:reset()
     self.controls_locked = true
     self.soundscape_active = true
+    self.won = false
     table.clear(self.stop_digits_used)
     -- reset victim
     self.victim.heart_rate = HEART_RATE_BASE
@@ -465,7 +469,7 @@ local function task_soundscape()
         end,
         function() return game.soundscape_active end
     )
-    sound.fade_out_multi(ALL_BG_CHANNELS, 0.85)
+    sound.fade_out(ALL_BG_CHANNELS, 0.85)
 end
 
 --- @async
@@ -656,6 +660,7 @@ end
 local function task_scenario_win()
     module:log("Victim escaped!")
     local victim = game.victim
+    game.won = true
     game.monster.active = false
     game.monster.vocals_enabled = false
     game.controls_locked = true
@@ -670,6 +675,15 @@ local function task_scenario_win()
     victim.breath_enabled = false
     agent.wait(2.0)
     agent.end_call()
+end
+
+--- @async
+local function task_scenario_forfeit()
+    agent.wait(1.25)
+    sound.play_wait("$redgreen/vo/donovet_reaction_forfeit", Channel.PHONE02)
+    game.victim.ekg_panic_mode = true
+    agent.wait(1.0)
+    game.victim.ekg_panic_mode = false
 end
 
 --- @param wait boolean?
@@ -775,7 +789,7 @@ local function task_update_victim()
                 victim:add_stress(dt * stationary_stress_rate, true)
             end
 
-            victim:update_bravery(dt)            
+            victim:update_bravery(dt)
             victim:add_stress(victim.temp_stress * VICTIM_TEMP_STRESS_SPILLOVER_RATE * dt, true)
         end
         
@@ -886,6 +900,11 @@ module:state(AgentState.CALL, {
     exit = function(self)
         gpio.clear_pwm(OUT_VIBRATE)
         gpio.write_pin(OUT_VIBRATE, GPIO_LOW)
+
+        -- Check if player hung up before rescuing the victim
+        if not game.won then
+            task_scenario_forfeit()
+        end
     end
 })
 
