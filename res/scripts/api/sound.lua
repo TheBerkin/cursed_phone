@@ -228,63 +228,59 @@ end
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channel over `duration` seconds, then stops the sound. 
---- @param channel Channel @ The channel to fade out
+--- @param channels Channel | Channel[] @ The channel to fade out
 --- @param duration number @ The duration of the fade in seconds
-function sound.fade_out(channel, duration)
-    if not sound.is_busy(channel) then return end
+function sound.fade_out(channels, duration)
+    local channel_type = type(channels)
     local start_time = engine_time()
     local end_time = engine_time() + duration
-    while true do
-        local time = engine_time()
-        local progress = math.invlerp(time, start_time, end_time, true)
 
-        if not sound.is_busy(channel) then return end
-
-        if progress >= 1 then
-            sound.stop(channel)
-            sound.set_channel_fade_volume(channel, 1)
-            return
-        else
-            local fade_volume = math.lerp(1, 0, progress, true)
-            sound.set_channel_fade_volume(channel, fade_volume)
-        end
-        agent.intent(IntentCode.WAIT)
-    end
-end
-
---- @async
---- *(Agent use only)*
----
---- Fades out the sound on the specified channels over `duration` seconds, then stops the sounds. 
---- @param channels Channel[] @ The channels to fade out
---- @param duration number @ The duration of the fade in seconds
-function sound.fade_out_multi(channels, duration)
-    local start_time = engine_time()
-    local end_time = engine_time() + duration
-    while true do
-        local time = engine_time()
-        local progress = math.invlerp(time, start_time, end_time, true)
-
-        if progress >= 1 then
-            for i = 1, #channels do
-                local channel = channels[i]
-                sound.stop(channel)
+    if channel_type == 'number' or channel_type == 'integer' then
+        if not sound.is_busy(channels) then return end
+        while true do
+            local time = engine_time()
+            local progress = math.invlerp(time, start_time, end_time, true)
+    
+            if not sound.is_busy(channels) then return end
+    
+            if progress >= 1 then
+                sound.stop(channels)
+                sound.set_channel_fade_volume(channels, 1)
+                return
+            else
+                local fade_volume = math.lerp(1, 0, progress, true)
+                sound.set_channel_fade_volume(channels, fade_volume)
             end
-            return
-        else
-            local fade_volume = math.lerp(1, 0, progress, true)
-            local is_any_channel_busy = false
-            for i = 1, #channels do
-                local channel = channels[i]
-                if sound.is_busy(channel) then 
-                    is_any_channel_busy = true
-                    sound.set_channel_fade_volume(channel, fade_volume)
+            agent.intent(IntentCode.WAIT)
+        end    
+    elseif channel_type == 'table' then
+        while true do
+            local time = engine_time()
+            local progress = math.invlerp(time, start_time, end_time, true)
+    
+            if progress >= 1 then
+                for i = 1, #channels do
+                    local channel = channels[i]
+                    sound.stop(channel)
                 end
+                return
+            else
+                local fade_volume = math.lerp(1, 0, progress, true)
+                local is_any_channel_busy = false
+                for i = 1, #channels do
+                    local channel = channels[i]
+                    if sound.is_busy(channel) then 
+                        is_any_channel_busy = true
+                        sound.set_channel_fade_volume(channel, fade_volume)
+                    end
+                end
+    
+                if not is_any_channel_busy then return end
             end
-
-            if not is_any_channel_busy then return end
+            agent.intent(IntentCode.WAIT)
         end
-        agent.intent(IntentCode.WAIT)
+    else
+        error("Input channels must be either integer or table", 2)
     end
 end
 
