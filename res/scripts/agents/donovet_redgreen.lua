@@ -386,7 +386,7 @@ local function task_soundscape()
 
     local victim = game.victim
 
-    sound.play("$redgreen/ambient/amb_dungeon", Channel.BG01, { looping = true, skip = rand_float(0, 30), volume = 0.15 })
+    sound.play("$redgreen/ambient/amb_dungeon", Channel.BG01, { looping = true, skip = 'random', volume = 0.15 })
 
     agent.do_task_while(
         function()

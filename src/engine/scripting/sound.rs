@@ -13,7 +13,7 @@ impl<'lua> CursedEngine<'lua> {
             let mut interrupt: Option<bool> = None;
             let mut looping: Option<bool> = None;
             let mut volume: Option<f32> = None;
-            let mut skip: Option<Duration> = None;
+            let mut skip: Option<SoundPlaySkip> = None;
             let mut take: Option<Duration> = None;
             let mut delay: Option<Duration> = None;
             let mut fadein: Option<Duration> = None;
@@ -22,7 +22,7 @@ impl<'lua> CursedEngine<'lua> {
                 interrupt = opts_table.get::<&str, bool>("interrupt").ok();
                 looping = opts_table.get::<&str, bool>("looping").ok();
                 volume = opts_table.get::<&str, f32>("volume").ok();
-                skip = opts_table.get::<&str, f32>("skip").ok().map(|secs| Duration::from_secs_f32(secs));
+                skip = opts_table.get::<&str, SoundPlaySkip>("skip").ok();
                 take = opts_table.get::<&str, f32>("take").ok().map(|secs| Duration::from_secs_f32(secs));
                 delay = opts_table.get::<&str, f32>("delay").ok().map(|secs| Duration::from_secs_f32(secs));
                 fadein = opts_table.get::<&str, f32>("fadein").ok().map(|secs| Duration::from_secs_f32(secs));

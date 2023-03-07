@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use enum_iterator::Sequence;
 use indexmap::map::IndexMap;
+use mlua::FromLua;
 use rodio;
 use rodio::source::{Source, Buffered};
 use globwalk;
@@ -224,7 +225,7 @@ pub struct SoundPlayOptions {
     pub volume: f32,
     pub speed: f32,
     pub looping: bool,
-    pub skip: Duration,
+    pub skip: SoundPlaySkip,
     pub take: Option<Duration>,
     pub delay: Option<Duration>,
     pub fadein: Duration,
@@ -241,6 +242,34 @@ impl Default for SoundPlayOptions {
             delay: Default::default(),
             fadein: Default::default(),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum SoundPlaySkip {
+    By(Duration),
+    Random
+}
+
+impl Default for SoundPlaySkip {
+    fn default() -> Self {
+        Self::By(Duration::ZERO)
+    }
+}
+
+impl<'lua> FromLua<'lua> for SoundPlaySkip {
+    fn from_lua(lua_value: mlua::Value<'lua>, _lua: &'lua mlua::Lua) -> mlua::Result<Self> {
+        Ok(match lua_value {
+            mlua::Value::Nil => Default::default(),
+            mlua::Value::Integer(secs) => Self::By(Duration::from_secs(secs as u64)),
+            mlua::Value::Number(secs) => Self::By(Duration::from_secs_f64(secs)),
+            mlua::Value::String(kw) => match kw.to_str() {
+                Ok("random") => Self::Random,
+                Ok(kw_other) => return Err(mlua::Error::FromLuaConversionError { from: "string", to: stringify!(SoundPlaySkip), message: Some(format!("invalid sound skip keyword: \"{}\"", kw_other)) }),
+                Err(_) => return Err(mlua::Error::FromLuaConversionError { from: "string", to: stringify!(SoundPlaySkip), message: None })
+            },
+            other => return Err(mlua::Error::FromLuaConversionError { from: other.type_name(), to: stringify!(SoundPlaySkip), message: None })
+        })
     }
 }
 
@@ -687,33 +716,37 @@ impl SoundChannel {
         if let Some(delay) = opts.delay {
             self.sink.append(rodio::source::Empty::<i16>::new().delay(delay))
         }
+        let skip = match &opts.skip {
+            SoundPlaySkip::By(duration) => duration.clone(),
+            SoundPlaySkip::Random => Duration::from_secs_f64(rand::thread_rng().gen_range(0.0 .. snd.duration().unwrap_or_default().as_secs_f64())),
+        };
         let is_nonstandard_speed = opts.speed != 1.0;
         if let Some(take) = opts.take {
             if opts.looping {
                 if is_nonstandard_speed {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
+                    self.sink.append(src.repeat_infinite().skip_duration(skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).take_duration(take).fade_in(opts.fadein));
+                    self.sink.append(src.repeat_infinite().skip_duration(skip).take_duration(take).fade_in(opts.fadein));
                 }
             } else {
                 if is_nonstandard_speed {
-                    self.sink.append(src.skip_duration(opts.skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
+                    self.sink.append(src.skip_duration(skip).take_duration(take).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.skip_duration(opts.skip).take_duration(take).fade_in(opts.fadein));
+                    self.sink.append(src.skip_duration(skip).take_duration(take).fade_in(opts.fadein));
                 }
             }
         } else {
             if opts.looping {
                 if is_nonstandard_speed {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).speed(opts.speed).fade_in(opts.fadein));
+                    self.sink.append(src.repeat_infinite().skip_duration(skip).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.repeat_infinite().skip_duration(opts.skip).fade_in(opts.fadein));
+                    self.sink.append(src.repeat_infinite().skip_duration(skip).fade_in(opts.fadein));
                 }
             } else {
                 if is_nonstandard_speed {
-                    self.sink.append(src.skip_duration(opts.skip).speed(opts.speed).fade_in(opts.fadein));
+                    self.sink.append(src.skip_duration(skip).speed(opts.speed).fade_in(opts.fadein));
                 } else {
-                    self.sink.append(src.skip_duration(opts.skip).fade_in(opts.fadein));
+                    self.sink.append(src.skip_duration(skip).fade_in(opts.fadein));
                 }
             }
         }

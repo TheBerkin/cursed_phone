@@ -81,7 +81,7 @@ ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
 --- @field interrupt boolean? @ Indicates whether to stop other sounds on the channel before playing (Default: `true`)
 --- @field speed number? @ Speed multiplier for sound; affects both tempo and pitch (Default: `1.0`)
 --- @field looping boolean? @ Indicates whether to make the sound loop forever (Default: `false`)
---- @field skip number? @ Skip forward by `skip` seconds. Affected by `speed`. (Default: `0.0`)
+--- @field skip 'random' | number? @ Skip forward by `skip` seconds. Affected by `speed`. (Default: `0.0`)
 --- @field take number? @ Cut sound to maximum of `take` seconds Affected by `speed`. (Default: `nil`)
 --- @field delay number? @ Add `delay` seconds of silence before the sound. Not affected by `speed`. (Default: `nil`)
 --- @field fadein number? @ Fades in the sound over `fadein` seconds. Not affected by `speed`. (Default: `0`)
