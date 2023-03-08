@@ -238,8 +238,6 @@ impl PhoneGpioInterface {
             thread::spawn(move || {
                 const RINGER_FREQ_DEFAULT: f64 = 20.0;
                 const RINGER_DUTY_CYCLE_DEFAULT: f64 = 0.5;
-                let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
-                let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
                 let mut next_pattern: Option<Arc<RingPattern>> = None;
 
                 'poll_pattern: loop {
@@ -250,7 +248,7 @@ impl PhoneGpioInterface {
                         ringer.set_low();
                     }
 
-                    'read_pattern: while let Ok(Some(mut pattern)) = next_pattern.take().or_else(|| rx.recv()) {
+                    'read_pattern: while let Some(mut pattern) = next_pattern.take().or_else(|| rx.recv().ok().flatten()) {
                         // Play the ring pattern     
                         for step in pattern.components.iter() {
                             macro_rules! ringer_wait {
