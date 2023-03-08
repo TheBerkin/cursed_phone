@@ -268,31 +268,28 @@ impl PhoneGpioInterface {
                                     RingPatternComponent::RingWithCycle { high, low, duration } => {
                                         let cycle_length = *high + *low;
                                         let mut ringer = ringer.lock().unwrap();
-                                        ringer.set_low();
                                         ringer.set_pwm(cycle_length, *high).unwrap();
                                         ringer_wait!(*duration)
                                     },
                                     RingPatternComponent::RingWithFrequency { frequency, duration } => {
                                         let mut ringer = ringer.lock().unwrap();
-                                        ringer.set_low();
                                         ringer.set_pwm_frequency(*frequency, 0.5).unwrap();
                                         ringer_wait!(*duration)
                                     },
                                     RingPatternComponent::Ring(duration) => {
                                         let mut ringer = ringer.lock().unwrap();
-                                        ringer.set_low();
                                         ringer.set_pwm_frequency(RINGER_FREQ_DEFAULT, RINGER_DUTY_CYCLE_DEFAULT).unwrap();
                                         ringer_wait!(*duration)
                                     },
                                     RingPatternComponent::Low(duration) => {
                                         let mut ringer = ringer.lock().unwrap();
-                                        ringer.clear_pwm();
+                                        ringer.clear_pwm().unwrap();
                                         ringer.set_low();
                                         ringer_wait!(*duration);
                                     },
                                     RingPatternComponent::High(duration) => {
                                         let mut ringer = ringer.lock().unwrap();
-                                        ringer.clear_pwm();
+                                        ringer.clear_pwm().unwrap();
                                         ringer.set_high();
                                         ringer_wait!(*duration);
                                     },
