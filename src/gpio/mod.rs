@@ -244,11 +244,11 @@ impl PhoneGpioInterface {
                     // Stop any ringing that was interrupted
                     {
                         let mut ringer = ringer.lock().unwrap();
-                        ringer.clear_pwm();
+                        ringer.clear_pwm().unwrap();
                         ringer.set_low();
                     }
 
-                    'read_pattern: while let Some(mut pattern) = next_pattern.take().or_else(|| rx.recv().ok().flatten()) {
+                    'read_pattern: while let Some(pattern) = next_pattern.take().or_else(|| rx.recv().ok().flatten()) {
                         // Play the ring pattern     
                         for step in pattern.components.iter() {
                             macro_rules! ringer_wait {

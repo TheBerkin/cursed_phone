@@ -20,11 +20,11 @@ impl<'lua> CursedEngine<'lua> {
                 ).to_lua_err()?)
             })?)?;
 
-            tbl_gpio.set("register_output", lua.create_function(move |_, (pin): (u8)| {
+            tbl_gpio.set("register_output", lua.create_function(move |_, pin: u8| {
                 Ok(self.gpio.borrow_mut().register_output(pin).to_lua_err()?)
             })?)?;
 
-            tbl_gpio.set("read_pin", lua.create_function(move |_, (pin): (u8)| {
+            tbl_gpio.set("read_pin", lua.create_function(move |_, pin: u8| {
                 Ok(self.gpio.borrow().read_pin(pin))
             })?)?;
 
@@ -36,11 +36,11 @@ impl<'lua> CursedEngine<'lua> {
                 Ok(self.gpio.borrow_mut().set_pwm(pin, period, pulse_width).to_lua_err()?)
             })?)?;
 
-            tbl_gpio.set("clear_pwm", lua.create_function(move |_, (pin): (u8)| {
+            tbl_gpio.set("clear_pwm", lua.create_function(move |_, pin: u8| {
                 Ok(self.gpio.borrow_mut().clear_pwm(pin).to_lua_err()?)
             })?)?;
 
-            tbl_gpio.set("unregister", lua.create_function(move |_, (pin): (u8)| {
+            tbl_gpio.set("unregister", lua.create_function(move |_, pin: u8| {
                 Ok(self.gpio.borrow_mut().unregister(pin))
             })?)?;
 
