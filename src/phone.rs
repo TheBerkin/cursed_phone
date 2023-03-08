@@ -123,7 +123,8 @@ pub enum RingPatternComponent {
     RingWithFrequency { frequency: f64, duration: Duration },
     Ring(Duration),
     Low(Duration),
-    High(Duration)
+    High(Duration),
+    End,
 }
 
 #[derive(Logos, Debug, PartialEq)]
@@ -139,6 +140,8 @@ enum RingPatternToken {
     KwLow,
     #[token("H")]
     KwHigh,
+    #[token("$")]
+    KwEnd,
     #[token(",")]
     Comma,
     #[regex(r"([0-9]+(\.[0-9]+)?|\.[0-9]+)", parse_ring_pattern_duration)]

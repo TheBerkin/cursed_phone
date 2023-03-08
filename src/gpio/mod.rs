@@ -229,7 +229,7 @@ impl PhoneGpioInterface {
             _ => (None, None)
         };
 
-        // Ringer PWM thread
+        // Ringer thread
         if config.features.enable_ringer.unwrap_or(false) {
             let (tx, rx) = mpsc::channel::<Option<Arc<RingPattern>>>();
             tx_ringer = Some(tx);
@@ -296,6 +296,7 @@ impl PhoneGpioInterface {
                                         ringer.set_high();
                                         ringer_wait!(*duration);
                                     },
+                                    RingPatternComponent::End => break 'read_pattern
                                 }
                             }
                         }

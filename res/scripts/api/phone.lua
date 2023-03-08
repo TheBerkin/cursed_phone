@@ -141,4 +141,15 @@ if not phone then
     --- Returns a boolean value indicating whether the phone is currently on-hook.
     --- @return boolean
     function phone.is_on_hook() return false end
+
+    --- Rings the phone.
+    --- @param pattern string | RingPattern @ The pattern to send to the ringer.
+    function phone.ring(pattern) end
+
+    --- Stops all ringing.
+    function phone.stop_ringing() end
+
+    --- @param expr string
+    --- @return boolean, RingPattern?
+    function phone.compile_ring_pattern(expr) return false, nil end
 end

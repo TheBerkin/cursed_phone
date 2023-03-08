@@ -262,7 +262,7 @@ local _AgentModule_MEMBERS = {
     set_custom_ring_pattern = function(self, expr)
         expr = expr or RING_PATTERN_DEFAULT
         assert(type(expr) == 'string', "Ring pattern must be a string", 2)
-        local success, pattern = phone.create_ring_pattern(expr)
+        local success, pattern = phone.compile_ring_pattern(expr)
         if success then
             --- @cast pattern RingPattern
             self._custom_ring_pattern = pattern
@@ -319,7 +319,7 @@ function create_agent(name, phone_number, role)
         _messages = messages
     }, M_AgentModule)
 
-    module:set_sound_banks_loaded_during(AgentState.CALL)
+    module:set_sound_banks_loaded_during(AgentState.CALL_OUT, AgentState.CALL)
 
     return module
 end

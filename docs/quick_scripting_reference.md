@@ -8,7 +8,7 @@ Below is a skeleton for a basic agent module.
 -- Module definition. Only the first argument, the name, is required.
 local S = create_agent("agent_name", "1234567", AgentRole.NORMAL)
 
--- When not called, sound banks load only during AgentState.CALL
+-- When not called, sound banks load only during CALL and CALL_OUT
 S:set_sound_banks_loaded_during(AgentState.CALL, AgentState.CALL_IN, AgentState.CALL_OUT)
 
 -- Called when agent has finished loading

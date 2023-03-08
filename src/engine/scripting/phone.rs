@@ -31,8 +31,28 @@ impl<'lua> CursedEngine<'lua> {
             Ok(self.switchhook_closed.get())
         })?)?;
 
-        // phone.create_ring_pattern(expr)
-        tbl_phone.set("create_ring_pattern", lua.create_function(move |_, expr: String| {
+        // phone.ring(pattern)
+        tbl_phone.set("ring", lua.create_function(move |_, pattern: LuaValue| {
+            let pattern = match pattern {
+                LuaValue::String(expr) => match RingPattern::try_parse(expr.to_str().to_lua_err()?) {
+                    Some(pattern) => Arc::new(pattern),
+                    None => return Err(LuaError::RuntimeError(format!("invalid ring pattern expression: '{}'", expr.to_string_lossy())))
+                },
+                LuaValue::UserData(userdata) => userdata.clone().take::<LuaRingPattern>()?.0,
+                other => return Err(LuaError::RuntimeError(format!("cannot use type '{}' as ring pattern", other.type_name())))
+            };
+            self.send_output(PhoneOutputSignal::Ring(Some(pattern)));
+            Ok(())
+        })?)?;
+
+        // phone.stop_ringing()
+        tbl_phone.set("stop_ringing", lua.create_function(move |_, ()| {
+            self.send_output(PhoneOutputSignal::Ring(None));
+            Ok(())
+        })?)?;
+
+        // phone.compile_ring_pattern(expr)
+        tbl_phone.set("compile_ring_pattern", lua.create_function(move |_, expr: String| {
             if let Some(pattern) = RingPattern::try_parse(expr.as_str()) {
                 Ok((true, Some(LuaRingPattern(Arc::new(pattern)))))
             } else {

@@ -96,7 +96,7 @@ if not sound then
     --- @param channel Channel @ The channel to play the sound on.
     --- @param opts SoundPlayOptions? @ The options to apply to the played sound.
     --- @return boolean @ Indicates whether playback was successfully started.
-    --- @return number? @ The duration of the sound in seconds, if known and finite. Due to a limitation of the underlying sound engine, Vorbis (.ogg) sounds cannot currently report their length. 
+    --- @return number? @ The duration of the sound in seconds, if known and finite. Due to a limitation of the sound engine, only WAV sounds can currently report their length. 
     function sound.play(path, channel, opts) return false, nil end
 
     --- Returns a boolean indicating whether the specified channel is playing something.
