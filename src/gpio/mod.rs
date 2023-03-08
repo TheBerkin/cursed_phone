@@ -249,7 +249,6 @@ impl PhoneGpioInterface {
                     }
 
                     'read_pattern: while let Some(pattern) = next_pattern.take().or_else(|| rx.recv().ok().flatten()) {
-                        dbg!(pattern);
                         // Play the ring pattern     
                         for step in pattern.components.iter() {
                             macro_rules! ringer_wait {
@@ -267,31 +266,31 @@ impl PhoneGpioInterface {
                             match step {
                                 RingPatternComponent::RingWithCycle { high, low, duration } => {
                                     let cycle_length = *high + *low;
-                                    let ringer = ringer.lock().unwrap();
+                                    let mut ringer = ringer.lock().unwrap();
                                     ringer.set_low();
                                     ringer.set_pwm(cycle_length, *high).unwrap();
                                     ringer_wait!(*duration)
                                 },
                                 RingPatternComponent::RingWithFrequency { frequency, duration } => {
-                                    let ringer = ringer.lock().unwrap();
+                                    let mut ringer = ringer.lock().unwrap();
                                     ringer.set_low();
                                     ringer.set_pwm_frequency(*frequency, 0.5).unwrap();
                                     ringer_wait!(*duration)
                                 },
                                 RingPatternComponent::Ring(duration) => {
-                                    let ringer = ringer.lock().unwrap();
+                                    let mut ringer = ringer.lock().unwrap();
                                     ringer.set_low();
                                     ringer.set_pwm_frequency(RINGER_FREQ_DEFAULT, RINGER_DUTY_CYCLE_DEFAULT).unwrap();
                                     ringer_wait!(*duration)
                                 },
                                 RingPatternComponent::Low(duration) => {
-                                    let ringer = ringer.lock().unwrap();
+                                    let mut ringer = ringer.lock().unwrap();
                                     ringer.clear_pwm();
                                     ringer.set_low();
                                     ringer_wait!(*duration);
                                 },
                                 RingPatternComponent::High(duration) => {
-                                    let ringer = ringer.lock().unwrap();
+                                    let mut ringer = ringer.lock().unwrap();
                                     ringer.clear_pwm();
                                     ringer.set_high();
                                     ringer_wait!(*duration);
