@@ -718,7 +718,7 @@ impl SoundChannel {
         }
         let skip = match &opts.skip {
             SoundPlaySkip::By(duration) => *duration,
-            SoundPlaySkip::Random => Duration::from_secs_f64(rand::thread_rng().gen_range(0.0 .. snd.duration().unwrap_or_default().as_secs_f64())),
+            SoundPlaySkip::Random => Duration::from_secs_f64(rand::thread_rng().gen_range(0.0 ..= snd.duration().unwrap_or_default().as_secs_f64())),
         };
         let is_nonstandard_speed = opts.speed != 1.0;
         if let Some(take) = opts.take {

@@ -104,6 +104,7 @@ AgentRole = {
 --- @field _state AgentState
 --- @field _state_func_tables table<AgentState, StateFunctionTable>
 --- @field _sound_bank_states AgentState[]
+--- @field _required_sound_banks table<string, boolean>
 --- @field _custom_ring_pattern RingPattern?
 local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)
@@ -235,6 +236,8 @@ local _AgentModule_MEMBERS = {
         return msg
     end,
     --- Requires the specified sound bank during calls.
+    --- @param self AgentModule
+    --- @param bank_name string
     require_sound_bank = function(self, bank_name)
         self._required_sound_banks[bank_name] = true
     end,

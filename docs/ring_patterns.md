@@ -10,8 +10,8 @@ They do this using a "ring pattern expression." These are strings with the follo
 | `C<h>,<l>,<t>` | Cycle high for `h` ms and low for `l` ms, for total of `t` ms |
 | `R<f>,<t>`     | Ring at `f` Hz for `t` milliseconds                           |
 | `Q<t>`         | Ring at 20Hz for `t` milliseconds                             |
-| `L<t>`         | Set low for `t` milliseconds                                  |
-| `H<t>`         | Set high for `t` milliseconds                                 |
+| `L<t>`         | Set low and wait `t` milliseconds                             |
+| `H<t>`         | Set high and wait `t` milliseconds                            |
 | `E`            | Stops ringing.                                                |
 
 ## Examples
