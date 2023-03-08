@@ -374,7 +374,7 @@ impl PhoneEngine {
         rx_input
     }
 
-    pub fn listen_from_pbx(&self, input_from_pbx: mpsc::Receiver<PhoneOutputSignal>) {
+    pub fn start_engine_listener(&self, input_from_pbx: mpsc::Receiver<PhoneOutputSignal>) {
         self.input_from_pbx.replace(Some(Rc::new(input_from_pbx)));
     }
 }

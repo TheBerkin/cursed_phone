@@ -186,13 +186,13 @@ impl<'lua> CursedEngine<'lua> {
         }
     }
 
-    pub fn gen_pbx_output(&self) -> mpsc::Receiver<PhoneOutputSignal> {
+    pub fn gen_engine_output(&self) -> mpsc::Receiver<PhoneOutputSignal> {
         let (tx, rx) = mpsc::channel();
         self.phone_output.replace(Some(tx));
         rx
     }
 
-    pub fn listen_phone_input(&self, input_from_phone: mpsc::Receiver<PhoneInputSignal>) {
+    pub fn start_phone_listener(&self, input_from_phone: mpsc::Receiver<PhoneInputSignal>) {
         self.phone_input.replace(Some(input_from_phone));
     }
 
@@ -328,6 +328,7 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     pub fn load_agents(&'lua self) {
+        info!("Loading agents...");
         self.phone_book.borrow_mut().clear();
         let search_path = self.scripts_root.join(AGENTS_PATH_NAME).join("**").join("*.lua");
         let search_path_str = search_path.to_str().expect("Failed to create search pattern for agent modules");
@@ -379,6 +380,7 @@ impl<'lua> CursedEngine<'lua> {
                 }
             }
         }
+        info!("Total agents loaded: {}", agents.len());
     }
 
     /// Gets the other party associated with the active or pending call.

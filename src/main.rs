@@ -12,10 +12,13 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::env;
 use std::cell::RefCell;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{thread, time};
 use log::{info, warn};
 use simplelog::{TermLogger, LevelFilter, TerminalMode, ColorChoice};
 use thread_priority::*;
+use ctrlc;
 
 const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
@@ -44,12 +47,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sound_engine = create_sound_engine(&config);
     let phone = create_phone(&config, sound_engine);
     let engine = create_cursed_engine(&config, sound_engine);
-    engine.listen_phone_input(phone.gen_phone_output());
-    phone.listen_from_pbx(engine.gen_pbx_output());
+    engine.start_phone_listener(phone.gen_phone_output());
+    phone.start_engine_listener(engine.gen_engine_output());
     engine.load_lua_api()?;
     engine.load_agents();
 
-    loop {
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = Arc::clone(&running);
+
+    ctrlc::set_handler(move || {
+        info!("Ctrl+C detected; shutting down.");
+        running_clone.store(false, Ordering::SeqCst);
+    }).expect("unable to set ctrl-c handler");
+
+    info!("Phone ready.");
+
+    while running.load(Ordering::SeqCst) {
         // Update engine state
         let tick_start = time::Instant::now();
         phone.tick();
