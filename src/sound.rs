@@ -12,6 +12,7 @@ use enum_iterator::Sequence;
 use indexmap::map::IndexMap;
 use mlua::FromLua;
 use rodio;
+use rodio::buffer::SamplesBuffer;
 use rodio::source::{Source, Buffered};
 use globwalk;
 use globset;
@@ -201,13 +202,17 @@ struct SoundChannel {
 
 struct Sound {
     path: String,
-    src: Buffered<rodio::source::SamplesConverter<rodio::Decoder<BufReader<File>>, i16>>,
+    src: Buffered<SamplesBuffer<i16>>,
 }
 
 impl Sound {
     fn from_file(path: &Path) -> Self {
         let file = File::open(path).unwrap();
-        let src = rodio::Decoder::new(BufReader::new(file)).unwrap().convert_samples::<i16>().buffered();
+        let decoder = rodio::Decoder::new(BufReader::new(file)).unwrap().convert_samples::<i16>();
+        let sample_rate = decoder.sample_rate();
+        let channels = decoder.channels();
+        let samples = decoder.collect::<Vec<i16>>();
+        let src = SamplesBuffer::new(channels, sample_rate, samples).buffered();
         
         Self {
             path: String::from(path.to_string_lossy()),
