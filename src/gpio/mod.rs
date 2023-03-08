@@ -249,52 +249,54 @@ impl PhoneGpioInterface {
                     }
 
                     'read_pattern: while let Some(pattern) = next_pattern.take().or_else(|| rx.recv().ok().flatten()) {
-                        // Play the ring pattern     
-                        for step in pattern.components.iter() {
-                            macro_rules! ringer_wait {
-                                ($dur:expr) => {
-                                    match rx.recv_timeout($dur) {
-                                        Ok(Some(new_pattern)) => {
-                                            next_pattern = Some(new_pattern);
-                                            continue 'read_pattern
-                                        },
-                                        Ok(None) => continue 'poll_pattern,
-                                        Err(_) => {}
+                        loop {
+                            // Play the ring pattern     
+                            for step in pattern.components.iter() {
+                                macro_rules! ringer_wait {
+                                    ($dur:expr) => {
+                                        match rx.recv_timeout($dur) {
+                                            Ok(Some(new_pattern)) => {
+                                                next_pattern = Some(new_pattern);
+                                                continue 'read_pattern
+                                            },
+                                            Ok(None) => continue 'poll_pattern,
+                                            Err(_) => {}
+                                        }
                                     }
                                 }
-                            }
-                            match step {
-                                RingPatternComponent::RingWithCycle { high, low, duration } => {
-                                    let cycle_length = *high + *low;
-                                    let mut ringer = ringer.lock().unwrap();
-                                    ringer.set_low();
-                                    ringer.set_pwm(cycle_length, *high).unwrap();
-                                    ringer_wait!(*duration)
-                                },
-                                RingPatternComponent::RingWithFrequency { frequency, duration } => {
-                                    let mut ringer = ringer.lock().unwrap();
-                                    ringer.set_low();
-                                    ringer.set_pwm_frequency(*frequency, 0.5).unwrap();
-                                    ringer_wait!(*duration)
-                                },
-                                RingPatternComponent::Ring(duration) => {
-                                    let mut ringer = ringer.lock().unwrap();
-                                    ringer.set_low();
-                                    ringer.set_pwm_frequency(RINGER_FREQ_DEFAULT, RINGER_DUTY_CYCLE_DEFAULT).unwrap();
-                                    ringer_wait!(*duration)
-                                },
-                                RingPatternComponent::Low(duration) => {
-                                    let mut ringer = ringer.lock().unwrap();
-                                    ringer.clear_pwm();
-                                    ringer.set_low();
-                                    ringer_wait!(*duration);
-                                },
-                                RingPatternComponent::High(duration) => {
-                                    let mut ringer = ringer.lock().unwrap();
-                                    ringer.clear_pwm();
-                                    ringer.set_high();
-                                    ringer_wait!(*duration);
-                                },
+                                match step {
+                                    RingPatternComponent::RingWithCycle { high, low, duration } => {
+                                        let cycle_length = *high + *low;
+                                        let mut ringer = ringer.lock().unwrap();
+                                        ringer.set_low();
+                                        ringer.set_pwm(cycle_length, *high).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::RingWithFrequency { frequency, duration } => {
+                                        let mut ringer = ringer.lock().unwrap();
+                                        ringer.set_low();
+                                        ringer.set_pwm_frequency(*frequency, 0.5).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::Ring(duration) => {
+                                        let mut ringer = ringer.lock().unwrap();
+                                        ringer.set_low();
+                                        ringer.set_pwm_frequency(RINGER_FREQ_DEFAULT, RINGER_DUTY_CYCLE_DEFAULT).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::Low(duration) => {
+                                        let mut ringer = ringer.lock().unwrap();
+                                        ringer.clear_pwm();
+                                        ringer.set_low();
+                                        ringer_wait!(*duration);
+                                    },
+                                    RingPatternComponent::High(duration) => {
+                                        let mut ringer = ringer.lock().unwrap();
+                                        ringer.clear_pwm();
+                                        ringer.set_high();
+                                        ringer_wait!(*duration);
+                                    },
+                                }
                             }
                         }
                     }
