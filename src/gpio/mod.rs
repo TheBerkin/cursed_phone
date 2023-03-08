@@ -236,13 +236,13 @@ impl PhoneGpioInterface {
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
 
             thread::spawn(move || {
-                const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
                 const RINGER_FREQ_DEFAULT: f64 = 20.0;
-                const RINGER_DUTY_CYCLE: f64 = 0.5;
+                const RINGER_DUTY_CYCLE_DEFAULT: f64 = 0.5;
                 let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
                 let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
+                let mut next_pattern: Option<Arc<RingPattern>> = None;
 
-                loop {
+                'poll_pattern: loop {
                     // Stop any ringing that was interrupted
                     {
                         let mut ringer = ringer.lock().unwrap();
@@ -250,44 +250,43 @@ impl PhoneGpioInterface {
                         ringer.set_low();
                     }
 
-                    'ring_check: while let Ok(Some(mut pattern)) = rx.recv() {
-                        macro_rules! ringer_wait {
-                            ($dur:expr) => {
-                                match rx.recv_timeout($dur) {
-                                    Ok(Some(new_pattern)) => {
-                                        pattern = new_pattern;
-                                        continue 'ring_check
-                                    },
-                                    Ok(None) => break 'ring_check,
-                                    Err(_) => {}
+                    'read_pattern: while let Ok(Some(mut pattern)) = next_pattern.take().or_else(|| rx.recv()) {
+                        // Play the ring pattern     
+                        for step in pattern.components.iter() {
+                            macro_rules! ringer_wait {
+                                ($dur:expr) => {
+                                    match rx.recv_timeout($dur) {
+                                        Ok(Some(new_pattern)) => {
+                                            next_pattern = Some(new_pattern);
+                                            continue 'read_pattern
+                                        },
+                                        Ok(None) => continue 'poll_pattern,
+                                        Err(_) => {}
+                                    }
                                 }
                             }
-                        }
-                        loop {
-                            for step in pattern.components.iter() {
-                                match step {
-                                    RingPatternComponent::RingWithCycle { high, low, duration } => {
-                                        let cycle_length = *high + *low;
-                                        ringer.lock().unwrap().set_pwm(cycle_length, *high).unwrap();
-                                        ringer_wait!(*duration)
-                                    },
-                                    RingPatternComponent::RingWithFrequency { frequency, duration } => {
-                                        ringer.lock().unwrap().set_pwm_frequency(*frequency, 0.5).unwrap();
-                                        ringer_wait!(*duration)
-                                    },
-                                    RingPatternComponent::Ring(duration) => {
-                                        ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ_DEFAULT, 0.5).unwrap();
-                                        ringer_wait!(*duration)
-                                    },
-                                    RingPatternComponent::Low(duration) => {
-                                        ringer.lock().unwrap().set_low();
-                                        ringer_wait!(*duration);
-                                    },
-                                    RingPatternComponent::High(duration) => {
-                                        ringer.lock().unwrap().set_high();
-                                        ringer_wait!(*duration);
-                                    },
-                                }
+                            match step {
+                                RingPatternComponent::RingWithCycle { high, low, duration } => {
+                                    let cycle_length = *high + *low;
+                                    ringer.lock().unwrap().set_pwm(cycle_length, *high).unwrap();
+                                    ringer_wait!(*duration)
+                                },
+                                RingPatternComponent::RingWithFrequency { frequency, duration } => {
+                                    ringer.lock().unwrap().set_pwm_frequency(*frequency, 0.5).unwrap();
+                                    ringer_wait!(*duration)
+                                },
+                                RingPatternComponent::Ring(duration) => {
+                                    ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ_DEFAULT, RINGER_DUTY_CYCLE_DEFAULT).unwrap();
+                                    ringer_wait!(*duration)
+                                },
+                                RingPatternComponent::Low(duration) => {
+                                    ringer.lock().unwrap().set_low();
+                                    ringer_wait!(*duration);
+                                },
+                                RingPatternComponent::High(duration) => {
+                                    ringer.lock().unwrap().set_high();
+                                    ringer_wait!(*duration);
+                                },
                             }
                         }
                     }

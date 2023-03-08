@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::{time, sync::mpsc, thread, io::{stdin, Read}};
-use log::{info, trace};
+use log::{info, trace, warn};
 use logos::{Logos, Lexer};
 use mlua::prelude::LuaUserData;
 use crate::config::*;
