@@ -70,9 +70,9 @@ impl RingPattern {
                 RingPatternToken::KwCycle => {
                     if let (Number(h), Comma, Number(l), Comma, Number(t)) = (lex.next()?, lex.next()?, lex.next()?, lex.next()?, lex.next()?) {
                         components.push(RingPatternComponent::RingWithCycle { 
-                            high: Duration::try_from_secs_f64(h * 1000.0).unwrap_or_default(), 
-                            low: Duration::try_from_secs_f64(l * 1000.0).unwrap_or_default(), 
-                            duration: Duration::try_from_secs_f64(t * 1000.0).unwrap_or_default(),
+                            high: Duration::try_from_secs_f64(h / 1000.0).unwrap_or_default(), 
+                            low: Duration::try_from_secs_f64(l / 1000.0).unwrap_or_default(), 
+                            duration: Duration::try_from_secs_f64(t / 1000.0).unwrap_or_default(),
                         })
                     } else {
                         return None
@@ -82,7 +82,7 @@ impl RingPattern {
                     if let (Number(hz), Comma, Number(ms)) = (lex.next()?, lex.next()?, lex.next()?) {
                         components.push(RingPatternComponent::RingWithFrequency { 
                             frequency: hz, 
-                            duration: Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default() 
+                            duration: Duration::try_from_secs_f64(ms / 1000.0).unwrap_or_default() 
                         })
                     } else {
                         return None
@@ -90,19 +90,19 @@ impl RingPattern {
                 },
                 RingPatternToken::KwRing => {
                     if let Number(ms) = lex.next()? {
-                        components.push(RingPatternComponent::Ring(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()))
+                        components.push(RingPatternComponent::Ring(Duration::try_from_secs_f64(ms / 1000.0).unwrap_or_default()))
                     }
                 },
                 RingPatternToken::KwLow => {
                     if let Some(Number(ms)) = lex.next() {
-                        components.push(RingPatternComponent::Low(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()));
+                        components.push(RingPatternComponent::Low(Duration::try_from_secs_f64(ms / 1000.0).unwrap_or_default()));
                     } else {
                         return None
                     }
                 },
                 RingPatternToken::KwHigh => {
                     if let Some(Number(ms)) = lex.next() {
-                        components.push(RingPatternComponent::High(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()));
+                        components.push(RingPatternComponent::High(Duration::try_from_secs_f64(ms / 1000.0).unwrap_or_default()));
                     } else {
                         return None
                     }
