@@ -45,6 +45,9 @@ pub struct CursedConfig {
     /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
     pub rotary_first_pulse_delay_ms: Option<ms>,
 
+    /// The default ring pattern expression assigned to agents.
+    pub default_ring_pattern: String,
+
     /// Payphone configuration.
     #[serde(default)]
     pub payphone: PayphoneConfig,

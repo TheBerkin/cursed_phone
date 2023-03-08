@@ -116,7 +116,7 @@ pub struct PhoneGpioInterface {
     /// Pin for ringer output.
     out_ringer: Option<Arc<Mutex<OutputPin>>>,
     /// Transmission channel for ringer control
-    tx_ringer: Option<mpsc::Sender<bool>>, // TODO: Pass cadence data to ringer thread
+    tx_ringer: Option<mpsc::Sender<Option<Arc<RingPattern>>>>,
     /// Copy of config used to initialize pins.
     config: Rc<CursedConfig>
 }
@@ -231,45 +231,63 @@ impl PhoneGpioInterface {
 
         // Ringer PWM thread
         if config.features.enable_ringer.unwrap_or(false) {
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = mpsc::channel::<Option<Arc<RingPattern>>>();
             tx_ringer = Some(tx);
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
 
             thread::spawn(move || {
                 const RINGER_CADENCE: (f64, f64) = (2.0, 4.0);
-                const RINGER_FREQ: f64 = 20.0;
+                const RINGER_FREQ_DEFAULT: f64 = 20.0;
                 const RINGER_DUTY_CYCLE: f64 = 0.5;
                 let ring_on_time = Duration::from_secs_f64(RINGER_CADENCE.0);
                 let ring_off_time = Duration::from_secs_f64(RINGER_CADENCE.1);
 
                 loop {
                     // Stop any ringing that was interrupted
-                    ringer.lock().unwrap().clear_pwm().unwrap();
+                    {
+                        let mut ringer = ringer.lock().unwrap();
+                        ringer.clear_pwm();
+                        ringer.set_low();
+                    }
 
-                    'ring_check: while let Ok(true) = rx.recv() {
-                        loop {
-                            let phase_start = Instant::now();
-
-                            if let Ok(false) = rx.try_recv() { break 'ring_check }
-
-                            // Start ringing
-                            ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ, 0.5).unwrap();
-
-                            // Wait for on-time or cancel signal
-                            while phase_start.elapsed() < ring_on_time {
-                                if let Ok(false) = rx.try_recv() { break 'ring_check }
+                    'ring_check: while let Ok(Some(mut pattern)) = rx.recv() {
+                        macro_rules! ringer_wait {
+                            ($dur:expr) => {
+                                match rx.recv_timeout($dur) {
+                                    Ok(Some(new_pattern)) => {
+                                        pattern = new_pattern;
+                                        continue 'ring_check
+                                    },
+                                    Ok(None) => break 'ring_check,
+                                    Err(_) => {}
+                                }
                             }
-
-                            let phase_start = Instant::now();
-
-                            // Stop ringing
-                            ringer.lock().unwrap().clear_pwm().unwrap();
-
-                            if let Ok(false) = rx.try_recv() { break 'ring_check }
-
-                            // Wait for off-time or cancel signal
-                            while phase_start.elapsed() < ring_off_time {
-                                if let Ok(false) = rx.try_recv() { break 'ring_check }
+                        }
+                        loop {
+                            for step in pattern.components.iter() {
+                                match step {
+                                    RingPatternComponent::RingWithCycle { high, low, duration } => {
+                                        let cycle_length = *high + *low;
+                                        ringer.lock().unwrap().set_pwm(cycle_length, *high).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::RingWithFrequency { frequency, duration } => {
+                                        ringer.lock().unwrap().set_pwm_frequency(*frequency, 0.5).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::Ring(duration) => {
+                                        ringer.lock().unwrap().set_pwm_frequency(RINGER_FREQ_DEFAULT, 0.5).unwrap();
+                                        ringer_wait!(*duration)
+                                    },
+                                    RingPatternComponent::Low(duration) => {
+                                        ringer.lock().unwrap().set_low();
+                                        ringer_wait!(*duration);
+                                    },
+                                    RingPatternComponent::High(duration) => {
+                                        ringer.lock().unwrap().set_high();
+                                        ringer_wait!(*duration);
+                                    },
+                                }
                             }
                         }
                     }
@@ -450,7 +468,7 @@ impl PhoneGpioInterface {
         Ok(rx)
     }
 
-    pub fn tx_ringer(&self) -> Option<mpsc::Sender<bool>> {
+    pub fn tx_ringer(&self) -> Option<mpsc::Sender<Option<Arc<RingPattern>>>> {
         if let Some(tx) = &self.tx_ringer {
             return Some(tx.clone())
         }

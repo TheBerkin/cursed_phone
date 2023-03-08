@@ -12,6 +12,9 @@
 --- Represents a unique, opaque, atomic value with no intrinsic meaning.
 --- @class Symbol
 
+--- Represents a custom ring pattern that can be assigned to an agent.
+--- @class RingPattern
+
 local M_Symbol = {
     __index = function(self, k) error("can't index a symbol", 2) end,
     __newindex = function(self, k, v) error("can't index a symbol", 2) end,

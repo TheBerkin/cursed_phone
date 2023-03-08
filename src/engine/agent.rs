@@ -66,6 +66,10 @@ impl<'lua> AgentModule<'lua> {
         }
     }
 
+    pub fn custom_ring_pattern(&self) -> Option<Arc<RingPattern>> {
+        self.tbl_module.get::<&str, Option<LuaRingPattern>>("_custom_ring_pattern").ok().flatten().map(|p| p.0)
+    }
+
     pub fn load_sound_banks(&self, sound_engine: &Rc<RefCell<SoundEngine>>) {
         let mut sound_engine = sound_engine.borrow_mut();
         for bank_name in &self.required_sound_banks {

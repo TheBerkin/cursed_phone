@@ -717,7 +717,7 @@ impl SoundChannel {
             self.sink.append(rodio::source::Empty::<i16>::new().delay(delay))
         }
         let skip = match &opts.skip {
-            SoundPlaySkip::By(duration) => duration.clone(),
+            SoundPlaySkip::By(duration) => *duration,
             SoundPlaySkip::Random => Duration::from_secs_f64(rand::thread_rng().gen_range(0.0 .. snd.duration().unwrap_or_default().as_secs_f64())),
         };
         let is_nonstandard_speed = opts.speed != 1.0;

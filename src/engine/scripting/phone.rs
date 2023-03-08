@@ -31,6 +31,15 @@ impl<'lua> CursedEngine<'lua> {
             Ok(self.switchhook_closed.get())
         })?)?;
 
+        // phone.create_ring_pattern(expr)
+        tbl_phone.set("create_ring_pattern", lua.create_function(move |_, expr: String| {
+            if let Some(pattern) = RingPattern::try_parse(expr.as_str()) {
+                Ok((true, Some(LuaRingPattern(Arc::new(pattern)))))
+            } else {
+                Ok((false, None))
+            }
+        })?)?;
+
         globals.set("phone", tbl_phone)?;
 
         Ok(())

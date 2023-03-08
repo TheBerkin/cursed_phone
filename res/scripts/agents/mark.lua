@@ -1,6 +1,7 @@
 local module = create_agent("mark")
 module:require_sound_bank('mark')
 module:require_sound_bank('sewer')
+module:set_custom_ring_pattern("R5,2000 L4000")
 
 module:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
 -- TODO: Implement "slow idle" mode for agents

@@ -6,10 +6,10 @@ Below is a skeleton for a basic agent module.
 
 ```lua
 -- Module definition. Only the first argument, the name, is required.
-local S = create_agent("agent_name", "1234567", AGENT_ROLE_NORMAL)
+local S = create_agent("agent_name", "1234567", AgentRole.NORMAL)
 
--- Special behavior functions
-S:set_idle_tick_during(PHONE_STATE_IDLE, PHONE_STATE_DIAL_TONE)
+-- When not called, sound banks load only during AgentState.CALL
+S:set_sound_banks_loaded_during(AgentState.CALL, AgentState.CALL_IN, AgentState.CALL_OUT)
 
 -- Called when agent has finished loading
 S:on_load(function(self) end)

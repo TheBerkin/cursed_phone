@@ -3,8 +3,11 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::sync::Arc;
 use std::{time, sync::mpsc, thread, io::{stdin, Read}};
 use log::{info, trace};
+use logos::{Logos, Lexer};
+use mlua::prelude::LuaUserData;
 use crate::config::*;
 use crate::sound::*;
 
@@ -25,7 +28,7 @@ pub enum PhoneInputSignal {
 
 /// Represents signals produced by the phone.
 pub enum PhoneOutputSignal {
-    Ring(bool), // TODO: Add cadence settings to ringer
+    Ring(Option<Arc<RingPattern>>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -44,6 +47,111 @@ pub enum PhoneState {
     Connected = 4,
     Ringing = 5,
     BusyTone = 6
+}
+
+#[derive(Debug, Clone)]
+pub struct RingPattern {
+    pub components: Vec<RingPatternComponent>
+}
+
+#[derive(Debug, Clone)]
+pub struct LuaRingPattern(pub Arc<RingPattern>);
+
+impl LuaUserData for LuaRingPattern {}
+
+impl RingPattern {
+    pub fn try_parse(expr: &str) -> Option<Self> {
+        use RingPatternToken::*;
+        let mut components = vec![];
+        let mut lex = RingPatternToken::lexer(expr);
+
+        while let Some(token) = lex.next() {
+            match token {
+                RingPatternToken::KwCycle => {
+                    if let (Number(h), Comma, Number(l), Comma, Number(t)) = (lex.next()?, lex.next()?, lex.next()?, lex.next()?, lex.next()?) {
+                        components.push(RingPatternComponent::RingWithCycle { 
+                            high: Duration::try_from_secs_f64(h * 1000.0).unwrap_or_default(), 
+                            low: Duration::try_from_secs_f64(l * 1000.0).unwrap_or_default(), 
+                            duration: Duration::try_from_secs_f64(t * 1000.0).unwrap_or_default(),
+                        })
+                    } else {
+                        return None
+                    }
+                },
+                RingPatternToken::KwFrequency => {
+                    if let (Number(hz), Comma, Number(ms)) = (lex.next()?, lex.next()?, lex.next()?) {
+                        components.push(RingPatternComponent::RingWithFrequency { 
+                            frequency: hz, 
+                            duration: Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default() 
+                        })
+                    } else {
+                        return None
+                    }
+                },
+                RingPatternToken::KwRing => {
+                    if let Number(ms) = lex.next()? {
+                        components.push(RingPatternComponent::Ring(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()))
+                    }
+                },
+                RingPatternToken::KwLow => {
+                    if let Some(Number(ms)) = lex.next() {
+                        components.push(RingPatternComponent::Low(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()));
+                    } else {
+                        return None
+                    }
+                },
+                RingPatternToken::KwHigh => {
+                    if let Some(Number(ms)) = lex.next() {
+                        components.push(RingPatternComponent::High(Duration::try_from_secs_f64(ms * 1000.0).unwrap_or_default()));
+                    } else {
+                        return None
+                    }
+                },
+                _ => return None
+            }
+        }
+
+        Some(Self {
+            components
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum RingPatternComponent {
+    RingWithCycle { high: Duration, low: Duration, duration: Duration },
+    RingWithFrequency { frequency: f64, duration: Duration },
+    Ring(Duration),
+    Low(Duration),
+    High(Duration)
+}
+
+#[derive(Logos, Debug, PartialEq)]
+enum RingPatternToken {
+
+    #[token("C")]
+    KwCycle,
+    #[token("R")]
+    KwFrequency,
+    #[token("Q")]
+    KwRing,
+    #[token("L")]
+    KwLow,
+    #[token("H")]
+    KwHigh,
+    #[token(",")]
+    Comma,
+    #[regex(r"([0-9]+(\.[0-9]+)?|\.[0-9]+)", parse_ring_pattern_duration)]
+    Number(f64),
+    #[error]
+    #[regex(r"[\t\r\n\f ]+", logos::skip)]
+    Invalid,
+}
+
+fn parse_ring_pattern_duration(lex: &mut Lexer<RingPatternToken>) -> Option<f64> {
+    let slice = lex.slice();
+    let n: f64 = slice.parse().ok()?;
+    Some(n)
 }
 
 impl PhoneType {
@@ -72,7 +180,8 @@ pub struct PhoneEngine {
     dial_pulse_state: bool,
     hook_state: bool,
     ring_state: bool,
-    tx_ringer: Option<mpsc::Sender<bool>>,
+    default_ring_pattern: RingPattern,
+    tx_ringer: Option<mpsc::Sender<Option<Arc<RingPattern>>>>,
     #[cfg(feature = "rpi")]
     gpio: PhoneGpioInterface
 }
@@ -97,6 +206,12 @@ impl PhoneEngine {
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
             input_from_pbx: Default::default(),
+            default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).unwrap_or_else(|| {
+                warn!("Unable to read default ring pattern from config. Using fallback pattern.");
+                RingPattern {
+                    components: vec![RingPatternComponent::Ring(Duration::from_secs(2)), RingPatternComponent::Low(Duration::from_secs(4))]
+                }
+            }),
             tx_ringer,
             gpio
         }
@@ -105,6 +220,8 @@ impl PhoneEngine {
     /// Constructor for Phone on non-Pi platforms.
     #[cfg(not(feature = "rpi"))]
     pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
+        use log::warn;
+
         let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
         // We won't use the JoinHandle here since it's frankly pretty useless in this case
@@ -129,7 +246,13 @@ impl PhoneEngine {
             tx_ringer: None,
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
             output_to_pbx: Default::default(),
-            input_from_pbx: Default::default()
+            input_from_pbx: Default::default(),
+            default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).unwrap_or_else(|| {
+                warn!("Unable to read default ring pattern from config. Using fallback pattern.");
+                RingPattern {
+                    components: vec![RingPatternComponent::Ring(Duration::from_secs(2)), RingPatternComponent::Low(Duration::from_secs(4))]
+                }
+            })
         }
     }
 
@@ -204,18 +327,18 @@ impl PhoneEngine {
             if let Ok(signal) = input_from_pbx.try_recv() {
                 use PhoneOutputSignal::*;
                 match signal {
-                    Ring(on) => {
-                        trace!("Ringer = {}", on);
+                    Ring(pattern) => {
+                        trace!("Ringer: {:?}", pattern);
                         
                         // Send ring status to GPIO
                         if let Some(tx_ringer) = &self.tx_ringer {
-                            tx_ringer.send(on).expect("Ringer TX channel is dead");
+                            tx_ringer.send(pattern.clone()).expect("Ringer TX channel is dead");
                         }
 
                         // Play sound on PC
                         #[cfg(not(feature = "rpi"))]
                         {
-                            if on {
+                            if pattern.is_some() {
                                 self.sound_engine.borrow().play("rings/ring_spkr_*", Channel::SignalOut, 
                                 false, 
                                 true, 

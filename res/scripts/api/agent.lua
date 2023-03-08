@@ -12,6 +12,8 @@
 --- Exposes functions to interact with and control the current agent.
 agent = {}
 
+local RING_PATTERN_DEFAULT = 'Q2000 L4000'
+
 local ACTIVE_AGENT_MACHINES = {}
 local M_ACTIVE_AGENT_MACHINES = { __weak = 'kv' }
 setmetatable(ACTIVE_AGENT_MACHINES, M_ACTIVE_AGENT_MACHINES)
@@ -102,6 +104,7 @@ AgentRole = {
 --- @field _state AgentState
 --- @field _state_func_tables table<AgentState, StateFunctionTable>
 --- @field _sound_bank_states AgentState[]
+--- @field _custom_ring_pattern RingPattern?
 local _AgentModule_MEMBERS = {
     tick = function(self, data_code, data)
         local status, state, continuation = tick_agent_state(self, data_code, data)
@@ -237,18 +240,36 @@ local _AgentModule_MEMBERS = {
     end,
     --- Sets the agent states during which required sound banks will be loaded.
     --- @param self AgentModule
-    --- @param states AgentState | AgentState[]?
-    load_sound_banks_during = function(self, states)
+    --- @vararg AgentState | AgentState[]?
+    set_sound_banks_loaded_during = function(self, ...)
+        local state_args = {...}
         local set = {}
-        local t_states = type(states)
-        if t_states == 'table' then
-            for k, v in pairs(states) do
-                set[v] = true
+        for _, states in pairs(state_args) do
+            local t_states = type(states)
+            if t_states == 'table' then
+                for k, v in pairs(states) do
+                    set[v] = true
+                end
+            elseif t_states == 'number' or t_states == 'integer' then
+                set[states] = true
             end
-        elseif t_states == 'number' or t_states == 'integer' then
-            set[states] = true
         end
         self._sound_bank_states = set
+    end,
+    --- Sets the ring pattern this agent uses when they call the host.
+    --- @param self AgentModule
+    --- @param expr string?
+    set_custom_ring_pattern = function(self, expr)
+        expr = expr or RING_PATTERN_DEFAULT
+        assert(type(expr) == 'string', "Ring pattern must be a string", 2)
+        local success, pattern = phone.create_ring_pattern(expr)
+        if success then
+            --- @cast pattern RingPattern
+            self._custom_ring_pattern = pattern
+        else
+            self:log(string.format("Failed to parse custom ring pattern: '%s'", expr))
+            self._custom_ring_pattern = nil
+        end
     end
 }
 
@@ -289,6 +310,7 @@ function create_agent(name, phone_number, role)
         _sound_bank_states = {},
         _idle_tick_phone_states = {},
         _ringback_enabled = true,
+        _custom_ring_pattern = nil,
         _reason = CallReason.NONE,
         _required_sound_banks = {},
         _has_custom_price = false,
@@ -297,7 +319,7 @@ function create_agent(name, phone_number, role)
         _messages = messages
     }, M_AgentModule)
 
-    module:load_sound_banks_during(AgentState.CALL)
+    module:set_sound_banks_loaded_during(AgentState.CALL)
 
     return module
 end

@@ -442,7 +442,7 @@ impl<'lua> CursedEngine<'lua> {
         // Run behavior for state we're leaving
         match prev_state {
             PhoneLineState::IdleRinging => {
-                self.send_output(PhoneOutputSignal::Ring(false));
+                self.send_output(PhoneOutputSignal::Ring(None));
             },
             PhoneLineState::Connected => {
                 self.clear_called_number();
@@ -473,7 +473,7 @@ impl<'lua> CursedEngine<'lua> {
                 self.clear_called_number();
             },
             (_, IdleRinging) => {
-                self.send_output(PhoneOutputSignal::Ring(true));
+                self.send_output(PhoneOutputSignal::Ring(self.get_other_party_agent().map(|agent| agent.custom_ring_pattern()).flatten()));
             },
             (_, DialTone) => {
                 self.sound_engine.borrow().play_dial_tone();
