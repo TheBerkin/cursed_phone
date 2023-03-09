@@ -279,15 +279,6 @@ impl PhoneEngine {
             // Perform any additional processing here before passing on the signal
             #[allow(unused_variables)]
             match signal {
-                HookState(on_hook) => {
-                    #[cfg(not(feature = "rpi"))]
-                    self.sound_engine.borrow().play(
-                        if on_hook { "handset/hangup*" } else { "handset/pickup*" }, 
-                        Channel::SignalOut, 
-                        false, 
-                        true,                       
-                        Default::default());
-                },
                 Digit(digit) => {
                     self.sound_engine.borrow().play_dtmf(digit, self.dtmf_tone_duration, 1.0);
                 },

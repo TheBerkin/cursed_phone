@@ -691,7 +691,7 @@ impl<'lua> CursedEngine<'lua> {
                 PhoneLineState::Idle | PhoneLineState::IdleRinging => {},
                 _ => {
                     // When dial moves to resting, dial digit according to pulse count
-                    let digit_num = self.pending_pulse_count.get();
+                    let digit_num = self.pending_pulse_count.take();
                     if digit_num < PULSE_DIAL_DIGITS.len() && digit_num > 0 {
                         let digit = PULSE_DIAL_DIGITS[digit_num - 1] as char;
                         self.handle_host_digit(digit);
@@ -794,7 +794,7 @@ impl<'lua> CursedEngine<'lua> {
                     return
                 }
             } else {
-                if self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_manual_pulse_interval {
+                if self.rotary_resting.get() && self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_manual_pulse_interval {
                     // Dial the digit and clear the pulse counter
                     if let Some(digit) = pulses_to_digit(self.pending_pulse_count.get()) {
                         self.handle_host_digit(digit);
