@@ -68,9 +68,9 @@ end
 module:state(AgentState.CALL, {
     enter = function(self)
         if self:get_call_reason() == CallReason.USER_INIT then
-            sound.play("handset/pickup*", Channel.PHONE02, { skip = rand_float(0, 0.3) })
+            sound.play("handset/pickup*", Channel.PHONE01, { skip = rand_float(0, 0.3) })
             if chance(0.5) then
-                sound.play("handset/ring_end_" .. rand_int_bias_high(1, 5), Channel.PHONE03, { volume = 0.25 })
+                sound.play("handset/ring_end", Channel.PHONE02, { volume = 0.25, skip = 'random' })
             end
         end
 
