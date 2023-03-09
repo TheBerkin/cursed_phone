@@ -71,8 +71,6 @@ fn pulses_to_digit(pulse_count: usize) -> Option<char> {
 /// A Lua-powered telephone exchange that loads,
 /// manages, and runs scripted agents.
 pub struct CursedEngine<'lua> {
-    /// Type of the host phone.
-    host_phone_type: PhoneType,
     /// The Lua context associated with the engine.
     lua: Lua,
     /// The root directory from which Lua scripts are loaded.
@@ -148,10 +146,8 @@ impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: impl Into<String>, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         let now = Instant::now();
-        let host_phone_type = PhoneType::from_name(config.phone_type.as_str());
         
         Self {
-            host_phone_type,
             lua,
             start_time: now,
             pdd_start: RefCell::new(now),
@@ -169,7 +165,7 @@ impl<'lua> CursedEngine<'lua> {
             other_party: Default::default(),
             dialed_digits: Default::default(),
             called_number: Default::default(),
-            switchhook_dialing_enabled: config.features.enable_switch_hook_dialing.unwrap_or(false),
+            switchhook_dialing_enabled: config.shd_enabled.unwrap_or(false),
             coin_deposit: RefCell::new(0),
             coin_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
             initial_deposit_consumed: RefCell::new(false),
@@ -180,7 +176,7 @@ impl<'lua> CursedEngine<'lua> {
             pending_pulse_count: Default::default(),
             rotary_resting: Cell::new(true),
             rotary_dial_lift_time: Cell::new(now),
-            rotary_first_pulse_delay: Duration::from_millis(config.rotary_first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
+            rotary_first_pulse_delay: Duration::from_millis(config.rotary.first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
             #[cfg(feature = "rpi")]
             gpio: RefCell::new(GpioInterface::new().expect("Unable to initialize Lua GPIO interface")),
         }
@@ -345,7 +341,7 @@ impl<'lua> CursedEngine<'lua> {
                         let agent_role = agent.role();
 
                         // Don't load Tollmasters if this isn't a payphone
-                        if agent_role == AgentRole::Tollmaster && self.host_phone_type != PhoneType::Payphone {
+                        if agent_role == AgentRole::Tollmaster && !self.config.payphone.enabled {
                             continue
                         }
 
@@ -406,24 +402,21 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     fn play_comfort_noise(&self) {
-        let sound_engine = self.sound_engine.borrow();
-        if sound_engine.channel_busy(Channel::NoiseIn) { return }
-        sound_engine.play(
-            self.config.sound.comfort_noise_name.as_str(), 
-            Channel::NoiseIn,
-            false,
-            true,
-            SoundPlayOptions {
-                looping: true,
-                volume: self.config.sound.comfort_noise_volume,
-                .. Default::default()
-            },
-        );
-    }
-
-    #[inline(always)]
-    fn is_payphone(&self) -> bool {
-        self.host_phone_type == PhoneType::Payphone
+        if let Some(comfort_noise) = &self.config.sound.comfort_noise_name {
+            let sound_engine = self.sound_engine.borrow();
+            if sound_engine.channel_busy(Channel::NoiseIn) { return }
+            sound_engine.play(
+                comfort_noise.as_str(), 
+                Channel::NoiseIn,
+                false,
+                true,
+                SoundPlayOptions {
+                    looping: true,
+                    volume: self.config.sound.comfort_noise_volume,
+                    .. Default::default()
+                },
+            );
+        }
     }
 
     /// Sets the current state of the engine.
@@ -448,7 +441,7 @@ impl<'lua> CursedEngine<'lua> {
             },
             PhoneLineState::Connected => {
                 self.clear_called_number();
-                if self.is_payphone() {
+                if self.config.payphone.enabled {
                     // When leaving the connected state, clear existing time credit
                     self.initial_deposit_consumed.replace(false);
                     self.clear_time_credit();
@@ -467,7 +460,6 @@ impl<'lua> CursedEngine<'lua> {
 
         // Run behavior for state transition
         match (prev_state, state) {
-            // TODO: Implement all valid PBX state transitions
             (_, Idle) => {
                 self.unload_other_party();
                 self.sound_engine.borrow().stop_all_except(Channel::SignalOut);
@@ -600,23 +592,22 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     pub fn is_current_call_free(&self) -> bool {
-        match self.host_phone_type {
-            // If the payphone has a standard rate of 0 and custom rates are ignored, it's free
-            PhoneType::Payphone if !self.config.payphone.enable_custom_agent_rates && self.config.payphone.standard_call_rate == 0
-            => true,
-            // Check rate of currently connected agent
-            PhoneType::Payphone => {
-                if let Some(agent) = self.get_other_party_agent().as_ref() {
-                    match agent.role() {
-                        AgentRole::Intercept => true,
-                        _ => agent.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
-                    }
-                } else {
-                    false
-                }
-            },
-            _ => false
+        let payphone_config = &self.config.payphone;
+
+        if !payphone_config.enabled { return true }
+
+        // If the payphone has a standard rate of 0 and custom rates are ignored, it's free
+        if !payphone_config.enable_custom_agent_rates && payphone_config.standard_call_rate == 0 { return true }
+        
+        // Check rate of currently connected agent
+        if let Some(agent) = self.get_other_party_agent().as_ref() {
+            match agent.role() {
+                AgentRole::Intercept => return true,
+                _ => return agent.custom_price().unwrap_or(self.config.payphone.standard_call_rate) == 0
+            }
         }
+
+        false
     }
 
     pub fn current_call_rate(&self) -> u32 {
@@ -797,13 +788,13 @@ impl<'lua> CursedEngine<'lua> {
             let time_since_last_switchhook_change = now.duration_since(self.switchhook_change_time.get());
             if self.switchhook_closed.get() && !matches!(self.state(), PhoneLineState::Idle | PhoneLineState::IdleRinging) {
                 // If the phone is on the hook long enough, hang up the call
-                if time_since_last_switchhook_change.as_secs_f32() > self.config.hangup_delay {
+                if time_since_last_switchhook_change.as_secs_f32() > self.config.shd_hangup_delay {
                     self.pending_pulse_count.replace(0);
                     self.set_state(PhoneLineState::Idle);
                     return
                 }
             } else {
-                if self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.manual_pulse_interval {
+                if self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_manual_pulse_interval {
                     // Dial the digit and clear the pulse counter
                     if let Some(digit) = pulses_to_digit(self.pending_pulse_count.get()) {
                         self.handle_host_digit(digit);
@@ -822,51 +813,45 @@ impl<'lua> CursedEngine<'lua> {
             }
             PDD => {
                 if self.pdd_time().as_secs_f32() >= self.config.pdd {
-                    match self.host_phone_type {
-                        PhoneType::Payphone => {
-                            let number_to_dial = self.get_dialed_digits();
+                    if self.config.payphone.enabled {
+                        let number_to_dial = self.get_dialed_digits();
 
-                            // Figure out how much the call costs
-                            let price = match self.lookup_agent(number_to_dial.as_str()) {
-                                Some(agent_to_call) if self.config.payphone.enable_custom_agent_rates => 
-                                match agent_to_call.custom_price() {
-                                    Some(cents) => cents,
-                                    None => self.config.payphone.standard_call_rate
-                                },
-                                _ => self.config.payphone.standard_call_rate
-                            };
+                        // Figure out how much the call costs
+                        let price = match self.lookup_agent(number_to_dial.as_str()) {
+                            Some(agent_to_call) if self.config.payphone.enable_custom_agent_rates => 
+                            match agent_to_call.custom_price() {
+                                Some(cents) => cents,
+                                None => self.config.payphone.standard_call_rate
+                            },
+                            _ => self.config.payphone.standard_call_rate
+                        };
 
-                            // If the user has deposited enough money, call the number. Otherwise, do nothing.
-                            if *self.coin_deposit.borrow() >= price {
-                                self.call_number(number_to_dial.as_str());
-                                self.awaiting_initial_deposit.replace(false);
-                            } else {
-                                self.awaiting_initial_deposit.replace(true);
-                            }
-                        },
-                        _ => {
-                            let number_to_dial = self.get_dialed_digits();
+                        // If the user has deposited enough money, call the number. Otherwise, do nothing.
+                        if *self.coin_deposit.borrow() >= price {
                             self.call_number(number_to_dial.as_str());
+                            self.awaiting_initial_deposit.replace(false);
+                        } else {
+                            self.awaiting_initial_deposit.replace(true);
                         }
+                    } else {
+                        let number_to_dial = self.get_dialed_digits();
+                        self.call_number(number_to_dial.as_str());
                     }
                 }
             },
             Connected => {
-                match self.host_phone_type {
-                    PhoneType::Payphone if !self.is_current_call_free() => {
-                        // Wait for user-configured delay and eat coin deposit
-                        if !self.initial_deposit_consumed() {
-                            if self.current_state_time() >= self.coin_consume_delay {
-                                self.consume_initial_deposit();
-                            }
-                        } else if !self.has_time_credit() {
-                            // Cut off call if time credit runs out
-                            info!("Out of time credit; ending call.");
-                            self.set_state(PhoneLineState::Busy);
+                if !self.is_current_call_free() {
+                    // Wait for user-configured delay and eat coin deposit
+                    if !self.initial_deposit_consumed() {
+                        if self.current_state_time() >= self.coin_consume_delay {
+                            self.consume_initial_deposit();
                         }
-                    },
-                    _ => ()
-                }                
+                    } else if !self.has_time_credit() {
+                        // Cut off call if time credit runs out
+                        info!("Out of time credit; ending call.");
+                        self.set_state(PhoneLineState::Busy);
+                    }
+                }               
             }
             _ => {}
         }
@@ -898,7 +883,7 @@ impl<'lua> CursedEngine<'lua> {
                             CallUser => {
                                 // First, check that there's nobody on the line and the user's on-hook.
                                 // Also make sure that the config allows incoming calls.
-                                if self.config.features.enable_incoming_calls.unwrap_or(false) 
+                                if self.config.allow_incoming_calls.unwrap_or(false) 
                                 && self.state() == PhoneLineState::Idle 
                                 && self.other_party.borrow().is_none() {
                                     agent.set_call_reason(CallReason::AgentInit);

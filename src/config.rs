@@ -8,17 +8,6 @@ type ms = u64;
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct CursedConfig {
-    /// Phone type. Mainly affects which inputs control dialing.
-    /// See table for supported values.
-    /// 
-    /// |Type Name    |Description              |
-    /// |:------------|:------------------------|
-    /// |`"rotary"`   |Rotary phone (pulse dial)|
-    /// |`"touchtone"`|Touch-tone (keypad dial) |
-    /// |`"payphone"` |Payphone (keypad dial)   |
-    /// |`"other"`    |Other/unknown phone type |
-    pub phone_type: String,
-
     /// Number of times per second to update the phone state.
     /// Higher is better, but will also consume more CPU cycles.
     pub tick_rate: f64,
@@ -31,29 +20,40 @@ pub struct CursedConfig {
 
     /// Delay (in seconds) before off-hook intercept message is played.
     pub off_hook_delay: f32,
+    
+    /// Allows the host device to receive calls.
+    pub allow_incoming_calls: Option<bool>,
+
+    /// Enables ringer.
+    pub ringer_enabled: Option<bool>,
+
+    /// The default ring pattern expression assigned to agents.
+    pub default_ring_pattern: String,
+
+    /// Enables switchhook dialing.
+    pub shd_enabled: Option<bool>,
 
     /// Maximum seconds between pulses for switch-hook dialing.
-    pub manual_pulse_interval: f32,
+    pub shd_manual_pulse_interval: f32,
 
     /// Number of seconds phone must be on the hook to end the call.
     /// 
     /// **Must** be greater than manual_pulse_interval!
     /// 
-    /// (Only used if `enable_switch_hook_dialing == true`)
-    pub hangup_delay: f32,
+    /// (Only used if `shd_enabled == true`)
+    pub shd_hangup_delay: f32,
 
-    /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
-    pub rotary_first_pulse_delay_ms: Option<ms>,
+    /// Rotary dial configuration.
+    #[serde(default)]
+    pub rotary: RotaryDialConfig,
 
-    /// The default ring pattern expression assigned to agents.
-    pub default_ring_pattern: String,
+    /// Keypad configuration.
+    #[serde(default)]
+    pub keypad: KeypadConfig,
 
     /// Payphone configuration.
     #[serde(default)]
     pub payphone: PayphoneConfig,
-
-    /// Optional features configuration.
-    pub features: FeaturesConfig,
 
     /// Sound configuration.
     pub sound: SoundConfig,
@@ -65,12 +65,52 @@ pub struct CursedConfig {
     pub debug: Option<DebugConfig>
 }
 
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "kebab-case", default)]
+pub struct RotaryDialConfig {
+    pub enabled: bool,
+
+    /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
+    pub first_pulse_delay_ms: Option<ms>,
+
+    /// Input configuration for the dial (pulse component).
+    pub input_pulse: Option<InputPinConfig>,
+
+    /// Input configuration for the dial (rest component).
+    pub input_rest: Option<InputPinConfig>,
+}
+
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "kebab-case", default)]
+pub struct KeypadConfig {
+    pub enabled: bool,
+
+    /// BCM pin numbers of keypad row inputs.
+    pub input_rows: Option<[u8; 4]>,
+
+    /// BCM pin numbers of keypad column outputs.
+    pub output_cols: Option<[u8; 3]>,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct PayphoneConfig {
+    pub enabled: bool,
+
     /// Monetary value constants for coin triggers.
     /// Set values in terms of the smallest unit of your currency.
     pub coin_values: Option<Vec<u32>>,
+
+    /// Input pins for the coin trigger switches.
+    /// Must be the same length as `coin_values`.
+    pub coin_input_pins: Option<Vec<u8>>,
+
+    /// Bounce times for the coin trigger switch pins.
+    /// Must be the same length as `coin_values`.
+    pub coin_input_bounce_ms: Option<Vec<ms>>,
+
+    /// Pull type for the coin trigger switch pins.
+    pub coin_input_pull: Option<String>,
 
     /// The default rate (in cents) applied to calls.
     ///
@@ -99,6 +139,10 @@ pub struct PayphoneConfig {
 impl Default for PayphoneConfig {
     fn default() -> Self {
         Self {
+            enabled: false,
+            coin_input_pins: None,
+            coin_input_bounce_ms: None,
+            coin_input_pull: None,
             coin_values: None,
             standard_call_rate: 0,
             coin_consume_delay_ms: 0,
@@ -107,19 +151,6 @@ impl Default for PayphoneConfig {
             enable_custom_agent_rates: true,
         }
     }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "kebab-case")]
-pub struct FeaturesConfig {
-    /// Enables ringer.
-    pub enable_ringer: Option<bool>,
-
-    /// Enables switch-hook dialing.
-    pub enable_switch_hook_dialing: Option<bool>,
-
-    /// Allows the host device to receive calls.
-    pub enable_incoming_calls: Option<bool>
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -134,7 +165,7 @@ pub struct SoundConfig {
     pub busy_tone_gain: f32,
     pub off_hook_tone_gain: f32,
     pub special_info_tone_gain: f32,
-    pub comfort_noise_name: String,
+    pub comfort_noise_name: Option<String>,
     pub comfort_noise_volume: f32
 }
 
@@ -151,21 +182,7 @@ pub struct GpioConfig {
 #[serde(rename_all = "kebab-case")]
 pub struct GpioInputsConfig {
     /// Input configuration for the switchhook.
-    pub hook: InputPinConfig,
-    /// Input configuration for the dial (pulse component).
-    pub dial_pulse: Option<InputPinConfig>,
-    /// Input configuration for the dial (switch component).
-    pub dial_switch: Option<InputPinConfig>,
-    /// BCM pin numbers of keypad row inputs.
-    pub keypad_row_pins: Option<[u8; 4]>,
-    /// Input pins for the coin trigger switches.
-    /// Must be the same length as `coin_values`.
-    pub coin_trigger_pins: Option<Vec<u8>>,
-    /// Bounce times for the coin trigger switch pins.
-    /// Must be the same length as `coin_values`.
-    pub coin_trigger_bounce_ms: Option<Vec<ms>>,
-    /// Pull type for the coin trigger switch pins.
-    pub coin_trigger_pull: Option<String>
+    pub switchhook: InputPinConfig,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -184,8 +201,6 @@ pub struct InputPinConfig {
 pub struct GpioOutputsConfig {
     /// BCM pin number of ringer output.
     pub pin_ringer: Option<u8>,
-    /// BCM pin numbers of keypad column outputs.
-    pub pins_keypad_cols: Option<[u8; 3]>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

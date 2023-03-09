@@ -14,12 +14,12 @@ impl<'lua> CursedEngine<'lua> {
 
         // phone.is_rotary()
         tbl_phone.set("is_rotary", lua.create_function(move |_, ()| {
-            Ok(self.host_phone_type == PhoneType::Rotary)
+            Ok(self.config.rotary.enabled)
         })?)?;
 
         // phone.is_rotary_dial_resting()
         tbl_phone.set("is_rotary_dial_resting", lua.create_function(move |_, ()| {
-            Ok(if self.host_phone_type == PhoneType::Rotary {
+            Ok(if self.config.rotary.enabled {
                 Some(self.rotary_resting.get())
             } else {
                 None

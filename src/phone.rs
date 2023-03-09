@@ -31,14 +31,6 @@ pub enum PhoneOutputSignal {
     Ring(Option<Arc<RingPattern>>),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum PhoneType {
-    Rotary,
-    TouchTone,
-    Payphone,
-    Other
-}
-
 pub enum PhoneState {
     Idle = 0,
     Dial = 1,
@@ -157,23 +149,8 @@ fn parse_ring_pattern_duration(lex: &mut Lexer<RingPatternToken>) -> Option<f64>
     Some(n)
 }
 
-impl PhoneType {
-    /// Converts a string to a `PhoneType`.
-    /// Unsupported strings will return `Other`.
-    pub fn from_name(name: &str) -> PhoneType {
-        use PhoneType::*;
-        match name {
-            "rotary" => Rotary,
-            "touchtone" => TouchTone,
-            "payphone" => Payphone,
-            "other" | _ => Other
-        }
-    }
-}
-
 /// Provides I/O handling and state management for host phone peripherals.
 pub struct PhoneEngine {
-    phone_type: PhoneType,
     dtmf_tone_duration: Duration,
     sound_engine: Rc<RefCell<SoundEngine>>,
     input_from_gpio: mpsc::Receiver<PhoneInputSignal>,
@@ -193,13 +170,11 @@ impl PhoneEngine {
     /// Constructor for Phone on Raspberry Pi platforms.
     #[cfg(feature = "rpi")]
     pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
-        let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
-        let mut gpio = PhoneGpioInterface::new(phone_type, &config);
+        let mut gpio = PhoneGpioInterface::new(&config);
         let listener = gpio.listen().expect("Unable to initialize GPIO listener.");
         let tx_ringer = gpio.tx_ringer();
         Self {
-            phone_type,
             sound_engine,
             input_from_gpio: listener,
             dial_rest_state: true,
@@ -224,8 +199,6 @@ impl PhoneEngine {
     #[cfg(not(feature = "rpi"))]
     pub fn new(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         use log::warn;
-
-        let phone_type = PhoneType::from_name(config.phone_type.as_str());
         let sound_engine = sound_engine.clone();
         // We won't use the JoinHandle here since it's frankly pretty useless in this case
         let (_, listener) = PhoneEngine::create_mock_input_thread();
@@ -239,7 +212,6 @@ impl PhoneEngine {
         info!("  - 0-9, A-D, #, *: Dial digit");
 
         Self {
-            phone_type,
             sound_engine,
             input_from_gpio: listener,
             dial_rest_state: true,

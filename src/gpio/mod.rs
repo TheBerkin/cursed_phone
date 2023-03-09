@@ -181,36 +181,33 @@ fn gen_required_output(gpio: &Gpio, pin: u8) -> OutputPin {
 }
 
 impl PhoneGpioInterface {
-    pub fn new(phone_type: PhoneType, config: &Rc<CursedConfig>) -> PhoneGpioInterface {
-        use PhoneType::*;
+    pub fn new(config: &Rc<CursedConfig>) -> PhoneGpioInterface {
         let gpio = Gpio::new().expect("Unable to initialize GPIO interface");
         let inputs = &config.gpio.inputs;
         let outputs = &config.gpio.outputs;
         let mut tx_ringer = None;
 
         // Register standard GPIO pins
-        let in_hook = gen_required_soft_input_from(&gpio, &inputs.hook);
+        let in_hook = gen_required_soft_input_from(&gpio, &inputs.switchhook);
 
-        let out_ringer = gen_optional_output(&gpio, config.features.enable_ringer, outputs.pin_ringer)
+        let out_ringer = gen_optional_output(&gpio, config.ringer_enabled, outputs.pin_ringer)
             .map(|o| Arc::new(Mutex::new(o)));
 
         // Register pulse-dialing pins
-        let (in_dial_switch, in_dial_pulse) = match phone_type {
-            Rotary => {
-                let dial_pulse = inputs.dial_pulse.as_ref().expect("gpio.inputs.pin-dial-pulse is required for this phone type, but was not defined");
-                let dial_switch = inputs.dial_switch.as_ref().expect("gpio.inputs.pin-dial-switch is required for this phone type, but was not defined");
-                let in_dial_pulse = gen_required_soft_input_from(&gpio, dial_pulse);
-                let in_dial_switch = gen_required_soft_input_from(&gpio, dial_switch);
-                (Some(in_dial_switch), Some(in_dial_pulse))
-            },
-            _ => (None, None)
+        let (in_dial_switch, in_dial_pulse) = if config.rotary.enabled {
+            let dial_pulse = config.rotary.input_pulse.as_ref().expect("missing configuration for rotary pulse input");
+            let dial_switch = config.rotary.input_rest.as_ref().expect("missing configuration for rotary rest input");
+            let in_dial_pulse = gen_required_soft_input_from(&gpio, dial_pulse);
+            let in_dial_switch = gen_required_soft_input_from(&gpio, dial_switch);
+            (Some(in_dial_switch), Some(in_dial_pulse))
+        } else {
+            (None, None)
         };
 
         // Register touch-tone dialing pins
-        let (in_keypad_rows, out_keypad_cols) = match phone_type {
-            TouchTone | Payphone => {
-                let pins_keypad_rows = inputs.keypad_row_pins.expect("gpio.inputs.pins-keypad-rows is required for this phone type, but was not defined");
-                let pins_keypad_cols = outputs.pins_keypad_cols.expect("gpio.outputs.pins-keypad-cols is required for this phone type, but was not defined");
+        let (in_keypad_rows, out_keypad_cols) = if config.keypad.enabled {
+            let pins_keypad_rows = config.keypad.input_rows.expect("missing configuration for keypad row inputs");
+                let pins_keypad_cols = config.keypad.output_cols.expect("missing configuration for keypad column outputs");
                 let in_keypad_rows = [
                     Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[0], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
                     Arc::new(Mutex::new(gen_required_soft_input(&gpio, pins_keypad_rows[1], Some(KEYPAD_ROW_BOUNCE), Pull::Down))),
@@ -225,12 +222,12 @@ impl PhoneGpioInterface {
                 ]));
 
                 (Some(in_keypad_rows), Some(out_keypad_cols))
-            },
-            _ => (None, None)
+        } else {
+            (None, None)
         };
 
         // Ringer thread
-        if config.features.enable_ringer.unwrap_or(false) {
+        if config.ringer_enabled.unwrap_or(false) {
             let (tx, rx) = mpsc::channel::<Option<Arc<RingPattern>>>();
             tx_ringer = Some(tx);
             let ringer: Arc<Mutex<OutputPin>> = Arc::clone(out_ringer.as_ref().unwrap());
@@ -304,29 +301,29 @@ impl PhoneGpioInterface {
 
         // Register coin trigger pins
         let mut coin_trigger_active_state = false;
-        let in_coin_triggers = match phone_type {
-            Payphone => config.payphone.coin_values.as_ref().map(|coin_values| {
-                if coin_values.len() == 0 {
-                    warn!("payphone.coin-values is empty; disabling coin mechanism.");
+        let in_coin_triggers = if config.payphone.enabled {
+            config.payphone.coin_values.as_ref().map(|coin_values| {
+                if coin_values.is_empty() {
+                    warn!("no payphone coin values specified; disabling payphone features.");
                     return None
                 }
 
-                let coin_trigger_pins = inputs.coin_trigger_pins.as_ref()
-                    .expect("gpio.inputs.coin-trigger-pins is not defined, but is required for this phone type");
-                let coin_trigger_bounce_ms = inputs.coin_trigger_bounce_ms.as_ref()
-                    .expect("gpio.inputs.coin-trigger-bounce-ms is not defined, but is required for this phone type");
+                let coin_trigger_pins = config.payphone.coin_input_pins.as_ref()
+                    .expect("missing configuration for payphone coin trigger pins");
+                let coin_trigger_bounce_ms = config.payphone.coin_input_bounce_ms.as_ref()
+                    .expect("missing configuration for payphone coin trigger debounce timings");
 
                 if coin_trigger_pins.len() != coin_values.len() {
-                    warn!("gpio.inputs.coin-trigger-pins length doesn't match coin-values length; disabling coin mechanism.");
+                    warn!("payphone trigger pin count does not match coin value count!");
                     return None
                 }
 
                 if coin_trigger_bounce_ms.len() != coin_values.len() {
-                    warn!("gpio.inputs.coin-trigger-bounce-ms length doesn't match coin-values length; disabling coin mechanism.");
+                    warn!("payphone trigger pin count does not match coin value count!");
                     return None
                 }
 
-                let pull = Pull::from(&inputs.coin_trigger_pull);
+                let pull = Pull::from(&config.payphone.coin_input_pull);
 
                 coin_trigger_active_state = match pull {
                     Pull::Down => true,
@@ -344,8 +341,9 @@ impl PhoneGpioInterface {
                 info!("Coin triggers initialized ({}).", in_coin_triggers.len());
 
                 return Some(in_coin_triggers)
-            }).flatten(),
-            _ => None
+            }).flatten()
+        } else {
+            None
         };
 
         PhoneGpioInterface {
