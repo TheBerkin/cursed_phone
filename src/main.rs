@@ -44,8 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Loading config: {}", config_path);
     let config = Rc::new(config::load_config(config_path));
     info!("Config loaded: {:#?}", config);
-    let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
-    let vfs_root = create_virtual_filesystem();
+    let vfs_root = create_virtual_filesystem(&config);
     let sound_engine = create_sound_engine(&config, &vfs_root);
     let phone = create_phone(&config, sound_engine);
     let engine = create_cursed_engine(&config, sound_engine, &vfs_root);
@@ -53,16 +52,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     phone.listen(engine.gen_engine_output());
     engine.load_lua_api()?;
     engine.load_agents();
-
+    
     let is_running = Arc::new(AtomicBool::new(true));
     let is_running_c = Arc::clone(&is_running);
-
+    
     ctrlc::set_handler(move || {
         info!("Ctrl+C detected; shutting down.");
         is_running_c.store(false, Ordering::SeqCst);
     }).expect("unable to set ctrl-c handler");
-
+    
     info!("Phone ready.");
+
+    let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
 
     while is_running.load(Ordering::SeqCst) {
         // Update engine state
@@ -79,17 +80,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn create_virtual_filesystem() -> VfsPath {
-    let vfs_static = AltrootFS::new(PhysicalFS::new("./res").into());
+fn create_virtual_filesystem(config: &CursedConfig) -> VfsPath {
     let mut resource_paths: Vec<VfsPath> = vec![];
-    resource_paths.push(vfs_static.into());
-    if let Ok(walker) = globwalk::glob(env::current_dir().unwrap().join("res/addons/*/").to_string_lossy()) {
-        for addon_dir in walker {
-            if let Ok(entry) = addon_dir {
-                if entry.file_type().is_dir() {
-                    info!("Mounting addon resources: {}", entry.file_name().to_string_lossy());
-                    let addon_vfs = AltrootFS::new(PhysicalFS::new(entry.path()).into());
-                    resource_paths.push(addon_vfs.into());
+    for pattern in config.include_resources.iter() {
+        if let Ok(walker) = globwalk::glob(pattern) {
+            for addon_dir in walker {
+                if let Ok(entry) = addon_dir {
+                    if entry.file_type().is_dir() {
+                        info!("Mounting resources: {}", entry.file_name().to_string_lossy());
+                        let addon_vfs = AltrootFS::new(PhysicalFS::new(entry.path()).into());
+                        resource_paths.push(addon_vfs.into());
+                    }
                 }
             }
         }

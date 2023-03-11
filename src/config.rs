@@ -12,6 +12,9 @@ pub struct CursedConfig {
     /// Higher is better, but will also consume more CPU cycles.
     pub tick_rate: f64,
 
+    /// Direcories to load resources from
+    pub include_resources: Vec<String>,
+
     /// **Post Dial Delay (PDD)**
     /// 
     /// Delay (in seconds) to wait after the last digit is dialed, 
