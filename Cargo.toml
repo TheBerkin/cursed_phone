@@ -21,8 +21,8 @@ chrono = "0.4.23"
 cron = "0.12.0"
 ctrlc = "3.2.5"
 enum-iterator = "1.2.0"
+glob = "0.3.1"
 globset = "0.4.5"
-globwalk = "0.8.0"
 indexmap = "1.4.0"
 log = { version = "0.4.8" }
 logos = { version = "0.12.1"}

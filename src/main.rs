@@ -83,14 +83,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn create_virtual_filesystem(config: &CursedConfig) -> VfsPath {
     let mut resource_paths: Vec<VfsPath> = vec![];
     for pattern in config.include_resources.iter() {
-        if let Ok(walker) = globwalk::glob(pattern) {
-            for addon_dir in walker {
-                if let Ok(entry) = addon_dir {
-                    if entry.file_type().is_dir() {
-                        info!("Mounting resources: {}", entry.file_name().to_string_lossy());
-                        let addon_vfs = AltrootFS::new(PhysicalFS::new(entry.path()).into());
-                        resource_paths.push(addon_vfs.into());
-                    }
+        if let Ok(walker) = glob::glob(pattern.as_str()) {
+            for entry in walker {
+                if let Ok(entry) = entry {
+                    if !entry.is_dir() { continue }
+                    info!("Mounting resources: {}", entry.to_string_lossy());
+                    let addon_vfs = AltrootFS::new(PhysicalFS::new(entry).into());
+                    resource_paths.push(addon_vfs.into());
                 }
             }
         }
