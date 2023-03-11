@@ -8,12 +8,12 @@ A directory structure for an addon named `example` might look like this:
 ```
 📁 /res/addons
  └📁 example
-   └📁 scripts
-     ├📁 agents
-     │ └📄 operator.lua
-     ├📁 api
-     │ └📄 utilities.lua
-     ├📁 sounds
-     │ └🔊 bigscream.wav
-     └📁 soundbanks
+   ├📁 scripts
+   │ ├📁 agents
+   │ │ └📄 operator.lua
+   │ └📁 api
+   │   └📄 utilities.lua
+   ├📁 sounds
+   │ └🔊 bigscream.wav
+   └📁 soundbanks
 ```
