@@ -1,11 +1,10 @@
 #![allow(dead_code)]
 
 use crate::config::*;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::fs::File;
-use std::io::BufReader;
+use std::io::Cursor;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use enum_iterator::Sequence;
@@ -14,11 +13,11 @@ use mlua::FromLua;
 use rodio;
 use rodio::buffer::SamplesBuffer;
 use rodio::source::{Source, Buffered};
-use globwalk;
 use globset;
 use rand;
 use rand::Rng;
 use log::{info, warn};
+use vfs::VfsPath;
 
 /// Represents a playback channel for sounds.
 #[derive(Sequence, Copy, Clone, Debug, PartialEq)]
@@ -180,8 +179,8 @@ fn db_to_amp(db: f32) -> f32 {
 }
 
 pub struct SoundEngine {
-    sounds_root_path: PathBuf,
-    sound_banks_root_path: PathBuf,
+    sounds_root_path: VfsPath,
+    sound_banks_root_path: VfsPath,
     stream: rodio::OutputStream,
     stream_handle: rodio::OutputStreamHandle,
     channels: RefCell<Vec<SoundChannel>>,
@@ -201,21 +200,24 @@ struct SoundChannel {
 }
 
 struct Sound {
-    path: String,
+    path: VfsPath,
     src: Buffered<SamplesBuffer<i16>>,
 }
 
 impl Sound {
-    fn from_file(path: &Path) -> Self {
-        let file = File::open(path).unwrap();
-        let decoder = rodio::Decoder::new(BufReader::new(file)).unwrap().convert_samples::<i16>();
+    fn from_file(path: VfsPath) -> Self {
+        let mut file = path.open_file().unwrap();
+        let mut data = vec![];
+        file.read_to_end(&mut data).unwrap();
+        let reader = Cursor::new(data);
+        let decoder = rodio::Decoder::new(reader).unwrap().convert_samples::<i16>();
         let sample_rate = decoder.sample_rate();
         let channels = decoder.channels();
         let samples = decoder.collect::<Vec<i16>>();
         let src = SamplesBuffer::new(channels, sample_rate, samples).buffered();
         
         Self {
-            path: String::from(path.to_string_lossy()),
+            path,
             src: src
         }
     }
@@ -283,7 +285,7 @@ pub struct SoundBankUser(pub usize);
 
 struct SoundBank {
     name: String,
-    root_dir: PathBuf,
+    root_dir: VfsPath,
     sounds: IndexMap<String, Rc<Sound>>,
     sound_glob_cache: RefCell<HashMap<String, Vec<usize>>>,
     users: HashSet<SoundBankUser>,
@@ -294,36 +296,35 @@ pub struct PlayedSoundInfo {
 }
 
 impl SoundBank {
-    pub fn from_dir(name: String, root_dir: &Path) -> Self {   
+    pub fn from_dir(name: String, root_dir: VfsPath) -> Self {   
         
         let mut bank = Self {
             name,
-            root_dir: PathBuf::from(root_dir),
+            root_dir: root_dir.clone(),
             sounds: Default::default(),
             sound_glob_cache: Default::default(),
             users: Default::default()
         };
 
-        match root_dir.canonicalize() {
-            Ok(root_dir) => {
-                bank.sounds.clear();
-                bank.sound_glob_cache.borrow_mut().clear();
-                let search_path = root_dir.join("**").join("*.{wav,ogg}");
-                let search_path_str = search_path.to_str().expect("Failed to create search pattern for sound bank");
-                for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for sound bank") {
-                    if let Ok(path) = entry {
-                        let sound_path = path.path().canonicalize().expect("Unable to expand path");
-                        let sound_key = sound_path
-                        .strip_prefix(&root_dir).expect("Unable to form sound key from path")
+        bank.sounds.clear();
+        bank.sound_glob_cache.borrow_mut().clear();
+
+        for entry in root_dir.walk_dir().expect("unable to enumerate files in soundbank") {
+            if let Ok(path) = entry {
+                match path.extension().as_deref() {
+                    Some("wav" | "ogg") => {
+                        let path_str = path.as_str();
+                        let sound_key = Path::new(path_str)
+                        .strip_prefix(root_dir.as_str()).expect("Unable to form sound key from path")
                         .with_extension("")
                         .to_string_lossy()
                         .replace("\\", "/");
-                        let sound = Sound::from_file(&sound_path);
+                        let sound = Sound::from_file(path);
                         bank.sounds.insert(sound_key, Rc::new(sound));
-                    }
+                    },
+                    _ => continue
                 }
             }
-            Err(err) => warn!("Failed to load soundbank content at '{:?}': {}", root_dir.as_os_str(), err),
         }
 
         bank
@@ -386,20 +387,19 @@ impl SoundBank {
 }
 
 impl SoundEngine {
-    pub fn new(sounds_root_path: &str, sound_banks_root_path: &str, config: &Rc<CursedConfig>) -> Self {
+    pub fn new(sounds_root_path: VfsPath, sound_banks_root_path: VfsPath, config: &Rc<CursedConfig>) -> Self {
         // Load output device
         let (stream, stream_handle) = rodio::OutputStream::try_default().expect("Failed to open audio output device!");
         let channels = RefCell::from(Vec::<SoundChannel>::new());
         let config = Rc::clone(config);
         let master_volume = config.sound.master_volume;
-        let sounds_root_path = Path::new(sounds_root_path);
 
         info!("Loading static sound resources...");
-        let static_sounds = SoundBank::from_dir("[static]".to_owned(),sounds_root_path);
+        let static_sounds = SoundBank::from_dir("[static]".to_owned(),sounds_root_path.clone());
 
         let mut engine = Self {
-            sounds_root_path: sounds_root_path.canonicalize().expect("Unable to expand static sound root path"),
-            sound_banks_root_path: Path::new(sound_banks_root_path).canonicalize().expect("Unable to expand soundbank root path"),
+            sounds_root_path,
+            sound_banks_root_path,
             sound_banks: Default::default(),
             static_sounds,
             stream,
@@ -476,13 +476,15 @@ impl SoundEngine {
         }
 
         info!("Loading sound bank: '{}'", name);
-        let bank_path = self.sound_banks_root_path.join(name);
-        let bank_path = bank_path.as_path();
-        let mut bank = SoundBank::from_dir(name.to_owned(), bank_path);
-        bank.add_user(user);
-
-        self.sound_banks.insert(name.to_owned(), Rc::new(RefCell::new(bank)));
-        true
+        if let Ok(bank_path) = self.sound_banks_root_path.join(name) {
+            let mut bank = SoundBank::from_dir(name.to_owned(), bank_path);
+            bank.add_user(user);
+    
+            self.sound_banks.insert(name.to_owned(), Rc::new(RefCell::new(bank)));
+            true
+        } else {
+            false
+        }
     }
 
     pub fn sound_bank_used_by(&self, name: &str, user: &SoundBankUser) -> bool {

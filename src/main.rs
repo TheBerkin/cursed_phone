@@ -19,11 +19,12 @@ use log::{info, warn};
 use simplelog::{TermLogger, LevelFilter, TerminalMode, ColorChoice};
 use thread_priority::*;
 use ctrlc;
+use vfs::{OverlayFS, VfsPath, AltrootFS, PhysicalFS};
 
-const SCRIPTS_PATH: &str = "./res/scripts";
 const CONFIG_PATH: &str = "./cursed_phone.conf";
-const SOUNDS_PATH: &str = "./res/sounds";
-const SOUNDBANKS_PATH: &str = "./res/soundbanks";
+const VFS_SCRIPTS_PATH: &str = "./scripts";
+const VFS_SOUNDS_PATH: &str = "./sounds";
+const VFS_SOUNDBANKS_PATH: &str = "./soundbanks";
 
 const ENV_CONFIG_PATH: &str = "CURSED_CONFIG_PATH";
 
@@ -44,25 +45,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Rc::new(config::load_config(config_path));
     info!("Config loaded: {:#?}", config);
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
-    let sound_engine = create_sound_engine(&config);
+    let vfs_root = create_virtual_filesystem();
+    let sound_engine = create_sound_engine(&config, &vfs_root);
     let phone = create_phone(&config, sound_engine);
-    let engine = create_cursed_engine(&config, sound_engine);
-    engine.start_phone_listener(phone.gen_phone_output());
-    phone.start_engine_listener(engine.gen_engine_output());
+    let engine = create_cursed_engine(&config, sound_engine, &vfs_root);
+    engine.listen(phone.gen_phone_output());
+    phone.listen(engine.gen_engine_output());
     engine.load_lua_api()?;
     engine.load_agents();
 
-    let running = Arc::new(AtomicBool::new(true));
-    let running_clone = Arc::clone(&running);
+    let is_running = Arc::new(AtomicBool::new(true));
+    let is_running_c = Arc::clone(&is_running);
 
     ctrlc::set_handler(move || {
         info!("Ctrl+C detected; shutting down.");
-        running_clone.store(false, Ordering::SeqCst);
+        is_running_c.store(false, Ordering::SeqCst);
     }).expect("unable to set ctrl-c handler");
 
     info!("Phone ready.");
 
-    while running.load(Ordering::SeqCst) {
+    while is_running.load(Ordering::SeqCst) {
         // Update engine state
         let tick_start = time::Instant::now();
         phone.tick();
@@ -77,16 +79,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn create_cursed_engine<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> &'static mut CursedEngine<'a> {
-    let pbx = Box::new(CursedEngine::new(SCRIPTS_PATH, config, sound_engine));
+fn create_virtual_filesystem() -> VfsPath {
+    let vfs_static = AltrootFS::new(PhysicalFS::new("./res").into());
+    let mut resource_paths: Vec<VfsPath> = vec![];
+    resource_paths.push(vfs_static.into());
+    if let Ok(walker) = globwalk::glob(env::current_dir().unwrap().join("res/addons/*/").to_string_lossy()) {
+        for addon_dir in walker {
+            if let Ok(entry) = addon_dir {
+                if entry.file_type().is_dir() {
+                    info!("Mounting addon resources: {}", entry.file_name().to_string_lossy());
+                    let addon_vfs = AltrootFS::new(PhysicalFS::new(entry.path()).into());
+                    resource_paths.push(addon_vfs.into());
+                }
+            }
+        }
+    }
+    let vfs = OverlayFS::new(&resource_paths);
+    return vfs.into()
+}
+
+fn create_cursed_engine<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>, vfs_root: &VfsPath) -> &'static mut CursedEngine<'a> {
+    let pbx = Box::new(CursedEngine::new(vfs_root.join(VFS_SCRIPTS_PATH).unwrap(), config, sound_engine));
     let pbx: &'static mut CursedEngine = Box::leak(pbx);
     pbx
 }
 
-fn create_sound_engine(config: &Rc<CursedConfig>) -> &'static mut Rc<RefCell<SoundEngine>> {
+fn create_sound_engine(config: &Rc<CursedConfig>, vfs_root: &VfsPath) -> &'static mut Rc<RefCell<SoundEngine>> {
     info!("Loading sound engine... ");
     let sound_engine = Box::new(Rc::new(RefCell::new(
-        SoundEngine::new(SOUNDS_PATH, SOUNDBANKS_PATH, config))));
+        SoundEngine::new(vfs_root.join(VFS_SOUNDS_PATH).unwrap(), vfs_root.join(VFS_SOUNDBANKS_PATH).unwrap(), config))));
     let sound_engine: &'static mut Rc<RefCell<SoundEngine>> = Box::leak(sound_engine);
     sound_engine
 }

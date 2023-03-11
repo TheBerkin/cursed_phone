@@ -8,14 +8,14 @@ mod agent;
 use std::rc::Rc;
 use std::cell::{RefCell, Cell};
 use std::sync::Arc;
-use std::{thread, time, fs, sync::mpsc};
-use std::path::{Path, PathBuf};
+use std::{thread, time, sync::mpsc};
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 use rand::Rng;
 use mlua::prelude::*;
 use indexmap::IndexMap;
 use log::{info, warn, trace, error};
+use vfs::VfsPath;
 use crate::sound::*;
 use crate::phone::*;
 use crate::config::*;
@@ -36,7 +36,6 @@ type RcRefCell<T> = Rc<RefCell<T>>;
 // Script path constants
 const SETUP_SCRIPT_NAME: &str = "setup";
 const AGENTS_PATH_NAME: &str = "agents";
-const API_GLOB: &str = "api/*";
 
 // Pulse dialing digits
 const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -74,7 +73,7 @@ pub struct CursedEngine<'lua> {
     /// The Lua context associated with the engine.
     lua: Lua,
     /// The root directory from which Lua scripts are loaded.
-    scripts_root: PathBuf,
+    scripts_root: VfsPath,
     /// The starting time of the engine.
     start_time: Instant,
     /// The numbered agents associated with the engine.
@@ -143,7 +142,7 @@ fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
-    pub fn new(scripts_root: impl Into<String>, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
+    pub fn new(scripts_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         let now = Instant::now();
         
@@ -151,7 +150,7 @@ impl<'lua> CursedEngine<'lua> {
             lua,
             start_time: now,
             pdd_start: RefCell::new(now),
-            scripts_root: Path::new(scripts_root.into().as_str()).canonicalize().unwrap(),
+            scripts_root,
             config: Rc::clone(config),
             sound_engine: Rc::clone(sound_engine),
             phone_book: Default::default(),
@@ -188,7 +187,7 @@ impl<'lua> CursedEngine<'lua> {
         rx
     }
 
-    pub fn start_phone_listener(&self, input_from_phone: mpsc::Receiver<PhoneInputSignal>) {
+    pub fn listen(&self, input_from_phone: mpsc::Receiver<PhoneInputSignal>) {
         self.phone_input.replace(Some(input_from_phone));
     }
 
@@ -292,88 +291,85 @@ impl<'lua> CursedEngine<'lua> {
         dialed
     }
 
-    fn run_script(&self, name: &str) -> LuaResult<()> {
-        let path = self.resolve_script_path(name);
-        match fs::read_to_string(&path) {
-            Ok(lua_src) => self.lua.load(&lua_src).set_name(name).unwrap().exec()?,
+    fn run_script(&self, path: VfsPath) -> LuaResult<()> {
+        info!("Running script: {}", path.as_str());
+        match path.read_to_string() {
+            Ok(lua_src) => self.lua.load(&lua_src).set_name(path.filename()).unwrap().exec()?,
             Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
         };
 
         Ok(())
     }
 
-    fn run_scripts_in_glob(&self, glob: &str) -> LuaResult<()> {
-        let search_path = self.resolve_script_path(glob);
-        let search_path_str = search_path.to_str().expect("Failed to create search pattern from glob");
-        for entry in globwalk::glob(search_path_str).expect("Unable to read script search pattern") {
-            if let Ok(dir) = entry {
-                let script_path = dir.path().canonicalize().expect("Unable to expand script path");
-                let script_path_str = script_path.to_str().unwrap();
-                info!("Loading API script: {:?}", script_path.file_name().unwrap());
-                match fs::read_to_string(&script_path) {
-                    Ok(lua_src) => self.lua.load(&lua_src).set_name(script_path_str).unwrap().exec()?,
-                    Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
-                };
+    fn run_scripts_in_path(&self, path: VfsPath) -> LuaResult<()> {
+        for entry in path.walk_dir().map_err(|err| LuaError::ExternalError(Arc::new(err)))? {
+            if let Ok(entry) = entry {
+                match entry.extension().as_deref() {
+                    Some("lua") => self.run_script(entry)?,
+                    _ => continue
+                }
             }
         }
         Ok(())
     }
 
-    fn resolve_script_path(&self, name: &str) -> PathBuf {
-        self.scripts_root.join(name).with_extension("lua")
-    }
-
     pub fn load_agents(&'lua self) {
         info!("Loading agents...");
         self.phone_book.borrow_mut().clear();
-        let search_path = self.scripts_root.join(AGENTS_PATH_NAME).join("**").join("*.lua");
-        let search_path_str = search_path.to_str().expect("Failed to create search pattern for agent modules");
         let mut agents = self.agents.borrow_mut();
         let mut agents_numbered = self.phone_book.borrow_mut();
-        for entry in globwalk::glob(search_path_str).expect("Unable to read search pattern for agent modules") {
-            if let Ok(dir) = entry {
-                let module_path = dir.path().canonicalize().expect("Unable to expand agent module path");
-                let agent = AgentModule::from_file(&self.lua, &module_path);
-                match agent {
-                    Ok(agent) => {
-                        // Register agent
-                        let agent_name = agent.name().to_owned();
-                        let agent_role = agent.role();
-
-                        // Don't load Tollmasters if this isn't a payphone
-                        if agent_role == AgentRole::Tollmaster && !self.config.payphone.enabled {
+        for entry in self.scripts_root.join(AGENTS_PATH_NAME).unwrap().walk_dir().unwrap() {
+            if let Ok(path) = entry {
+                match path.extension() {
+                    Some(ext) => {
+                        if ext != "lua" {
                             continue
                         }
-
-                        let agent_phone_number = agent.phone_number().clone();
-                        let agent = Rc::new(agent);
-                        let (agent_id, _) = agents.insert_full(agent_name, Rc::clone(&agent));
-                        agent.register_id(agent_id);
-
-                        // Register agent number
-                        if let Some(phone_number) = agent_phone_number {
-                            if !phone_number.is_empty() {
-                                agents_numbered.insert(phone_number, agent_id);
-                            }
-                        }
-
-                        // Register intercept agent
-                        match agent_role {
-                            AgentRole::Intercept => {
-                                self.intercept_agent.replace(Some(Rc::clone(&agent)));
-                            },
-                            _ => {}
-                        }
-
-                        agent.start_state_machine().expect(format!("Failed to start state machine for agent '{}'", agent.name()).as_str());
-                        agent.call_load_handler().expect(format!("Failed to call load handler for agent '{}'", agent.name()).as_str());
-
-                        info!("Agent loaded: {} (num = {}, id = {:?})", agent.name(), agent.phone_number().as_deref().unwrap_or("[RESTRICTED]"), agent.id());
                     },
+                    None => continue,
+                }
+
+                let agent = match AgentModule::from_file(&self.lua, &path) {
+                    Ok(agent) => agent,
                     Err(err) => {
-                        error!("Failed to load agent module '{:?}': {:#?}", module_path, err);
+                        error!("Failed to load agent module '{}': {}", path.as_str(), err);
+                        continue
+                    },
+                };
+
+                // Register agent
+                let agent_name = agent.name().to_owned();
+                let agent_role = agent.role();
+
+                // Don't load Tollmasters if this isn't a payphone
+                if agent_role == AgentRole::Tollmaster && !self.config.payphone.enabled {
+                    continue
+                }
+
+                let agent_phone_number = agent.phone_number().clone();
+                let agent = Rc::new(agent);
+                let (agent_id, _) = agents.insert_full(agent_name, Rc::clone(&agent));
+                agent.register_id(agent_id);
+
+                // Register agent number
+                if let Some(phone_number) = agent_phone_number {
+                    if !phone_number.is_empty() {
+                        agents_numbered.insert(phone_number, agent_id);
                     }
                 }
+
+                // Register intercept agent
+                match agent_role {
+                    AgentRole::Intercept => {
+                        self.intercept_agent.replace(Some(Rc::clone(&agent)));
+                    },
+                    _ => {}
+                }
+
+                agent.start_state_machine().expect(format!("Failed to start state machine for agent '{}'", agent.name()).as_str());
+                agent.call_load_handler().expect(format!("Failed to call load handler for agent '{}'", agent.name()).as_str());
+
+                info!("Agent loaded: {} (num = {}, id = {:?})", agent.name(), agent.phone_number().as_deref().unwrap_or("[RESTRICTED]"), agent.id());
             }
         }
         info!("Total agents loaded: {}", agents.len());

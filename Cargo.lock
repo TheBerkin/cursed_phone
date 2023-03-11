@@ -308,6 +308,7 @@ dependencies = [
  "take_mut",
  "thread-priority",
  "toml",
+ "vfs",
 ]
 
 [[package]]
@@ -1233,6 +1234,12 @@ name = "version_check"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "078775d0255232fb988e6fccf26ddc9d1ac274299aaedcedce21c6f72cc533ce"
+
+[[package]]
+name = "vfs"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ded573c92d7b32013bdab82676be59f56106895e837504568f32804980ec7868"
 
 [[package]]
 name = "walkdir"

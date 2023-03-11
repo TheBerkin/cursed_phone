@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use super::*;
 
 pub struct AgentModule<'lua> {
@@ -15,55 +17,50 @@ pub struct AgentModule<'lua> {
 }
 
 impl<'lua> AgentModule<'lua> {
-    pub fn from_file(lua: &'lua Lua, path: &Path) -> Result<Self, String> {
-        let src = fs::read_to_string(path).expect("Unable to read Lua source file");
-        let module_chunk = lua.load(&src).set_name(path.to_str().unwrap()).unwrap();
-        let module = module_chunk.eval::<LuaTable>();
-        match module {
-            Ok(table) => {
-                let name = table.raw_get("_name").expect(format!("Agent module '{:?}' requires a name", path).as_ref());
-                let phone_number = table.raw_get("_phone_number").unwrap();
-                let role = AgentRole::from(table.raw_get::<&'static str, usize>("_role").unwrap());
-                let ringback_enabled: bool = table.raw_get("_ringback_enabled").unwrap_or(true);
-                let func_load: Option<LuaFunction<'lua>> = table.raw_get("_on_load").unwrap();
-                let func_unload = table.raw_get("_on_unload").unwrap();
-                let func_tick = table.get("tick").expect("tick() function not found");
-                let mut required_sound_banks: Vec<String> = Default::default();
-                let mut custom_price = None;
+    pub fn from_file(lua: &'lua Lua, path: &VfsPath) -> Result<Self, Box<dyn Error>> {
+        let src = path.read_to_string()?;
+        let module_chunk = lua.load(&src).set_name(path.as_str())?;
+        let module = module_chunk.eval::<LuaTable>()?;
+        let name = module.raw_get("_name")?;
+        let phone_number = module.raw_get("_phone_number")?;
+        let role = AgentRole::from(module.raw_get::<&'static str, usize>("_role")?);
+        let ringback_enabled: bool = module.raw_get("_ringback_enabled").unwrap_or(true);
+        let func_load: Option<LuaFunction<'lua>> = module.raw_get("_on_load")?;
+        let func_unload = module.raw_get("_on_unload")?;
+        let func_tick = module.get("tick")?;
+        let mut required_sound_banks: Vec<String> = Default::default();
+        let mut custom_price = None;
 
-                if let Ok(true) = table.raw_get("_has_custom_price") {
-                    if let Ok(price) = table.raw_get("_custom_price") {
-                        custom_price = price;
-                    }
-                }   
-                
-                // Get required sound banks
-                if let Ok(bank_name_table) = table.raw_get::<&'static str, LuaTable>("_required_sound_banks") {
-                    let pairs = bank_name_table.pairs::<String, bool>();
-                    for pair in pairs {
-                        if let Ok((bank_name, required)) = pair {
-                            if !required || bank_name.is_empty() { continue }
-                            required_sound_banks.push(bank_name);
-                        }
-                    }
+        if let Ok(true) = module.raw_get("_has_custom_price") {
+            if let Ok(price) = module.raw_get("_custom_price") {
+                custom_price = price;
+            }
+        }   
+        
+        // Get required sound banks
+        if let Ok(bank_name_table) = module.raw_get::<&'static str, LuaTable>("_required_sound_banks") {
+            let pairs = bank_name_table.pairs::<String, bool>();
+            for pair in pairs {
+                if let Ok((bank_name, required)) = pair {
+                    if !required || bank_name.is_empty() { continue }
+                    required_sound_banks.push(bank_name);
                 }
-
-                Ok(Self {
-                    id: Default::default(),
-                    required_sound_banks,
-                    ringback_enabled,
-                    tbl_module: table,
-                    name,
-                    role,
-                    phone_number,
-                    custom_price,
-                    func_load,
-                    func_unload,
-                    func_tick,
-                })
-            },
-            Err(err) => Err(format!("Unable to load agent module: {:#?}", err))
+            }
         }
+
+        Ok(Self {
+            id: Default::default(),
+            required_sound_banks,
+            ringback_enabled,
+            tbl_module: module,
+            name,
+            role,
+            phone_number,
+            custom_price,
+            func_load,
+            func_unload,
+            func_tick,
+        })
     }
 
     pub fn custom_ring_pattern(&self) -> Option<Arc<RingPattern>> {

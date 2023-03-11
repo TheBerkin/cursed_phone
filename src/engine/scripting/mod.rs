@@ -22,7 +22,7 @@ impl<'lua> CursedEngine<'lua> {
         globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
 
         // Run setup script
-        self.run_script(SETUP_SCRIPT_NAME)?;
+        self.run_script(self.scripts_root.join("setup.lua").unwrap())?;
 
         // ====================================================
         // ============== GENERAL API FUNCTIONS ===============
@@ -97,7 +97,7 @@ impl<'lua> CursedEngine<'lua> {
         self.load_lua_toll_lib()?;
 
         // Run API scripts
-        self.run_scripts_in_glob(API_GLOB)?;
+        self.run_scripts_in_path(self.scripts_root.join("api").unwrap())?;
     
         Ok(())
     }

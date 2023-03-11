@@ -13,7 +13,7 @@ What you get out of the box:
 * GPIO pin access from Lua
 * WAV/OGG multi-channel audio playback support
 * Realistic call progress/DTMF tones
-* Switchhook dialing (WIP)
+* Switchhook dialing
 * Comfort noise
 * Intercept services
 * Compatibility with all Raspberry Pi models

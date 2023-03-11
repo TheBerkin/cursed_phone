@@ -153,15 +153,15 @@ fn parse_ring_pattern_duration(lex: &mut Lexer<RingPatternToken>) -> Option<f64>
 pub struct PhoneEngine {
     dtmf_tone_duration: Duration,
     sound_engine: Rc<RefCell<SoundEngine>>,
-    input_from_gpio: mpsc::Receiver<PhoneInputSignal>,
-    output_to_pbx: RefCell<Option<Rc<mpsc::Sender<PhoneInputSignal>>>>,
-    input_from_pbx: RefCell<Option<Rc<mpsc::Receiver<PhoneOutputSignal>>>>,
+    rx_gpio: mpsc::Receiver<PhoneInputSignal>,
+    rx_engine: RefCell<Option<Rc<mpsc::Receiver<PhoneOutputSignal>>>>,
+    tx_engine: RefCell<Option<Rc<mpsc::Sender<PhoneInputSignal>>>>,
+    tx_ringer: Option<mpsc::Sender<Option<Arc<RingPattern>>>>,
     dial_rest_state: bool,
     dial_pulse_state: bool,
     hook_state: bool,
     ring_state: bool,
     default_ring_pattern: RingPattern,
-    tx_ringer: Option<mpsc::Sender<Option<Arc<RingPattern>>>>,
     #[cfg(feature = "rpi")]
     gpio: PhoneGpioInterface
 }
@@ -176,14 +176,14 @@ impl PhoneEngine {
         let tx_ringer = gpio.tx_ringer();
         Self {
             sound_engine,
-            input_from_gpio: listener,
+            rx_gpio: listener,
             dial_rest_state: true,
             dial_pulse_state: false,
             hook_state: true,
             ring_state: false,
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
-            output_to_pbx: Default::default(),
-            input_from_pbx: Default::default(),
+            tx_engine: Default::default(),
+            rx_engine: Default::default(),
             default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).unwrap_or_else(|| {
                 warn!("Unable to read default ring pattern from config. Using fallback pattern.");
                 RingPattern {
@@ -213,15 +213,15 @@ impl PhoneEngine {
 
         Self {
             sound_engine,
-            input_from_gpio: listener,
+            rx_gpio: listener,
             dial_rest_state: true,
             dial_pulse_state: false,
             hook_state: true,
             ring_state: false,
             tx_ringer: None,
             dtmf_tone_duration: Duration::from_millis(config.sound.dtmf_tone_duration_ms),
-            output_to_pbx: Default::default(),
-            input_from_pbx: Default::default(),
+            tx_engine: Default::default(),
+            rx_engine: Default::default(),
             default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).unwrap_or_else(|| {
                 warn!("Unable to read default ring pattern from config. Using fallback pattern.");
                 RingPattern {
@@ -273,7 +273,7 @@ impl PhoneEngine {
 impl PhoneEngine {
     pub fn tick(&self) {
         // Process GPIO inputs
-        if let Ok(signal) = self.input_from_gpio.try_recv() {
+        if let Ok(signal) = self.rx_gpio.try_recv() {
             use PhoneInputSignal::*;
 
             // Perform any additional processing here before passing on the signal
@@ -285,12 +285,12 @@ impl PhoneEngine {
                 _ => {}
             }
 
-            self.send_to_pbx(signal);
+            self.send_to_engine(signal);
         }
 
         // Process GPIO outputs
-        if let Some(input_from_pbx) = self.input_from_pbx.borrow().as_ref() {
-            if let Ok(signal) = input_from_pbx.try_recv() {
+        if let Some(rx_engine) = self.rx_engine.borrow().as_ref() {
+            if let Ok(signal) = rx_engine.try_recv() {
                 use PhoneOutputSignal::*;
                 match signal {
                     Ring(pattern) => {
@@ -322,8 +322,8 @@ impl PhoneEngine {
         }
     }
 
-    fn send_to_pbx(&self, input: PhoneInputSignal) -> bool {
-        if let Some(tx) = self.output_to_pbx.borrow().as_ref() {
+    fn send_to_engine(&self, input: PhoneInputSignal) -> bool {
+        if let Some(tx) = self.tx_engine.borrow().as_ref() {
             tx.send(input).unwrap();
             return true;
         }
@@ -333,11 +333,11 @@ impl PhoneEngine {
     /// Creates a messaging channel for the PBX to listen to input signals from the phone.
     pub fn gen_phone_output(&self) -> mpsc::Receiver<PhoneInputSignal> {
         let (tx_pbx, rx_input) = mpsc::channel();
-        self.output_to_pbx.replace(Some(Rc::new(tx_pbx)));
+        self.tx_engine.replace(Some(Rc::new(tx_pbx)));
         rx_input
     }
 
-    pub fn start_engine_listener(&self, input_from_pbx: mpsc::Receiver<PhoneOutputSignal>) {
-        self.input_from_pbx.replace(Some(Rc::new(input_from_pbx)));
+    pub fn listen(&self, input_from_pbx: mpsc::Receiver<PhoneOutputSignal>) {
+        self.rx_engine.replace(Some(Rc::new(input_from_pbx)));
     }
 }
