@@ -57,14 +57,10 @@ IntentCode = {
     WAIT = 4,
     --- Agent wants to read a digit from the user.
     READ_DIGIT = 5,
-    --- Agent wants to forward the call to a specific phone number.
-    FORWARD_CALL_NUMBER = 6,
+    --- Agent wants to forward the call to a specific phone number or agent handle.
+    FORWARD_CALL = 6,
     --- Agent wants to end its current state and transition to another one.
     STATE_END = 7,
-    --- Agent wants to forward the call to a specific Agent ID.
-    FORWARD_CALL_AGENT_ID = 8,
-    --- Agent wants the speech recognition engine to listen for and return a phrase.
-    READ_PHRASE = 9,
 }
 
 --- @enum IntentResponseCode
@@ -498,17 +494,10 @@ function agent.caller_dialed_number()
 end
 
 --- @async
---- Forwards the call to the specified number.
---- @param number string
-function agent.forward_call(number)
-    agent.intent(IntentCode.FORWARD_CALL_NUMBER, number)
-end
-
---- @async
---- Forwards the call to the specified agent ID.
---- @param agent_id integer
-function agent.forward_call_id(agent_id)
-    agent.intent(IntentCode.FORWARD_CALL_AGENT_ID, agent_id)
+--- Forwards the call to the specified number or agent handle (agent name prefixed with `@`).
+--- @param destination string @ The phone number or agent handle to forward to
+function agent.forward_call(destination)
+    agent.intent(IntentCode.FORWARD_CALL, destination)
 end
 
 --- @async

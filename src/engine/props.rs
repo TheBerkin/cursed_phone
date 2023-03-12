@@ -1,7 +1,5 @@
 use mlua::prelude::*;
 
-use super::AgentId;
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AgentRole {
     Normal = 0,
@@ -91,12 +89,10 @@ pub enum AgentIntent {
     Wait,
     /// Agent is requesting a digit from the host.
     ReadDigit,
-    /// Agent wants to forward the call to a specified phone number.
+    /// Agent wants to forward the call to a specified phone number or agent handle.
     ForwardCall(String),
     /// Agent has ended its current state.
     StateEnded(AgentState),
-    /// Agent wants to forward the call to a specified Agent ID.
-    ForwardCallToId(AgentId),
     /// (Not Implemented)
     ReadPhrase,
 }
@@ -124,11 +120,6 @@ impl AgentIntent {
                 LuaValue::Integer(n) => AgentIntent::StateEnded(AgentState::from(n as usize)),
                 _ => AgentIntent::Yield
             },
-            8 => match intent_data {
-                LuaValue::Integer(n) => AgentIntent::ForwardCallToId(n as usize),
-                _ => AgentIntent::Yield
-            }
-            9 => AgentIntent::ReadPhrase,
             _ => AgentIntent::Yield
         }
     }

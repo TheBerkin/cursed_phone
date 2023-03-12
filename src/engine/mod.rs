@@ -128,6 +128,8 @@ pub struct CursedEngine<'lua> {
     rotary_dial_lift_time: Cell<Instant>,
     /// Delay between rotary dial leaving resting state and first valid pulse.
     rotary_first_pulse_delay: Duration,
+    /// Default ring pattern for agents
+    default_ring_pattern: Option<Arc<RingPattern>>,
     /// GPIO interface used by Lua.
     #[cfg(feature = "rpi")]
     gpio: RefCell<crate::gpio::GpioInterface>,
@@ -176,6 +178,7 @@ impl<'lua> CursedEngine<'lua> {
             rotary_resting: Cell::new(true),
             rotary_dial_lift_time: Cell::new(now),
             rotary_first_pulse_delay: Duration::from_millis(config.rotary.first_pulse_delay_ms.unwrap_or(DEFAULT_FIRST_PULSE_DELAY_MS)),
+            default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).map(Arc::new),
             #[cfg(feature = "rpi")]
             gpio: RefCell::new(GpioInterface::new().expect("Unable to initialize Lua GPIO interface")),
         }
@@ -198,12 +201,16 @@ impl<'lua> CursedEngine<'lua> {
         false
     }
 
+    fn lookup_agent_name(&self, handle: &str) -> Orc<AgentModule> {
+        self.agents.borrow().get(handle).map(|result| Rc::clone(result))
+    }
+
     fn lookup_agent_id(&self, id: AgentId) -> Orc<AgentModule> {
         self.agents.borrow().get_index(id).map(|result| Rc::clone(result.1))
     }
 
     /// Searches the phone directory for the specified number and returns the agent associated with it, or `None` if the number is unassigned.
-    fn lookup_agent(&self, phone_number: &str) -> Orc<AgentModule> {
+    fn lookup_agent_phone_number(&self, phone_number: &str) -> Orc<AgentModule> {
         if let Some(id) = self.phone_book.borrow().get(phone_number) {
             return self.lookup_agent_id(*id);
         }
@@ -214,7 +221,7 @@ impl<'lua> CursedEngine<'lua> {
     fn call_number(&'lua self, number: &str) -> bool {
         info!("Calling: {}", number);
         self.called_number.replace(Some((*self.dialed_digits.borrow()).clone()));
-        if let Some(agent) = self.lookup_agent(number) {
+        if let Some(agent) = self.lookup_agent_phone_number(number) {
             self.call_agent(agent);
             return true;
         } else {
@@ -463,7 +470,11 @@ impl<'lua> CursedEngine<'lua> {
                 self.clear_called_number();
             },
             (_, IdleRinging) => {
-                self.send_output(PhoneOutputSignal::Ring(self.get_other_party_agent().map(|agent| agent.custom_ring_pattern()).flatten()));
+                let ring_pattern = self.get_other_party_agent()
+                    .map(|agent| agent.custom_ring_pattern())
+                    .flatten()
+                    .or_else(|| self.default_ring_pattern.clone());
+                self.send_output(PhoneOutputSignal::Ring(ring_pattern));
             },
             (_, DialTone) => {
                 self.sound_engine.borrow().play_dial_tone();
@@ -813,7 +824,7 @@ impl<'lua> CursedEngine<'lua> {
                         let number_to_dial = self.get_dialed_digits();
 
                         // Figure out how much the call costs
-                        let price = match self.lookup_agent(number_to_dial.as_str()) {
+                        let price = match self.lookup_agent_phone_number(number_to_dial.as_str()) {
                             Some(agent_to_call) if self.config.payphone.enable_custom_agent_rates => 
                             match agent_to_call.custom_price() {
                                 Some(cents) => cents,
@@ -921,12 +932,22 @@ impl<'lua> CursedEngine<'lua> {
                                     _ => {}
                                 }
                             },
-                            // Agent wants to forward call to a specific number
-                            ForwardCall(number) => {
+                            // Agent wants to forward call to a specific number or agent
+                            ForwardCall(destination) => {
                                 match state {
                                     Connected => {
-                                        agent.transition_state(AgentState::Idle);
-                                        self.call_number(&number);
+                                        // Check if it's a handle
+                                        if let Some(agent_name) = destination.strip_prefix('@').map(|name| name.trim()) {
+                                            agent.transition_state(AgentState::Idle);
+                                            if let Some(agent) = self.lookup_agent_name(agent_name) {
+                                                self.call_agent(agent);
+                                            } else {
+                                                self.call_intercept(CallReason::NumberDisconnected);
+                                            }
+                                        } else {
+                                            agent.transition_state(AgentState::Idle);
+                                            self.call_number(&destination);
+                                        }
                                     },
                                     _ => {}
                                 }
@@ -938,21 +959,6 @@ impl<'lua> CursedEngine<'lua> {
                                     Connected => {
                                         // TODO: Allow user to customize behavior when agent ends call
                                         self.set_state(Busy);
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            // Agent wants to forward call to a specific Agent ID
-                            ForwardCallToId(id) => {
-                                match state {
-                                    Connected => {
-                                        agent.transition_state(AgentState::Idle);
-                                        if let Some(agent) = self.lookup_agent_id(*id) {
-                                            info!("Forwarding call to agent '{}' (id = {:?})", agent.name(), agent.id());
-                                            self.call_agent(agent);
-                                        } else {
-                                            warn!("Agent '{}' tried to forward call to invalid Agent ID: {}", agent.name(), id);
-                                        }
                                     },
                                     _ => {}
                                 }
