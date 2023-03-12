@@ -91,11 +91,14 @@ AgentRole = {
     TOLLMASTER = 2
 }
 
+--- @alias AgentMessageKey string|integer
+--- @alias AgentMessageHandlerFunction async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any)
+
 --- @class StateFunctionTable
 --- @field enter async fun(self: AgentModule) @ Called when the state is entered.
 --- @field tick async fun(self: AgentModule) @ Called each tick after `enter`.
 --- @field exit async fun(self: AgentModule) @ Called when the state is exiting.
---- @field message async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any) @ Called when the agent receives a message. 
+--- @field message AgentMessageHandlerFunction | table<AgentMessageKey, AgentMessageHandlerFunction>  @ Called when the agent receives a message. 
 
 --- @class AgentModule
 --- @field _id integer?
@@ -157,12 +160,14 @@ local _AgentModule_MEMBERS = {
     end,
     --- Sends a message to another agent.
     --- @param dest_name string
-    --- @param msg_type string|integer
-    --- @param msg_data any
+    --- @param msg_type AgentMessageKey
+    --- @param msg_data any?
     send = function(self, dest_name, msg_type, msg_data)
+        assert(msg_type ~= nil, "Message type cannot be nil")
+
         local dest_messages = agent_messages[dest_name]
 
-        if dest_messages == nil then 
+        if not dest_messages then
             print("WARN: Tried to write to nonexistent message queue: '" .. dest_name .. "'")
             return
         end
@@ -608,10 +613,21 @@ end
 local function gen_msg_handler_coroutine(a, msg)
     local state_table = a._state_func_tables[a._state]
     local handler = state_table and state_table.message
-    if not handler then return nil end
+    local handler_type = type(handler)
+    local handler_func
+
+    if handler_type == 'function' then
+        handler_func = handler
+    elseif handler_type == 'table' then
+        handler_func = handler[msg.type]
+    else
+        return nil
+    end
+
+    if type(handler_func) ~= 'function' then return nil end
 
     local msg_coroutine = coroutine.create(function()
-        handler(a, msg.sender, msg.type, msg.data)
+        handler_func(a, msg.sender, msg.type, msg.data)
         a._message_coroutine = nil
     end)
 
