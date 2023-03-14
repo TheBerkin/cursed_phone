@@ -25,9 +25,6 @@ impl<'lua> CursedEngine<'lua> {
         // ====================================================
         // ============== GENERAL API FUNCTIONS ===============
         // ====================================================
-    
-        // sleep()
-        globals.set("sleep", lua.create_function(Self::lua_sleep)?)?;
 
         // rand_int(min, max)
         globals.set("rand_int", lua.create_function(Self::lua_rand_int)?)?;
@@ -119,11 +116,6 @@ impl<'lua> CursedEngine<'lua> {
         let perlin = PerlinNoise2D::new(octaves, 1.0, frequency, persistence, lacunarity, (1.0, 1.0), 0.0, seed);
         let noise = perlin.get_noise(x, y);
         Ok(noise)
-    }
-
-    fn lua_sleep(_: &Lua, ms: u64) -> LuaResult<()> {
-        thread::sleep(time::Duration::from_millis(ms));
-        Ok(())
     }
 
     fn lua_rand_int(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {

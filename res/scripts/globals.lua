@@ -23,11 +23,6 @@ if _NATIVE_STUB then
     --- @return number
     function call_time() return 0 end
 
-    --- Pauses execution for the specified number of milliseconds.
-    --- @param ms integer
-    --- @type function
-    function sleep(ms) end
-
     --- Generates a random integer between an inclusive minimum and exclusive maximum.
     --- @param min integer
     --- @param max integer
