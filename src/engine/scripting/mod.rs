@@ -1,14 +1,42 @@
 
 use super::*;
-use std::{cmp};
+use std::{cmp, error::Error, fmt::Display, collections::HashSet};
 use log::{info};
 use perlin2d::PerlinNoise2D;
+use rand::distributions::Uniform;
 
 mod cron;
 mod gpio;
 mod phone;
 mod sound;
 mod toll;
+
+#[derive(Debug)]
+pub(self) struct CustomLuaError {
+    message: String
+}
+
+impl CustomLuaError {
+    pub fn new(message: String) -> Self {
+        Self {
+            message
+        }
+    }
+}
+
+impl Error for CustomLuaError {}
+
+impl Display for CustomLuaError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+macro_rules! lua_error {
+    ($($arg:tt)*) => {
+        return Err(LuaError::ExternalError(Arc::new(CustomLuaError::new(format!($($arg)*)))))
+    }
+}
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {    
@@ -22,38 +50,25 @@ impl<'lua> CursedEngine<'lua> {
         // Override print()
         globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
 
-        // ====================================================
-        // ============== GENERAL API FUNCTIONS ===============
-        // ====================================================
-
-        // rand_int(min, max)
+        // Global engine functions
         globals.set("rand_int", lua.create_function(Self::lua_rand_int)?)?;
-
-        // rand_int_skip(min, skip, max)
+        globals.set("rand_int_i", lua.create_function(Self::lua_rand_int_i)?)?;
         globals.set("rand_int_skip", lua.create_function(Self::lua_rand_int_skip)?)?;
-
-        // rand_int_bias_low(min, max)
         globals.set("rand_int_bias_low", lua.create_function(Self::lua_rand_int_bias_low)?)?;
-
-        // rand_int_bias_high(min, max)
         globals.set("rand_int_bias_high", lua.create_function(Self::lua_rand_int_bias_high)?)?;
-
-        // rand_float(min, max)
+        globals.set("rand_int32", lua.create_function(Self::lua_rand_int32)?)?;
         globals.set("rand_float", lua.create_function(Self::lua_rand_float)?)?;
-
-        // chance(p)
+        globals.set("rand_normal", lua.create_function(Self::lua_rand_normal)?)?;
+        globals.set("rand_digit", lua.create_function(Self::lua_rand_digit)?)?;
+        globals.set("rand_unique_codes", lua.create_function(Self::lua_rand_unique_codes)?)?;
         globals.set("chance", lua.create_function(Self::lua_chance)?)?;
-
-        // perlin_sample(x, y, octaves, frequency, persistence, lacunarity, seed)
         globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
 
-        // engine_time()
         globals.set("engine_time", lua.create_function(move |_, ()| {
             let run_time = self.start_time.elapsed().as_secs_f64();
             Ok(run_time)
         })?)?;
 
-        // call_time()
         globals.set("call_time", lua.create_function(move |_, ()| {
             match self.state() {
                 PhoneLineState::Connected => {
@@ -125,6 +140,39 @@ impl<'lua> CursedEngine<'lua> {
         Ok(rand::thread_rng().gen_range(min..max))
     }
 
+    fn lua_rand_int_i(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
+        if min > max {
+            return Ok(min);
+        }
+        Ok(rand::thread_rng().gen_range(min..=max))
+    }
+
+    fn lua_rand_digit(_: &Lua, n: Option<usize>) -> LuaResult<String> {
+        let n = n.unwrap_or(1);
+        let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
+        let digits: String = rand::thread_rng().sample_iter(distr).take(n).map(|c| char::from_digit(c, 10).unwrap()).collect();
+        Ok(digits)
+    }
+
+    fn lua_rand_unique_codes(lua: &Lua, (n, len_min, len_max): (usize, usize, usize)) -> LuaResult<LuaTable> {
+        if len_min > len_max {
+            lua_error!("rand_unique_codes: min code length cannot be greater than max")
+        }
+        let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
+        let mut set = HashSet::with_capacity(n);
+        let mut rng = rand::thread_rng();
+        for _ in 0..n {
+            loop {
+                let code_len = rng.gen_range(len_min..=len_max);
+                let code_candidate: String = rng.clone().sample_iter(distr).take(code_len).map(|c| char::from_digit(c, 10).unwrap()).collect();
+                if set.insert(code_candidate) {
+                    break
+                }
+            }
+        }
+        lua.create_table_from(set.into_iter().enumerate())
+    }
+
     fn lua_rand_int_bias_low(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
         if min >= max {
             return Ok(min);
@@ -161,11 +209,24 @@ impl<'lua> CursedEngine<'lua> {
         }
     }
 
+    fn lua_rand_int32(_: &Lua, _: ()) -> LuaResult<i32> {
+        Ok(rand::thread_rng().gen())
+    }
+
     fn lua_rand_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
         if min >= max {
             return Ok(min);
         }
         Ok(rand::thread_rng().gen_range(min..max))
+    }
+
+    fn lua_rand_normal(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
+        if min >= max {
+            return Ok(min)
+        }
+        let mut rng = rand::thread_rng();
+        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
+        Ok((a + b) / 2.0)
     }
 
     fn lua_chance(_: &Lua, p: f64) -> LuaResult<bool> {

@@ -8,7 +8,7 @@ mod agent;
 use std::rc::Rc;
 use std::cell::{RefCell, Cell};
 use std::sync::Arc;
-use std::{thread, time, sync::mpsc};
+use std::sync::mpsc;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 use rand::Rng;
