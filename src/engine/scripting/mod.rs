@@ -1,7 +1,7 @@
 
 use super::*;
-use std::{cmp, error::Error, fmt::Display, collections::HashSet};
-use log::{info};
+use std::{cmp, error::Error, fmt::Display, collections::BTreeSet};
+use log::info;
 use perlin2d::PerlinNoise2D;
 use rand::distributions::Uniform;
 
@@ -159,7 +159,7 @@ impl<'lua> CursedEngine<'lua> {
             lua_error!("rand_unique_codes: min code length cannot be greater than max")
         }
         let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
-        let mut set = HashSet::with_capacity(n);
+        let mut set = BTreeSet::new();
         let mut rng = rand::thread_rng();
         for _ in 0..n {
             loop {

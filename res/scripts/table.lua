@@ -32,3 +32,16 @@ end
 function table.random_choice(t)
     return t[rand_int(1, #t + 1)]
 end
+
+--- Shuffles the ordered elements of `t`.
+--- Assumes that the indices of `t` start at 1 and are not sparse.
+function table.shuffle(t)
+    local n = #t
+    for i = 1, n do
+        local i2 = rand_int_i(1, n)
+        local v = t[i]
+        local v2 = t[i2]
+        t[i2] = v
+        t[i] = v2
+    end
+end
