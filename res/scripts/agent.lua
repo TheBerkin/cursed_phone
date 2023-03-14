@@ -127,7 +127,7 @@ local _AgentModule_MEMBERS = {
     --- Enables or disables the ringback tone when calling the agent.
     --- @param enabled boolean
     set_ringback_enabled = function(self, enabled)
-        self._ringback_enabled = coerce_boolean(enabled)
+        self._ringback_enabled = enabled
     end,
     --- Prints a message prefixed with the agent name.
     --- @param msg any
@@ -562,6 +562,8 @@ function agent.read_digits(digit_count, digit_timeout)
     return digits
 end
 
+local function handler_stub() end
+
 --- Generates an agent state machine coroutine.
 --- @param a AgentModule
 --- @param new_state AgentState
@@ -572,9 +574,9 @@ local function gen_state_coroutine(a, new_state, old_state)
         local old_func_table = a._state_func_tables[old_state]
         local new_func_table = a._state_func_tables[new_state]
 
-        local on_enter = new_func_table and new_func_table.enter or stub
-        local on_tick = new_func_table and new_func_table.tick or stub
-        local prev_on_exit = old_func_table and old_func_table.exit or stub
+        local on_enter = new_func_table and new_func_table.enter or handler_stub
+        local on_tick = new_func_table and new_func_table.tick or handler_stub
+        local prev_on_exit = old_func_table and old_func_table.exit or handler_stub
 
         prev_on_exit(a)
 
@@ -584,7 +586,7 @@ local function gen_state_coroutine(a, new_state, old_state)
         end
 
         -- Load/unload sound banks as needed
-        set_agent_sounds_loaded(a._id, coerce_boolean(a._sound_bank_states[new_state]))
+        set_agent_sounds_loaded(a._id, a._sound_bank_states[new_state] ~= nil)
 
         on_enter(a)
         while true do

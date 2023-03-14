@@ -22,6 +22,7 @@ use ctrlc;
 use vfs::{OverlayFS, VfsPath, AltrootFS, PhysicalFS};
 
 const CONFIG_PATH: &str = "./cursed_phone.conf";
+const VFS_AGENTS_PATH: &str = "./agents";
 const VFS_SCRIPTS_PATH: &str = "./scripts";
 const VFS_SOUNDS_PATH: &str = "./sounds";
 const VFS_SOUNDBANKS_PATH: &str = "./soundbanks";
@@ -99,9 +100,11 @@ fn create_virtual_filesystem(config: &CursedConfig) -> VfsPath {
 }
 
 fn create_cursed_engine<'a>(config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>, vfs_root: &VfsPath) -> &'static mut CursedEngine<'a> {
-    let pbx = Box::new(CursedEngine::new(vfs_root.join(VFS_SCRIPTS_PATH).unwrap(), config, sound_engine));
-    let pbx: &'static mut CursedEngine = Box::leak(pbx);
-    pbx
+    let scripts_root = vfs_root.join(VFS_SCRIPTS_PATH).unwrap();
+    let agents_root = vfs_root.join(VFS_AGENTS_PATH).unwrap();
+    let engine = Box::new(CursedEngine::new(scripts_root, agents_root, config, sound_engine));
+    let engine: &'static mut CursedEngine = Box::leak(engine);
+    engine
 }
 
 fn create_sound_engine(config: &Rc<CursedConfig>, vfs_root: &VfsPath) -> &'static mut Rc<RefCell<SoundEngine>> {

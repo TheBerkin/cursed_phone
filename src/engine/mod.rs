@@ -33,10 +33,6 @@ type Orc<T> = Option<Rc<T>>;
 /// `Rc<RefCell<T>>`
 type RcRefCell<T> = Rc<RefCell<T>>;
 
-// Script path constants
-const SETUP_SCRIPT_NAME: &str = "setup";
-const AGENTS_PATH_NAME: &str = "agents";
-
 // Pulse dialing digits
 const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -72,8 +68,10 @@ fn pulses_to_digit(pulse_count: usize) -> Option<char> {
 pub struct CursedEngine<'lua> {
     /// The Lua context associated with the engine.
     lua: Lua,
-    /// The root directory from which Lua scripts are loaded.
+    /// The root directory from which misc scripts are loaded.
     scripts_root: VfsPath,
+    /// The root directory to load agent scripts from.
+    agents_root: VfsPath,
     /// The starting time of the engine.
     start_time: Instant,
     /// The numbered agents associated with the engine.
@@ -144,7 +142,7 @@ fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
-    pub fn new(scripts_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
+    pub fn new(scripts_root: VfsPath, agents_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
         let lua = Lua::new();
         let now = Instant::now();
         
@@ -153,6 +151,7 @@ impl<'lua> CursedEngine<'lua> {
             start_time: now,
             pdd_start: RefCell::new(now),
             scripts_root,
+            agents_root,
             config: Rc::clone(config),
             sound_engine: Rc::clone(sound_engine),
             phone_book: Default::default(),
@@ -325,7 +324,7 @@ impl<'lua> CursedEngine<'lua> {
         self.phone_book.borrow_mut().clear();
         let mut agents = self.agents.borrow_mut();
         let mut agents_numbered = self.phone_book.borrow_mut();
-        for entry in self.scripts_root.join(AGENTS_PATH_NAME).unwrap().walk_dir().unwrap() {
+        for entry in self.agents_root.walk_dir().unwrap() {
             if let Ok(path) = entry {
                 match path.extension() {
                     Some(ext) => {

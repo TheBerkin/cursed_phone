@@ -16,13 +16,11 @@ impl<'lua> CursedEngine<'lua> {
         info!("Setting up Lua...");
     
         let lua = &self.lua;
+
         let globals = &lua.globals();
 
         // Override print()
         globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
-
-        // Run setup script
-        self.run_script(self.scripts_root.join("setup.lua").unwrap())?;
 
         // ====================================================
         // ============== GENERAL API FUNCTIONS ===============
@@ -97,7 +95,7 @@ impl<'lua> CursedEngine<'lua> {
         self.load_lua_toll_lib()?;
 
         // Run API scripts
-        self.run_scripts_in_path(self.scripts_root.join("api").unwrap())?;
+        self.run_scripts_in_path(self.scripts_root.clone())?;
     
         Ok(())
     }
@@ -109,6 +107,7 @@ impl<'lua> CursedEngine<'lua> {
             if buffer.len() > 0 {
                 buffer.push('\t');
             }
+            
             let val_str = tostring.call::<LuaValue, String>(val.clone()).unwrap_or(String::from("???"));
             buffer.push_str(val_str.as_str());
         }

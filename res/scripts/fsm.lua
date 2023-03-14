@@ -1,12 +1,12 @@
 --- Special state key used to mark the exit state of a state machine.
-FSM_EXIT = create_symbol()
+FSM_EXIT = {}
 
 local ACTIVE_FSM_COROUTINES = {}
 setmetatable(ACTIVE_FSM_COROUTINES, { __mode = 'k' })
 
 local function is_fsm_context()
     local context, is_main = coroutine.running()
-    return coerce_boolean(ACTIVE_FSM_COROUTINES[context]) and not is_main
+    return ACTIVE_FSM_COROUTINES[context] ~= nil and not is_main
 end
 
 --- @alias FsmStateTable table<any, FsmState|async fun(self: Fsm, from_state_key: any?)>
