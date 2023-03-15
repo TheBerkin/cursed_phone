@@ -66,6 +66,13 @@ if _NATIVE_STUB then
     --- @diagnostic disable-next-line: missing-return
     function rand_int_bias_high(min, max) stub() end
 
+    --- Generates a random integer between an inclusive minimum and exclusive maximum, approximating a normal distribution.
+    --- @param min integer
+    --- @param max integer
+    --- @return integer
+    --- @diagnostic disable-next-line: missing-return
+    function rand_int_normal(min, max) stub() end
+
     --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
     --- @param min number
     --- @param max number
@@ -73,7 +80,7 @@ if _NATIVE_STUB then
     --- @diagnostic disable-next-line: missing-return
     function rand_float(min, max) stub() end
 
-    --- Generates a random floating-point number between an inclusive minimum and exclusive maximum, with a distribution approximating a normal distribution.
+    --- Generates a random floating-point number between an inclusive minimum and exclusive maximum, approximating a normal distribution.
     --- @param min number
     --- @param max number
     --- @return number

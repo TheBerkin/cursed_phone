@@ -54,6 +54,7 @@ impl<'lua> CursedEngine<'lua> {
         globals.set("rand_int", lua.create_function(Self::lua_rand_int)?)?;
         globals.set("rand_int_i", lua.create_function(Self::lua_rand_int_i)?)?;
         globals.set("rand_int_skip", lua.create_function(Self::lua_rand_int_skip)?)?;
+        globals.set("rand_int_normal", lua.create_function(Self::lua_rand_int_normal)?)?;
         globals.set("rand_int_bias_low", lua.create_function(Self::lua_rand_int_bias_low)?)?;
         globals.set("rand_int_bias_high", lua.create_function(Self::lua_rand_int_bias_high)?)?;
         globals.set("rand_int32", lua.create_function(Self::lua_rand_int32)?)?;
@@ -189,6 +190,15 @@ impl<'lua> CursedEngine<'lua> {
         let mut rng = rand::thread_rng();
         let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
         Ok(cmp::max(a, b))
+    }
+
+    fn lua_rand_int_normal(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
+        if min >= max {
+            return Ok(max);
+        }
+        let mut rng = rand::thread_rng();
+        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
+        Ok((a + b) / 2)
     }
 
     fn lua_rand_int_skip(_: &Lua, (min, skip, max): (i32, i32, i32)) -> LuaResult<i32> {
