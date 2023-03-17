@@ -670,8 +670,10 @@ function tick_agent_state(a, data_code, data)
         local msg = a:pop_message()
         --- @cast msg AgentMessage
         message_coroutine = gen_msg_handler_coroutine(a, msg)
-        a._message_coroutine = message_coroutine
-        active_coroutine = message_coroutine
+        if message_coroutine then
+            a._message_coroutine = message_coroutine
+            active_coroutine = message_coroutine
+        end
     end
 
     -- Resume the state machine
