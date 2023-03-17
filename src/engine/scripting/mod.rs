@@ -34,9 +34,10 @@ impl Display for CustomLuaError {
 
 macro_rules! lua_error {
     ($($arg:tt)*) => {
-        return Err(LuaError::ExternalError(Arc::new(CustomLuaError::new(format!($($arg)*)))))
+        return Err(LuaError::ExternalError(Arc::new(crate::engine::scripting::CustomLuaError::new(format!($($arg)*)))))
     }
 }
+pub(self) use lua_error;
 
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {    

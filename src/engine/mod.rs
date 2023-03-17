@@ -102,6 +102,8 @@ pub struct CursedEngine<'lua> {
     dialed_digits: RefCell<String>,
     /// The number currently being called.
     called_number: RefCell<Option<String>>,
+    /// The last number dialed AND called by the user.
+    last_dialed_number: RefCell<Option<String>>,
     /// Enable switchhook dialing?
     switchhook_dialing_enabled: bool,
     /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
@@ -165,6 +167,7 @@ impl<'lua> CursedEngine<'lua> {
             other_party: Default::default(),
             dialed_digits: Default::default(),
             called_number: Default::default(),
+            last_dialed_number: Default::default(),
             switchhook_dialing_enabled: config.shd_enabled.unwrap_or(false),
             coin_deposit: RefCell::new(0),
             coin_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
@@ -490,6 +493,7 @@ impl<'lua> CursedEngine<'lua> {
                 self.update_pdd_start();
             },
             (_, CallingOut) => {
+                self.last_dialed_number.replace(Some(self.dialed_digits.borrow().clone()));
                 if let Some(agent) = self.get_other_party_agent() {
                     self.clear_dialed_digits();
                     self.sound_engine.borrow().stop(Channel::SignalIn);

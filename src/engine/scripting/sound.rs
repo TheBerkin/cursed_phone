@@ -1,4 +1,5 @@
 use crate::engine::*;
+use super::lua_error;
 
 impl<'lua> CursedEngine<'lua> {    
     pub(super) fn load_lua_sound_lib(&'static self) -> LuaResult<()> { 
@@ -151,8 +152,12 @@ impl<'lua> CursedEngine<'lua> {
         })?)?;
     
         // sound.play_dtmf_digit(digit, duration, volume)
-        tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit, duration, volume): (u8, f32, f32)| {
-            self.sound_engine.borrow().play_dtmf(digit as char, Duration::from_secs_f32(duration), volume);
+        tbl_sound.set("play_dtmf_digit", lua.create_function(move |_, (digit_str, duration, volume): (String, f64, f32)| {
+            if let Some(digit) = digit_str.chars().next() {
+                self.sound_engine.borrow().play_dtmf(digit, Duration::from_secs_f64(duration), volume);
+            } else {
+                lua_error!("digit string is empty");
+            }
             Ok(())
         })?)?;
     

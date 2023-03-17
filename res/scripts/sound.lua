@@ -174,7 +174,7 @@ if not sound then
     function sound.play_special_info_tone(sit_type) end
 
     --- Plays the specified DTMF digit on `CHAN_SIGOUT`.
-    --- @param digit PhoneDigit
+    --- @param digit string
     --- @param duration number
     --- @param volume number
     function sound.play_dtmf_digit(digit, duration, volume) end

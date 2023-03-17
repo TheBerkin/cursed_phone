@@ -17,17 +17,6 @@ end
 
 --- @type table<string, fun(self: AgentModule, phone_number: string?)>
 local vsc_handlers = {
-    -- Last-Call Return
-    ["69"] = function(self) 
-        local last_call_return_id = phone.last_caller_id()
-        if last_call_return_id then
-            self:log("Returning last call to Agent ID: " .. last_call_return_id)
-        else
-            self:log("No previous caller available for callback")
-        end
-        --- @cast last_call_return_id integer
-        agent.forward_call_id(last_call_return_id)
-    end,
     -- Adjust Volume
     ["11"] = function(self, phone_number)
         sound.play("music/holding02", Channel.PHONE01, { looping = true, fadein = 1 })
@@ -39,7 +28,18 @@ local vsc_handlers = {
                 sound.set_master_volume(volume)
             end
         end
-    end
+    end,
+    -- Last-Call Return
+    ["69"] = function(self) 
+        local last_call_return_id = phone.last_caller_id()
+        if last_call_return_id then
+            self:log("Returning last call to Agent ID: " .. last_call_return_id)
+        else
+            self:log("No previous caller available for callback")
+        end
+        --- @cast last_call_return_id integer
+        agent.forward_call_id(last_call_return_id)
+    end,
 }
 
 --- @type table<CallReason, async fun(self: AgentModule)>
