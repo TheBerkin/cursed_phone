@@ -114,7 +114,7 @@ impl AgentIntent {
             5 => AgentIntent::ReadDigit,
             6 => match intent_data {
                 LuaValue::String(s) => AgentIntent::ForwardCall(String::from(s.to_str().unwrap())),
-                _ => AgentIntent::ForwardCall(String::from("A"))
+                _ => AgentIntent::EndCall
             },
             7 => match intent_data {
                 LuaValue::Integer(n) => AgentIntent::StateEnded(AgentState::from(n as usize)),

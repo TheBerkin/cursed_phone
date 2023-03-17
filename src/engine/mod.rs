@@ -919,14 +919,14 @@ impl<'lua> CursedEngine<'lua> {
                                 match state {
                                     // Transition to idle (hangs up at end of CALL state)
                                     Connected => {
+                                        info!("Agent '{}' has disconnected the call.", agent.name());
                                         agent.transition_state(AgentState::Idle);
-                                        info!("Agent '{}' has disconnected the call.", agent.name())
                                     },
                                     // Caller has given up, disconnect immediately
                                     IdleRinging => {
+                                        info!("Agent '{}' has disconnected the pending call.", agent.name());
                                         agent.transition_state(AgentState::Idle);
                                         self.set_state(PhoneLineState::Idle);
-                                        info!("Agent '{}' has disconnected the pending call.", agent.name())
                                     },
                                     _ => {}
                                 }
@@ -935,18 +935,18 @@ impl<'lua> CursedEngine<'lua> {
                             ForwardCall(destination) => {
                                 match state {
                                     Connected => {
+                                        info!("Agent '{}' forwarded the call to: {}", agent.name(), destination);
                                         // Check if it's a handle
                                         if let Some(agent_name) = destination.strip_prefix('@').map(|name| name.trim()) {
-                                            agent.transition_state(AgentState::Idle);
                                             if let Some(agent) = self.lookup_agent_name(agent_name) {
                                                 self.call_agent(agent);
                                             } else {
                                                 self.call_intercept(CallReason::NumberDisconnected);
                                             }
                                         } else {
-                                            agent.transition_state(AgentState::Idle);
                                             self.call_number(&destination);
                                         }
+                                        agent.transition_state(AgentState::Idle);
                                     },
                                     _ => {}
                                 }
@@ -956,8 +956,12 @@ impl<'lua> CursedEngine<'lua> {
                                 // Don't affect PBX state if the call is already ended
                                 match state {
                                     Connected => {
-                                        // TODO: Allow user to customize behavior when agent ends call
-                                        self.set_state(Busy);
+                                        // Only disconnect the call if this agent is currently on the call
+                                        if let Some(other_party) = self.get_other_party_agent() {
+                                            if other_party.id() == agent.id() {
+                                                self.set_state(Busy);
+                                            }
+                                        }
                                     },
                                     _ => {}
                                 }
