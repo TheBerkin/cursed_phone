@@ -65,6 +65,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Phone ready.");
 
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
+    let mut fps = 0;
+    let mut frame_count = 0;
+    let mut last_fps_check = time::Instant::now();
 
     while is_running.load(Ordering::SeqCst) {
         // Update engine state
@@ -73,10 +76,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine.tick();
         let tick_end = time::Instant::now();
 
-        // Lock tickrate at configured value
-        if let Some(delay) = tick_interval.checked_sub(tick_end.saturating_duration_since(tick_start)) {
-            thread::sleep(delay);
+        frame_count += 1;
+        if tick_end.saturating_duration_since(last_fps_check).as_secs() >= 1 {
+            last_fps_check = tick_end;
+            fps = frame_count;
+            frame_count = 0;
+            info!("fps = {}", fps);
         }
+
+        // Lock tickrate at configured value
+        let frame_time = tick_end.saturating_duration_since(tick_start);
+        let remaining_tick_time = tick_interval.saturating_sub(frame_time);
+        spin_sleep::sleep(remaining_tick_time);
     }
     Ok(())
 }
