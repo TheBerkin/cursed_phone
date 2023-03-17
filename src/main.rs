@@ -14,7 +14,7 @@ use std::env;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::{thread, time};
+use std::time;
 use log::{info, warn};
 use simplelog::{TermLogger, LevelFilter, TerminalMode, ColorChoice};
 use thread_priority::*;
@@ -65,9 +65,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Phone ready.");
 
     let tick_interval = time::Duration::from_secs_f64(1.0f64 / config.tick_rate);
-    let mut fps = 0;
-    let mut frame_count = 0;
-    let mut last_fps_check = time::Instant::now();
 
     while is_running.load(Ordering::SeqCst) {
         // Update engine state
@@ -75,14 +72,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         phone.tick();
         engine.tick();
         let tick_end = time::Instant::now();
-
-        frame_count += 1;
-        if tick_end.saturating_duration_since(last_fps_check).as_secs() >= 1 {
-            last_fps_check = tick_end;
-            fps = frame_count;
-            frame_count = 0;
-            info!("fps = {}", fps);
-        }
 
         // Lock tickrate at configured value
         let frame_time = tick_end.saturating_duration_since(tick_start);
