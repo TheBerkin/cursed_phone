@@ -47,7 +47,7 @@ local reason_handlers = {
     -- Number is invalid or a vertical service code
     [CallReason.REDIRECTED] = function(self)
         local vsc
-        local phone_number = agent.caller_dialed_number()
+        local phone_number = phone.call_dialed_number()
         local vsc_handled = false
         repeat
             vsc, phone_number = split_vsc(phone_number)

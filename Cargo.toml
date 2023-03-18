@@ -13,6 +13,7 @@ codegen-units = 1
 # lto = true
 
 [features]
+devmode = []
 rpi = ["rppal"]
 no-log = ["log/release_max_level_off", "log/max_level_off"]
 

@@ -9,7 +9,6 @@
         "sound",
         "cron",
         "toll",
-        "_caller_dialed_number_impl",
         "_NATIVE_STUB"
     ],
     "Lua.runtime.version": "LuaJIT",

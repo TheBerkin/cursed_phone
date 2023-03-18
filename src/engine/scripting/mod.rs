@@ -1,6 +1,6 @@
 
 use super::*;
-use std::{cmp, error::Error, fmt::Display, collections::BTreeSet};
+use std::{cmp, error::Error, fmt::Display, collections::{BTreeSet, HashSet}};
 use log::info;
 use perlin2d::PerlinNoise2D;
 use rand::distributions::Uniform;
@@ -48,6 +48,8 @@ impl<'lua> CursedEngine<'lua> {
 
         let globals = &lua.globals();
 
+        globals.set("DEVMODE", cfg!(feature = "devmode"));
+
         // Override print()
         globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
 
@@ -63,6 +65,7 @@ impl<'lua> CursedEngine<'lua> {
         globals.set("rand_normal", lua.create_function(Self::lua_rand_normal)?)?;
         globals.set("rand_digit", lua.create_function(Self::lua_rand_digit)?)?;
         globals.set("rand_unique_codes", lua.create_function(Self::lua_rand_unique_codes)?)?;
+        globals.set("rand_unique_ints", lua.create_function(Self::lua_rand_unique_ints_i)?)?;
         globals.set("chance", lua.create_function(Self::lua_chance)?)?;
         globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
 
@@ -91,11 +94,6 @@ impl<'lua> CursedEngine<'lua> {
                 }
             }
             Ok(())
-        })?)?;
-
-        // _caller_dialed_number_impl()
-        globals.set("_caller_dialed_number_impl", lua.create_function(move |_, ()| {
-            return Ok(self.called_number.borrow().clone())
         })?)?;
 
         // ====================================================
@@ -168,6 +166,31 @@ impl<'lua> CursedEngine<'lua> {
                 let code_len = rng.gen_range(len_min..=len_max);
                 let code_candidate: String = rng.clone().sample_iter(distr).take(code_len).map(|c| char::from_digit(c, 10).unwrap()).collect();
                 if set.insert(code_candidate) {
+                    break
+                }
+            }
+        }
+        lua.create_table_from(set.into_iter().enumerate())
+    }
+
+    fn lua_rand_unique_ints_i(lua: &Lua, (n, min, max): (usize, i64, i64)) -> LuaResult<LuaTable> {
+        if min > max {
+            lua_error!("rand_unique_ints_i: min code length cannot be greater than max")
+        }
+
+        let range_size = (max - min + 1) as usize;
+
+        if n > range_size {
+            lua_error!("rand_unique_ints_i: element count ({}) is greater than number of possible values ({})", n, range_size)
+        }
+
+        let distr = Uniform::new_inclusive::<i64, i64>(min, max);
+        let mut set = HashSet::new();
+        let mut rng = rand::thread_rng();
+        for _ in 0..n {
+            loop {
+                let candidate = rng.sample(distr);
+                if set.insert(candidate) {
                     break
                 }
             }

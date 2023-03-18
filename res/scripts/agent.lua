@@ -115,15 +115,6 @@ local _AgentModule_MEMBERS = {
         transition_agent_state(self, state)
     end,
     get_state = function(self) return self._state end,
-    --- Sets the phone states during whick the idle tick will be executed.
-    ---
-    --- If this function is not called on a agent module, idle ticks will be allowed during all phone states.
-    --- @vararg PhoneStateCode
-    set_idle_tick_during = function(self, ...) -- TODO: Implement set_idle_tick_during()
-        local states = {...}
-        -- (Is it even really worth doing any sanity checks here?)
-        self._idle_tick_phone_states = states
-    end,
     --- Enables or disables the ringback tone when calling the agent.
     --- @param enabled boolean
     set_ringback_enabled = function(self, enabled)
@@ -481,16 +472,6 @@ function agent.do_task_while(task, predicate)
             last_response_code, last_response_data = agent.intent(intent, intent_data)
         end
     end
-end
-
---- Returns the number that was used to reach the current agent.
----
---- For intercept agents, this can be any value.
---- @return string
---- @nodiscard
-function agent.caller_dialed_number()
-    assert_agent_caller()
-    return _caller_dialed_number_impl()
 end
 
 --- @async

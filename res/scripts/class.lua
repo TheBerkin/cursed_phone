@@ -4,10 +4,11 @@ local metatable_class_names = {}
 --- @type table<string, table>
 local class_metatables = {}
 
+--- @generic T
 --- @param name string @ The name to register for the class.
---- @param t table? @ The member table for the class.
---- @return table @ The member table for the class.
---- @return fun(instance: table?): table @ The instantiation function for the class.
+--- @param t T? @ The member table for the class.
+--- @return T @ The member table for the class.
+--- @return fun(instance: T?): T @ The instantiation function for the class.
 --- @return table @ The metatable for the class.
 function class(name, t)
     local c = t or {}
