@@ -33,9 +33,6 @@ type Orc<T> = Option<Rc<T>>;
 /// `Rc<RefCell<T>>`
 type RcRefCell<T> = Rc<RefCell<T>>;
 
-// Pulse dialing digits
-const PULSE_DIAL_DIGITS: &[u8] = b"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 const DEFAULT_FIRST_PULSE_DELAY_MS: u64 = 200;
 
 type AgentId = usize;
@@ -56,11 +53,6 @@ pub enum PhoneLineState {
     Connected,
     /// The phone is off-hook, no call is connected, and the line is transmitting a busy signal.
     Busy
-}
-
-#[inline]
-fn pulses_to_digit(pulse_count: usize) -> Option<char> {
-    PULSE_DIAL_DIGITS.get(pulse_count.saturating_sub(1)).map(|d| *d as char)
 }
 
 /// A Lua-powered telephone exchange that loads,
@@ -562,6 +554,11 @@ impl<'lua> CursedEngine<'lua> {
         self.dialed_digits.borrow_mut().push(digit);
     }
 
+    #[inline]
+    fn pulses_to_digit(&self, pulse_count: usize) -> Option<char> {
+        self.config.rotary.digit_layout.chars().nth(pulse_count)
+    }
+
     /// Called when the engine receives a pulse from the host's rotary dial.
     #[inline]
     fn handle_rotary_pulse(&self) {
@@ -703,9 +700,10 @@ impl<'lua> CursedEngine<'lua> {
                 _ => {
                     // When dial moves to resting, dial digit according to pulse count
                     let digit_num = self.pending_pulse_count.take();
-                    if digit_num < PULSE_DIAL_DIGITS.len() && digit_num > 0 {
-                        let digit = PULSE_DIAL_DIGITS[digit_num - 1] as char;
-                        self.handle_host_digit(digit);
+                    if digit_num < self.config.rotary.digit_layout.len() && digit_num > 0 {
+                        if let Some(digit) = self.pulses_to_digit(digit_num - 1) {
+                            self.handle_host_digit(digit);
+                        }
                     }
                 }
             }
@@ -807,7 +805,7 @@ impl<'lua> CursedEngine<'lua> {
             } else {
                 if self.rotary_resting.get() && self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_manual_pulse_interval {
                     // Dial the digit and clear the pulse counter
-                    if let Some(digit) = pulses_to_digit(self.pending_pulse_count.get()) {
+                    if let Some(digit) = self.pulses_to_digit(self.pending_pulse_count.get().saturating_sub(1)) {
                         self.handle_host_digit(digit);
                     }
                     self.pending_pulse_count.replace(0);

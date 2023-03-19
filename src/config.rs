@@ -73,6 +73,9 @@ pub struct CursedConfig {
 pub struct RotaryDialConfig {
     pub enabled: bool,
 
+    /// Describes the digit mapping for pulse dialing, sorted by pulse count.
+    pub digit_layout: String,
+
     /// Delay (in milliseconds) between dial leaving resting state and first valid pulse.
     pub first_pulse_delay_ms: Option<ms>,
 
