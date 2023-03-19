@@ -1,6 +1,3 @@
---- @class GlobalRng
-rand = {}
-
 local rng_static = newrng()
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum.
@@ -73,4 +70,4 @@ function rand64() return rng_static:bits_64() end
 --- Returns a boolean value with probability `p` of being true, where `0.0 <= p <= 1.0`.
 --- @param p number
 --- @return boolean
-function maybe(p) return rng_static:chance(p) end
+function maybe(p) return rng_static:maybe(p) end

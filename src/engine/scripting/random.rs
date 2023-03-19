@@ -40,7 +40,7 @@ impl LuaUserData for LuaRandom {
         });
         methods.add_method_mut("int_skip", |_, this, (min, skip, max): (i64, i64, i64)| -> LuaResult<i64> {
             if min >= max {
-                return Ok(min);
+                lua_error!("max must be greater than min")
             }
             if skip < min || skip > max {
                 Ok(this.0.gen_range(min..max))
@@ -99,7 +99,7 @@ impl LuaUserData for LuaRandom {
             }
             lua.create_table_from(set.into_iter().enumerate())
         });
-        methods.add_method_mut("chance", |_, this, p: f64| {
+        methods.add_method_mut("maybe", |_, this, p: f64| {
             match p {
                 p if {p < 0.0 || p.is_nan()} => Ok(false),
                 p if {p > 1.0} => Ok(true),

@@ -79,4 +79,4 @@ function Rng:bits_64() end
 --- Returns a boolean value with probability `p` of being true, where `0.0 <= p <= 1.0`.
 --- @param p number
 --- @return boolean
-function Rng:chance(p) end
+function Rng:maybe(p) end
