@@ -713,6 +713,14 @@ impl<'lua> CursedEngine<'lua> {
         }
     }
 
+    fn set_line_muted(&'lua self, muted: bool) {
+        let mut sound_engine = self.sound_engine.borrow_mut();
+
+        for ch in crate::sound::NON_SOUL_CHANNELS {
+            sound_engine.set_muted(*ch, muted);
+        }
+    }
+
     #[inline]
     fn handle_hook_state_change(&'lua self, on_hook: bool) {
         use PhoneLineState::*;
@@ -720,6 +728,9 @@ impl<'lua> CursedEngine<'lua> {
         let hook_change_time = Instant::now();
         self.switchhook_change_time.replace(hook_change_time);
         self.switchhook_closed.replace(on_hook);
+        
+        self.set_line_muted(on_hook);
+
         if on_hook {
             info!("Switchhook CLOSED");
             match state {

@@ -80,10 +80,11 @@ impl From<usize> for Channel {
     }
 }
 
-const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, NoiseIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
-const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10] };
-const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
-const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
+pub const ALL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, NoiseIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Soul1, Soul2, Soul3, Soul4, Bg1, Bg2, Bg3, Bg4, Debug] };
+pub const PHONE_CHANNELS: &[Channel] = { use Channel::*; &[Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10] };
+pub const SOUL_CHANNELS: &[Channel] = { use Channel::*; &[Soul1, Soul2, Soul3, Soul4] };
+pub const BG_CHANNELS: &[Channel] = { use Channel::*; &[Bg1, Bg2, Bg3, Bg4] };
+pub const NON_SOUL_CHANNELS: &[Channel] = { use Channel::*; &[SignalIn, NoiseIn, SignalOut, Phone01, Phone02, Phone03, Phone04, Phone05, Phone06, Phone07, Phone08, Phone09, Phone10, Bg1, Bg2, Bg3, Bg4, Debug] };
 
 // DTMF tone constants
 const DTMF_COLUMN_FREQUENCIES: &[f32] = &[1209.0, 1336.0, 1477.0, 1633.0];
