@@ -30,7 +30,7 @@ end
 
 --- Returns a random element from `t`.
 function table.random_choice(t)
-    return t[rand_int(1, #t + 1)]
+    return t[randi(1, #t + 1)]
 end
 
 --- Shuffles the ordered elements of `t`.
@@ -38,7 +38,7 @@ end
 function table.shuffle(t)
     local n = #t
     for i = 1, n do
-        local i2 = rand_int_i(1, n)
+        local i2 = irandi(1, n)
         local v = t[i]
         local v2 = t[i2]
         t[i2] = v

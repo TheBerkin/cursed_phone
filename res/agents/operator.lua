@@ -16,7 +16,7 @@ module:state(AgentState.CALL, {
 
 module:state(AgentState.CALL_IN, {
     tick = function(self)
-        agent.wait(rand_float(1.0, 3.0))
+        agent.wait(randf(1.0, 3.0))
         agent.accept_call()
     end
 })

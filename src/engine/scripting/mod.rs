@@ -1,13 +1,15 @@
+use crate::engine::scripting::random::LuaRandom;
 
 use super::*;
-use std::{cmp, error::Error, fmt::Display, collections::{BTreeSet, HashSet}};
+use std::{error::Error, fmt::Display};
 use log::info;
 use perlin2d::PerlinNoise2D;
-use rand::distributions::Uniform;
+use rand::RngCore;
 
 mod cron;
 mod gpio;
 mod phone;
+mod random;
 mod sound;
 mod toll;
 
@@ -50,23 +52,14 @@ impl<'lua> CursedEngine<'lua> {
 
         globals.set("DEVMODE", cfg!(feature = "devmode"));
 
+        globals.set("newrng", lua.create_function(move |_, seed: Option<u64>| {
+            Ok(LuaRandom::with_seed(seed.unwrap_or_else(|| rand::thread_rng().next_u64())))
+        })?)?;
+
         // Override print()
         globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
 
         // Global engine functions
-        globals.set("rand_int", lua.create_function(Self::lua_rand_int)?)?;
-        globals.set("rand_int_i", lua.create_function(Self::lua_rand_int_i)?)?;
-        globals.set("rand_int_skip", lua.create_function(Self::lua_rand_int_skip)?)?;
-        globals.set("rand_int_normal", lua.create_function(Self::lua_rand_int_normal)?)?;
-        globals.set("rand_int_bias_low", lua.create_function(Self::lua_rand_int_bias_low)?)?;
-        globals.set("rand_int_bias_high", lua.create_function(Self::lua_rand_int_bias_high)?)?;
-        globals.set("rand_int32", lua.create_function(Self::lua_rand_int32)?)?;
-        globals.set("rand_float", lua.create_function(Self::lua_rand_float)?)?;
-        globals.set("rand_normal", lua.create_function(Self::lua_rand_normal)?)?;
-        globals.set("rand_digit", lua.create_function(Self::lua_rand_digit)?)?;
-        globals.set("rand_unique_codes", lua.create_function(Self::lua_rand_unique_codes)?)?;
-        globals.set("rand_unique_ints", lua.create_function(Self::lua_rand_unique_ints_i)?)?;
-        globals.set("chance", lua.create_function(Self::lua_chance)?)?;
         globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
 
         globals.set("engine_time", lua.create_function(move |_, ()| {
@@ -131,143 +124,5 @@ impl<'lua> CursedEngine<'lua> {
         let perlin = PerlinNoise2D::new(octaves, 1.0, frequency, persistence, lacunarity, (1.0, 1.0), 0.0, seed);
         let noise = perlin.get_noise(x, y);
         Ok(noise)
-    }
-
-    fn lua_rand_int(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
-        if min >= max {
-            return Ok(min);
-        }
-        Ok(rand::thread_rng().gen_range(min..max))
-    }
-
-    fn lua_rand_int_i(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
-        if min > max {
-            return Ok(min);
-        }
-        Ok(rand::thread_rng().gen_range(min..=max))
-    }
-
-    fn lua_rand_digit(_: &Lua, n: Option<usize>) -> LuaResult<String> {
-        let n = n.unwrap_or(1);
-        let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
-        let digits: String = rand::thread_rng().sample_iter(distr).take(n).map(|c| char::from_digit(c, 10).unwrap()).collect();
-        Ok(digits)
-    }
-
-    fn lua_rand_unique_codes(lua: &Lua, (n, len_min, len_max): (usize, usize, usize)) -> LuaResult<LuaTable> {
-        if len_min > len_max {
-            lua_error!("rand_unique_codes: min code length cannot be greater than max")
-        }
-        let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
-        let mut set = BTreeSet::new();
-        let mut rng = rand::thread_rng();
-        for _ in 0..n {
-            loop {
-                let code_len = rng.gen_range(len_min..=len_max);
-                let code_candidate: String = rng.clone().sample_iter(distr).take(code_len).map(|c| char::from_digit(c, 10).unwrap()).collect();
-                if set.insert(code_candidate) {
-                    break
-                }
-            }
-        }
-        lua.create_table_from(set.into_iter().enumerate())
-    }
-
-    fn lua_rand_unique_ints_i(lua: &Lua, (n, min, max): (usize, i64, i64)) -> LuaResult<LuaTable> {
-        if min > max {
-            lua_error!("rand_unique_ints_i: min code length cannot be greater than max")
-        }
-
-        let range_size = (max - min + 1) as usize;
-
-        if n > range_size {
-            lua_error!("rand_unique_ints_i: element count ({}) is greater than number of possible values ({})", n, range_size)
-        }
-
-        let distr = Uniform::new_inclusive::<i64, i64>(min, max);
-        let mut set = HashSet::new();
-        let mut rng = rand::thread_rng();
-        for _ in 0..n {
-            loop {
-                let candidate = rng.sample(distr);
-                if set.insert(candidate) {
-                    break
-                }
-            }
-        }
-        lua.create_table_from(set.into_iter().enumerate())
-    }
-
-    fn lua_rand_int_bias_low(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
-        if min >= max {
-            return Ok(min);
-        }
-        let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
-        Ok(cmp::min(a, b))
-    }
-
-    fn lua_rand_int_bias_high(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
-        if min >= max {
-            return Ok(max);
-        }
-        let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
-        Ok(cmp::max(a, b))
-    }
-
-    fn lua_rand_int_normal(_: &Lua, (min, max): (i64, i64)) -> LuaResult<i64> {
-        if min >= max {
-            return Ok(max);
-        }
-        let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
-        Ok((a + b) / 2)
-    }
-
-    fn lua_rand_int_skip(_: &Lua, (min, skip, max): (i32, i32, i32)) -> LuaResult<i32> {
-        if min >= max {
-            return Ok(min);
-        }
-        if skip < min || skip > max {
-            Ok(rand::thread_rng().gen_range(min..max))
-        } else {
-            let range_size: i64 = (max as i64) - (min as i64);
-            if range_size > 1 {
-                let range_select = rand::thread_rng().gen_range(1..range_size) % range_size;
-                let output = min as i64 + range_select;
-                Ok(output as i32)
-            } else {
-                Ok(rand::thread_rng().gen_range(min..max))
-            }
-        }
-    }
-
-    fn lua_rand_int32(_: &Lua, _: ()) -> LuaResult<i32> {
-        Ok(rand::thread_rng().gen())
-    }
-
-    fn lua_rand_float(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
-        if min >= max {
-            return Ok(min);
-        }
-        Ok(rand::thread_rng().gen_range(min..max))
-    }
-
-    fn lua_rand_normal(_: &Lua, (min, max): (f64, f64)) -> LuaResult<f64> {
-        if min >= max {
-            return Ok(min)
-        }
-        let mut rng = rand::thread_rng();
-        let (a, b) = (rng.gen_range(min..max), rng.gen_range(min..max));
-        Ok((a + b) / 2.0)
-    }
-
-    fn lua_chance(_: &Lua, p: f64) -> LuaResult<bool> {
-        match p {
-            p if {p < 0.0 || p.is_nan()} => Ok(false),
-            p if {p > 1.0} => Ok(true),
-            p => Ok(rand::thread_rng().gen_bool(p))
-        }
     }
 }

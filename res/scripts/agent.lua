@@ -398,13 +398,13 @@ function agent.chance_interval(interval, p, timeout)
     local start_time = engine_time()
     local last_interval_start_time = start_time
 
-    if interval > 0 and chance(p) then return end
+    if interval > 0 and maybe(p) then return end
 
     while not timeout or engine_time() - start_time < timeout do
         local time = engine_time()
         if time - last_interval_start_time > interval then
             last_interval_start_time = last_interval_start_time + interval
-            if chance(p) then return end
+            if maybe(p) then return end
         end
         agent.intent(IntentCode.WAIT)
     end
