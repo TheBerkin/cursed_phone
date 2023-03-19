@@ -556,7 +556,7 @@ impl<'lua> CursedEngine<'lua> {
 
     #[inline]
     fn pulses_to_digit(&self, pulse_count: usize) -> Option<char> {
-        self.config.rotary.digit_layout.chars().nth(pulse_count)
+        self.config.rotary.digit_layout.chars().nth(pulse_count.saturating_sub(1))
     }
 
     /// Called when the engine receives a pulse from the host's rotary dial.
@@ -700,10 +700,8 @@ impl<'lua> CursedEngine<'lua> {
                 _ => {
                     // When dial moves to resting, dial digit according to pulse count
                     let digit_num = self.pending_pulse_count.take();
-                    if digit_num < self.config.rotary.digit_layout.len() && digit_num > 0 {
-                        if let Some(digit) = self.pulses_to_digit(digit_num - 1) {
-                            self.handle_host_digit(digit);
-                        }
+                    if let Some(digit) = self.pulses_to_digit(digit_num) {
+                        self.handle_host_digit(digit);
                     }
                 }
             }
@@ -805,7 +803,7 @@ impl<'lua> CursedEngine<'lua> {
             } else {
                 if self.rotary_resting.get() && self.pending_pulse_count.get() > 0 && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_manual_pulse_interval {
                     // Dial the digit and clear the pulse counter
-                    if let Some(digit) = self.pulses_to_digit(self.pending_pulse_count.get().saturating_sub(1)) {
+                    if let Some(digit) = self.pulses_to_digit(self.pending_pulse_count.get()) {
                         self.handle_host_digit(digit);
                     }
                     self.pending_pulse_count.replace(0);
