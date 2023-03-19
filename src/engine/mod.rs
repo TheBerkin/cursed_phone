@@ -145,7 +145,8 @@ fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: VfsPath, agents_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
-        let lua = Lua::new();
+        let lua_stdlib_flags = LuaStdLib::MATH | LuaStdLib::STRING | LuaStdLib::TABLE | LuaStdLib::BIT | if cfg!(feature = "devmode") { LuaStdLib::DEBUG } else { LuaStdLib::NONE };
+        let lua = Lua::new_with(lua_stdlib_flags, Default::default()).expect("failed to create Lua context");
         let now = Instant::now();
         
         Self {

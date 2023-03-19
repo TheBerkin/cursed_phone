@@ -1,3 +1,5 @@
+--- @meta
+
 --- Provides an interface for accessing GPIO pins.
 --- @class GpioLib
 gpio = {}
