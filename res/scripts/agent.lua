@@ -70,259 +70,18 @@ AgentRole = {
 --- @field package _sound_bank_states AgentState[]
 --- @field package _required_sound_banks table<string, boolean>
 --- @field package _custom_ring_pattern RingPattern?
-local AgentModule = {}
+local C_AgentModule = {}
 
 local M_AgentModule = {
-    __index = AgentModule
+    __index = C_AgentModule
 }
 
-function AgentModule:tick(data_code, data)
-    local status, state, continuation = tick_agent_state(self, data_code, data)
-    return status, state, continuation
-end
-
-function AgentModule:transition(state)
-    if state == self._state then return end
-    transition_agent_state(self, state)
-end
-
-function AgentModule:get_state() return self._state end
-
---- Enables or disables the ringback tone when calling the agent.
---- @param enabled boolean
-function AgentModule:set_ringback_enabled(enabled)
-    self._ringback_enabled = enabled
-end
-
---- Sets the load handler for the agent.
---- This handler runs as soon as the agent module has finished loading.
---- @param handler fun(self: AgentModule)
-function AgentModule:on_load(handler)
-    assert(type(handler) == 'function', "Handler must be a function")
-    self._on_load = handler
-end
-
---- Sets the unload handler for the agent.
---- This handler runs before the agent module has been unloaded on engine shutdown.
---- @param handler fun(self: AgentModule)
-function AgentModule:on_unload(handler)
-    assert(type(handler) == 'function', "Handler must be a function")
-    self._on_unload = handler
-end
-
---- Starts the agent's state machine, if it isn't already started.
-function AgentModule:start()
-    if self._state_coroutine then return false end
-    transition_agent_state(self, AgentState.IDLE)
-    return true
-end
-
---- Sends a message to another agent.
---- @param dest_name string
---- @param msg_type AgentMessageKey
---- @param msg_data any?
-function AgentModule:send(dest_name, msg_type, msg_data)
-    assert(msg_type ~= nil, "Message type cannot be nil")
-
-    local dest_messages = agent_messages[dest_name]
-
-    if not dest_messages then
-        log.warn_caller(1, "Tried to write to nonexistent message queue: '" .. dest_name .. "'")
-        return
-    end
-
-    local msg = {
-        sender = self._name,
-        type = msg_type,
-        data = msg_data
-    }
-    table.insert(dest_messages, msg)
-end
-
---- Adds a function table for the specified state code.
---- @param state AgentState
---- @param func_table StateFunctionTable
-function AgentModule:state(state, func_table)
-    --- @diagnostic disable-next-line: undefined-field
-    self._state_func_tables[state] = func_table
-end
-
---- Convenience function that calls `state` to configure a `CALL_IN` state that immediately accepts all calls.
-function AgentModule:accept_all_calls() 
-    self:state(AgentState.CALL_IN, {
-        enter = function(self)
-            task.accept_call()
-        end
-    })
-end
-
-function AgentModule:suspend()
-    self._is_suspended = true
-end
-
-function AgentModule:resume()
-    self._is_suspended = false
-end
-
-function AgentModule:is_suspended()
-    return self._is_suspended
-end
-
---- Clear any pending messages.
-function AgentModule:clear_messages()
-    table.clear(self._messages)
-end
-
---- Sets the call reason.
---- @param reason CallReason
-function AgentModule:set_call_reason(reason)
-    self._call_reason = reason
-end
-
---- @return CallReason
-function AgentModule:get_call_reason()
-    return self._call_reason
-end
-
---- Sets the price to call the agent in payphone mode.
---- @param price number
-function AgentModule:set_custom_price(price)
-    assert(is_number(price), "Price must be a number.")
-    self._has_custom_price = true
-    self._custom_price = price
-end
-
---- Check if the agent has pending messages.
---- @return boolean
-function AgentModule:has_messages()
-    return #self._messages > 0
-end
-
---- Removes the oldest message from the queue and returns it.
---- If the message queue is empty, the function returns nil.
---- @return AgentMessage?
-function AgentModule:pop_message()
-    local messages = self._messages
-    local msgc = #messages
-    if msgc == 0 then return nil end
-    local msg = table.remove(messages, 1)
-    return msg
-end
-
---- Requires the specified sound bank during calls.
---- @param bank_name string
-function AgentModule:require_sound_bank(bank_name)
-    self._required_sound_banks[bank_name] = true
-end
-
---- Sets the agent states during which required sound banks will be loaded.
---- @vararg AgentState | AgentState[]?
-function AgentModule:set_sound_banks_loaded_during(...)
-    local state_args = {...}
-    local set = {}
-    for _, states in pairs(state_args) do
-        local t_states = type(states)
-        if t_states == 'table' then
-            for k, v in pairs(states) do
-                set[v] = true
-            end
-        elseif t_states == 'number' or t_states == 'integer' then
-            set[states] = true
-        end
-    end
-    self._sound_bank_states = set
-end
-
---- Sets the ring pattern this agent uses when they call the host.
---- @param expr string?
-function AgentModule:set_custom_ring_pattern(expr)
-    expr = expr or RING_PATTERN_DEFAULT
-    assert(type(expr) == 'string', "Ring pattern must be a string", 2)
-    local success, pattern = phone.compile_ring_pattern(expr)
-    if success then
-        --- @cast pattern RingPattern
-        self._custom_ring_pattern = pattern
-    else
-        log.warn(string.format("Failed to parse custom ring pattern: '%s'", expr))
-        self._custom_ring_pattern = nil
-    end
-end
-
-function AgentModule:id()
-    --- Gets the ID of the current agent. 
-    --- Can't be called during module initialization as agents are only assigned IDs afterwards.
-    return self._id
-end
-
-local function handler_stub() end
-
---- @package
---- Generates an agent state machine coroutine.
---- @param new_state AgentState
---- @param old_state AgentState
---- @return thread
-function AgentModule:gen_state_coroutine(new_state, old_state)
-    local state_coroutine = coroutine.create(function()
-        local old_func_table = self._state_func_tables[old_state]
-        local new_func_table = self._state_func_tables[new_state]
-    
-        local on_enter = new_func_table and new_func_table.enter or handler_stub
-        local on_tick = new_func_table and new_func_table.tick or handler_stub
-        local prev_on_exit = old_func_table and old_func_table.exit or handler_stub
-    
-        prev_on_exit(self)
-    
-        -- Emit state-end intent
-        if old_state then
-            coroutine.yield(IntentCode.STATE_END, old_state)
-        end
-    
-        -- Load/unload sound banks as needed
-        set_agent_sounds_loaded(self._id, self._sound_bank_states[new_state] ~= nil)
-    
-        on_enter(self)
-        while true do
-            on_tick(self)
-            task.intent(IntentCode.YIELD)
-        end
-    end)
-    ACTIVE_AGENT_MACHINES[state_coroutine] = state_coroutine
-    return state_coroutine
-end
-
---- @package
---- @param msg AgentMessage
---- @return thread?
-function AgentModule:gen_msg_handler_coroutine(msg)
-    local state_table = self._state_func_tables[self._state]
-    local handler = state_table and state_table.message
-    local handler_type = type(handler)
-    local handler_func
-
-    if handler_type == 'function' then
-        handler_func = handler
-    elseif handler_type == 'table' then
-        handler_func = handler[msg.type]
-    else
-        return nil
-    end
-
-    if type(handler_func) ~= 'function' then return nil end
-
-    local msg_coroutine = coroutine.create(function()
-        handler_func(self, msg.sender, msg.type, msg.data)
-        self._message_coroutine = nil
-    end)
-
-    return msg_coroutine
-end
-
---- Returns an empty phone agent module.
+--- Creates a new phone agent module.
 --- @param name string @ The display name of the phone agent
 --- @param phone_number string? @ The number associated with the phone agent
 --- @param role AgentRole? @ The role of the agent in the system; defaults to regular role
 --- @return AgentModule
-function new_agent(name, phone_number, role)
+function AgentModule(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
 
     -- Create message queue for agent
@@ -354,6 +113,247 @@ function new_agent(name, phone_number, role)
     agent:set_sound_banks_loaded_during(AgentState.CALL_OUT, AgentState.CALL)
 
     return agent
+end
+
+function C_AgentModule:tick(data_code, data)
+    local status, state, continuation = tick_agent_state(self, data_code, data)
+    return status, state, continuation
+end
+
+function C_AgentModule:transition(state)
+    if state == self._state then return end
+    transition_agent_state(self, state)
+end
+
+function C_AgentModule:get_state() return self._state end
+
+--- Enables or disables the ringback tone when calling the agent.
+--- @param enabled boolean
+function C_AgentModule:set_ringback_enabled(enabled)
+    self._ringback_enabled = enabled
+end
+
+--- Sets the load handler for the agent.
+--- This handler runs as soon as the agent module has finished loading.
+--- @param handler fun(self: AgentModule)
+function C_AgentModule:on_load(handler)
+    assert(type(handler) == 'function', "Handler must be a function")
+    self._on_load = handler
+end
+
+--- Sets the unload handler for the agent.
+--- This handler runs before the agent module has been unloaded on engine shutdown.
+--- @param handler fun(self: AgentModule)
+function C_AgentModule:on_unload(handler)
+    assert(type(handler) == 'function', "Handler must be a function")
+    self._on_unload = handler
+end
+
+--- Starts the agent's state machine, if it isn't already started.
+function C_AgentModule:start()
+    if self._state_coroutine then return false end
+    transition_agent_state(self, AgentState.IDLE)
+    return true
+end
+
+--- Sends a message to another agent.
+--- @param dest_name string
+--- @param msg_type AgentMessageKey
+--- @param msg_data any?
+function C_AgentModule:send(dest_name, msg_type, msg_data)
+    assert(msg_type ~= nil, "Message type cannot be nil")
+
+    local dest_messages = agent_messages[dest_name]
+
+    if not dest_messages then
+        log.warn_caller(1, "Tried to write to nonexistent message queue: '" .. dest_name .. "'")
+        return
+    end
+
+    local msg = {
+        sender = self._name,
+        type = msg_type,
+        data = msg_data
+    }
+    table.insert(dest_messages, msg)
+end
+
+--- Adds a function table for the specified state code.
+--- @param state AgentState
+--- @param func_table StateFunctionTable
+function C_AgentModule:state(state, func_table)
+    --- @diagnostic disable-next-line: undefined-field
+    self._state_func_tables[state] = func_table
+end
+
+--- Convenience function that calls `state` to configure a `CALL_IN` state that immediately accepts all calls.
+function C_AgentModule:accept_all_calls() 
+    self:state(AgentState.CALL_IN, {
+        enter = function(self)
+            task.accept_call()
+        end
+    })
+end
+
+function C_AgentModule:suspend()
+    self._is_suspended = true
+end
+
+function C_AgentModule:resume()
+    self._is_suspended = false
+end
+
+function C_AgentModule:is_suspended()
+    return self._is_suspended
+end
+
+--- Clear any pending messages.
+function C_AgentModule:clear_messages()
+    table.clear(self._messages)
+end
+
+--- Sets the call reason.
+--- @param reason CallReason
+function C_AgentModule:set_call_reason(reason)
+    self._call_reason = reason
+end
+
+--- @return CallReason
+function C_AgentModule:get_call_reason()
+    return self._call_reason
+end
+
+--- Sets the price to call the agent in payphone mode.
+--- @param price number
+function C_AgentModule:set_custom_price(price)
+    assert(is_number(price), "Price must be a number.")
+    self._has_custom_price = true
+    self._custom_price = price
+end
+
+--- Check if the agent has pending messages.
+--- @return boolean
+function C_AgentModule:has_messages()
+    return #self._messages > 0
+end
+
+--- Removes the oldest message from the queue and returns it.
+--- If the message queue is empty, the function returns nil.
+--- @return AgentMessage?
+function C_AgentModule:pop_message()
+    local messages = self._messages
+    local msgc = #messages
+    if msgc == 0 then return nil end
+    local msg = table.remove(messages, 1)
+    return msg
+end
+
+--- Requires the specified sound bank during calls.
+--- @param bank_name string
+function C_AgentModule:require_sound_bank(bank_name)
+    self._required_sound_banks[bank_name] = true
+end
+
+--- Sets the agent states during which required sound banks will be loaded.
+--- @vararg AgentState | AgentState[]?
+function C_AgentModule:set_sound_banks_loaded_during(...)
+    local state_args = {...}
+    local set = {}
+    for _, states in pairs(state_args) do
+        local t_states = type(states)
+        if t_states == 'table' then
+            for k, v in pairs(states) do
+                set[v] = true
+            end
+        elseif t_states == 'number' or t_states == 'integer' then
+            set[states] = true
+        end
+    end
+    self._sound_bank_states = set
+end
+
+--- Sets the ring pattern this agent uses when they call the host.
+--- @param expr string?
+function C_AgentModule:set_custom_ring_pattern(expr)
+    expr = expr or RING_PATTERN_DEFAULT
+    assert(type(expr) == 'string', "Ring pattern must be a string", 2)
+    local success, pattern = phone.compile_ring_pattern(expr)
+    if success then
+        --- @cast pattern RingPattern
+        self._custom_ring_pattern = pattern
+    else
+        log.warn(string.format("Failed to parse custom ring pattern: '%s'", expr))
+        self._custom_ring_pattern = nil
+    end
+end
+
+function C_AgentModule:id()
+    --- Gets the ID of the current agent. 
+    --- Can't be called during module initialization as agents are only assigned IDs afterwards.
+    return self._id
+end
+
+local function handler_stub() end
+
+--- @package
+--- Generates an agent state machine coroutine.
+--- @param new_state AgentState
+--- @param old_state AgentState
+--- @return thread
+function C_AgentModule:gen_state_coroutine(new_state, old_state)
+    local state_coroutine = coroutine.create(function()
+        local old_func_table = self._state_func_tables[old_state]
+        local new_func_table = self._state_func_tables[new_state]
+    
+        local on_enter = new_func_table and new_func_table.enter or handler_stub
+        local on_tick = new_func_table and new_func_table.tick or handler_stub
+        local prev_on_exit = old_func_table and old_func_table.exit or handler_stub
+    
+        prev_on_exit(self)
+    
+        -- Emit state-end intent
+        if old_state then
+            coroutine.yield(IntentCode.STATE_END, old_state)
+        end
+    
+        -- Load/unload sound banks as needed
+        set_agent_sounds_loaded(self._id, self._sound_bank_states[new_state] ~= nil)
+    
+        on_enter(self)
+        while true do
+            on_tick(self)
+            task.intent(IntentCode.YIELD)
+        end
+    end)
+    ACTIVE_AGENT_MACHINES[state_coroutine] = state_coroutine
+    return state_coroutine
+end
+
+--- @package
+--- @param msg AgentMessage
+--- @return thread?
+function C_AgentModule:gen_msg_handler_coroutine(msg)
+    local state_table = self._state_func_tables[self._state]
+    local handler = state_table and state_table.message
+    local handler_type = type(handler)
+    local handler_func
+
+    if handler_type == 'function' then
+        handler_func = handler
+    elseif handler_type == 'table' then
+        handler_func = handler[msg.type]
+    else
+        return nil
+    end
+
+    if type(handler_func) ~= 'function' then return nil end
+
+    local msg_coroutine = coroutine.create(function()
+        handler_func(self, msg.sender, msg.type, msg.data)
+        self._message_coroutine = nil
+    end)
+
+    return msg_coroutine
 end
 
 --- Transitions to the specified state on a agent.

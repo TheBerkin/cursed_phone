@@ -1,8 +1,8 @@
-local module = new_agent("beyond", "2402")
+local agent = AgentModule("beyond", "2402")
 
-module:require_sound_bank("beyond")
+agent:require_sound_bank("beyond")
 
-module:state(AgentState.CALL_IN, {
+agent:state(AgentState.CALL_IN, {
     enter = function(self)
         task.wait(randf(2, 8))
         task.accept_call()
@@ -65,7 +65,7 @@ local function do_chimes()
     end
 end
 
-module:state(AgentState.CALL, {
+agent:state(AgentState.CALL, {
     enter = function(self)
         if self:get_call_reason() == CallReason.USER_INIT then
             sound.play("handset/pickup*", Channel.PHONE01, { skip = randf(0, 0.3) })
@@ -97,4 +97,4 @@ module:state(AgentState.CALL, {
     end
 })
 
-return module
+return agent

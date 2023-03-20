@@ -1,8 +1,8 @@
-local module = new_agent("intercept", nil, AgentRole.INTERCEPT)
+local agent = AgentModule("intercept", nil, AgentRole.INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 
-module:set_ringback_enabled(false)
+agent:set_ringback_enabled(false)
 
 function split_vsc(phone_number)
     if not phone_number then return nil, nil end
@@ -90,14 +90,14 @@ local reason_handlers = {
 }
 
 -- Immediately answer calls
-module:state(AgentState.CALL_IN, {
+agent:state(AgentState.CALL_IN, {
     enter = function(self)
         task.accept_call()
     end
 })
 
 -- Call handler for intercept reason
-module:state(AgentState.CALL, {
+agent:state(AgentState.CALL, {
     enter = function(self)
     end,
     tick = function(self)
@@ -111,4 +111,4 @@ module:state(AgentState.CALL, {
     end
 })
 
-return module
+return agent

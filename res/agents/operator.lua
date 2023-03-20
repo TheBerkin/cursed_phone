@@ -1,7 +1,7 @@
-local module = new_agent("operator", "0")
-module:set_custom_price(0)
+local agent = AgentModule("operator", "0")
+agent:set_custom_price(0)
 
-module:state(AgentState.CALL, {
+agent:state(AgentState.CALL, {
     enter = function(self)
         -- TODO: Implement Operator
         while true do
@@ -14,11 +14,11 @@ module:state(AgentState.CALL, {
 })
 
 
-module:state(AgentState.CALL_IN, {
+agent:state(AgentState.CALL_IN, {
     tick = function(self)
         task.wait(randf(1.0, 3.0))
         task.accept_call()
     end
 })
 
-return module
+return agent
