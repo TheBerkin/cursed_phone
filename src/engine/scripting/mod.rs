@@ -59,7 +59,7 @@ impl<'lua> CursedEngine<'lua> {
 
         // Override print()
         globals.set("print", lua.create_function(move |lua, values: LuaMultiValue| {
-            Self::lua_log_print(lua, values, log::Level::Info);
+            Self::lua_log_print(lua, values, log::Level::Info, 0);
             Ok(())
         })?)?;
 
@@ -110,10 +110,10 @@ impl<'lua> CursedEngine<'lua> {
         Ok(())
     }
 
-    fn lua_log_print(lua: &Lua, values: LuaMultiValue, level: log::Level) -> LuaResult<()> {
+    fn lua_log_print(lua: &Lua, values: LuaMultiValue, level: log::Level, stack_level: usize) -> LuaResult<()> {
         let mut buffer = String::new();
         
-        if let Some(debug_info) = lua.inspect_stack(1) {
+        if let Some(debug_info) = lua.inspect_stack(stack_level.saturating_add(1)) {
             let src_name = debug_info.source().source.map(String::from_utf8_lossy).unwrap_or_default();
             let msg = format!("[{}:{}] ", src_name, debug_info.curr_line());
             buffer.push_str(msg.as_str());

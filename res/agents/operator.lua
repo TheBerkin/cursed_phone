@@ -1,11 +1,11 @@
-local module = create_agent("operator", "0")
+local module = new_agent("operator", "0")
 module:set_custom_price(0)
 
 module:state(AgentState.CALL, {
     enter = function(self)
         -- TODO: Implement Operator
         while true do
-            local digit = agent.read_digit()
+            local digit = task.read_digit()
             log.info("Got digit '" .. digit .. "'")
         end
     end,
@@ -16,8 +16,8 @@ module:state(AgentState.CALL, {
 
 module:state(AgentState.CALL_IN, {
     tick = function(self)
-        agent.wait(randf(1.0, 3.0))
-        agent.accept_call()
+        task.wait(randf(1.0, 3.0))
+        task.accept_call()
     end
 })
 

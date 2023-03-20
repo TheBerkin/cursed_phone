@@ -4,7 +4,6 @@
         "lowercase-global"
     ],
     "Lua.diagnostics.globals": [
-        "agent",
         "phone",
         "sound",
         "cron",

@@ -87,10 +87,10 @@ ALL_BG_CHANNELS = { Channel.BG01, Channel.BG02, Channel.BG03, Channel.BG04 }
 function sound.play_wait(path, channel, opts, wait_time_offset)
     local success, duration = sound.play(path, channel, opts)
     if wait_time_offset and duration then
-        agent.wait(duration + wait_time_offset)
+        task.wait(duration + wait_time_offset)
     else
         while sound.is_busy(channel) do
-            agent.intent(IntentCode.WAIT)
+            task.intent(IntentCode.WAIT)
         end
     end
 end
@@ -113,7 +113,7 @@ function sound.play_wait_cancel(path, channel, predicate, opts)
     if not predicate or predicate() then return end
     sound.play(path, channel, opts)
     while not predicate() and sound.is_busy(channel) do
-        agent.intent(IntentCode.WAIT)
+        task.intent(IntentCode.WAIT)
     end
     if not opts or opts.early_stop == nil or opts.early_stop == true then
         sound.stop(channel)
@@ -147,7 +147,7 @@ function sound.fade_out(channels, duration)
                 local fade_volume = math.lerp(1, 0, progress, true)
                 sound.set_channel_fade_volume(channels, fade_volume)
             end
-            agent.intent(IntentCode.WAIT)
+            task.intent(IntentCode.WAIT)
         end    
     elseif channel_type == 'table' then
         while true do
@@ -173,7 +173,7 @@ function sound.fade_out(channels, duration)
     
                 if not is_any_channel_busy then return end
             end
-            agent.intent(IntentCode.WAIT)
+            task.intent(IntentCode.WAIT)
         end
     else
         error("Input channels must be either integer or table", 2)
@@ -187,7 +187,7 @@ end
 --- @param channel Channel @ The channel to wait for.
 function sound.wait(channel)
     while sound.is_busy(channel) do
-        agent.intent(IntentCode.WAIT)
+        task.intent(IntentCode.WAIT)
     end
 end
 
@@ -202,7 +202,7 @@ end
 function sound.wait_min(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) or engine_time() - start_time < duration do
-        agent.intent(IntentCode.WAIT)
+        task.intent(IntentCode.WAIT)
     end
 end
 
@@ -217,6 +217,6 @@ end
 function sound.wait_max(channel, duration)
     local start_time = engine_time();
     while sound.is_busy(channel) and engine_time() - start_time < duration do
-        agent.intent(IntentCode.WAIT)
+        task.intent(IntentCode.WAIT)
     end
 end

@@ -8,15 +8,27 @@ impl<'lua> CursedEngine<'lua> {
         let tbl_log = lua.create_table().unwrap();
 
         tbl_log.set("info", lua.create_function(move |lua, args: LuaMultiValue| {
-            Self::lua_log_print(lua, args, log::Level::Info)
+            Self::lua_log_print(lua, args, log::Level::Info, 0)
+        })?)?;
+
+        tbl_log.set("info_caller", lua.create_function(move |lua, (level, args): (usize, LuaMultiValue)| {
+            Self::lua_log_print(lua, args, log::Level::Info, level)
         })?)?;
 
         tbl_log.set("warn", lua.create_function(move |lua, args: LuaMultiValue| {
-            Self::lua_log_print(lua, args, log::Level::Warn)
+            Self::lua_log_print(lua, args, log::Level::Warn, 0)
+        })?)?;
+
+        tbl_log.set("warn_caller", lua.create_function(move |lua, (level, args): (usize, LuaMultiValue)| {
+            Self::lua_log_print(lua, args, log::Level::Warn, level)
         })?)?;
 
         tbl_log.set("error", lua.create_function(move |lua, args: LuaMultiValue| {
-            Self::lua_log_print(lua, args, log::Level::Error)
+            Self::lua_log_print(lua, args, log::Level::Error, 0)
+        })?)?;
+
+        tbl_log.set("error_caller", lua.create_function(move |lua, (level, args): (usize, LuaMultiValue)| {
+            Self::lua_log_print(lua, args, log::Level::Error, level)
         })?)?;
 
         globals.set("log", tbl_log)?;

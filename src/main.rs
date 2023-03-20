@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let is_running_c = Arc::clone(&is_running);
     
     ctrlc::set_handler(move || {
-        info!("Ctrl+C detected; shutting down.");
+        eprintln!("\nCtrl+C detected; shutting down.");
         is_running_c.store(false, Ordering::SeqCst);
     }).expect("unable to set ctrl-c handler");
     

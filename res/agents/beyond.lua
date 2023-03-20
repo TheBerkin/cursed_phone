@@ -1,24 +1,24 @@
-local module = create_agent("beyond", "2402")
+local module = new_agent("beyond", "2402")
 
 module:require_sound_bank("beyond")
 
 module:state(AgentState.CALL_IN, {
     enter = function(self)
-        agent.wait(randf(2, 8))
-        agent.accept_call()
+        task.wait(randf(2, 8))
+        task.accept_call()
     end
 })
 
 --- @async
 local function do_lightning()
-    agent.wait(randf(0, 5))
+    task.wait(randf(0, 5))
     sound.play_wait("$beyond/lightning_*", Channel.PHONE07, {
         volume = randf(0.05, 0.4),
         speed = randf(0.8, 1.1),
         skip = randf(0, 10)
     })
     while true do
-        agent.wait(randf(5, 50))
+        task.wait(randf(5, 50))
         sound.play_wait("$beyond/lightning_*", Channel.PHONE07, {
             volume = randf(0.05, 0.4),
             speed = randf(0.8, 1.1)
@@ -28,7 +28,7 @@ end
 
 --- @async
 local function do_seagulls()
-    agent.wait(randf(0, 5))
+    task.wait(randf(0, 5))
     sound.play_wait("$beyond/seagulls_*", Channel.PHONE06, {
         volume = randf(0.05, 0.1),
         speed = randf(0.9, 1.2),
@@ -36,7 +36,7 @@ local function do_seagulls()
         fadein = 2
     })
     while true do
-        agent.wait(randf(5, 40))
+        task.wait(randf(5, 40))
         sound.play_wait("$beyond/seagulls_*", Channel.PHONE06, {
             volume = randf(0.05, 0.1),
             speed = randf(0.9, 1.2),
@@ -47,7 +47,7 @@ end
 
 --- @async
 local function do_chimes()
-    agent.wait(randf(0, 5))
+    task.wait(randf(0, 5))
     sound.play_wait("$beyond/chimes_*", Channel.PHONE08, {
         volume = randf(0.01, 0.025),
         speed = randf(0.9, 1.05),
@@ -55,7 +55,7 @@ local function do_chimes()
         fadein = 3
     })
     while true do
-        agent.wait(randf(5, 20))
+        task.wait(randf(5, 20))
         sound.play_wait("$beyond/chimes_*", Channel.PHONE08, {
             volume = randf(0.01, 0.025),
             speed = randf(0.9, 1.05),
@@ -93,7 +93,7 @@ module:state(AgentState.CALL, {
             looping = true
         })
 
-        agent.multi_task(do_lightning, do_seagulls, do_chimes)
+        task.parallel(do_lightning, do_seagulls, do_chimes)
     end
 })
 

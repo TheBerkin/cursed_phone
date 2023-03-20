@@ -1,4 +1,4 @@
-local module = create_agent("intercept", nil, AgentRole.INTERCEPT)
+local module = new_agent("intercept", nil, AgentRole.INTERCEPT)
 
 local MAX_MESSAGE_TIME = 30
 
@@ -21,7 +21,7 @@ local vsc_handlers = {
     ["11"] = function(self, phone_number)
         sound.play("music/holding02", Channel.PHONE01, { looping = true, fadein = 1 })
         while true do 
-            local volume_raw = tonumber(agent.read_digit())
+            local volume_raw = tonumber(task.read_digit())
             if volume_raw then
                 local volume = volume_raw / 9.0
                 log.info("Adjusting volume to " .. (volume * 100) .. "%")
@@ -38,7 +38,7 @@ local vsc_handlers = {
             log.warn("No previous caller available for callback")
         end
         --- @cast last_call_return_id integer
-        agent.forward_call_id(last_call_return_id)
+        task.forward_call_id(last_call_return_id)
     end,
 }
 
@@ -62,15 +62,15 @@ local reason_handlers = {
         until (not vsc)
         
         if vsc_handled and phone_number and #phone_number > 0 then
-            agent.forward_call(phone_number)
+            task.forward_call(phone_number)
         end
 
         sound.play_special_info_tone(SpecialInfoTone.INTERCEPT)
         sound.wait(Channel.SIG_IN)
-        agent.wait(0.05)
+        task.wait(0.05)
         sound.play_wait("intercept/intercept_disconnected_*", Channel.PHONE01)
         sound.play_fast_busy_tone()
-        agent.wait()
+        task.wait()
     end,
 
     -- Phone was left off the hook
@@ -81,18 +81,18 @@ local reason_handlers = {
 
         while not cancel_func() do
             sound.play_wait_cancel("intercept/intercept_timeout_message_01", Channel.PHONE01, cancel_func)
-            agent.wait_cancel(10, cancel_func)
+            task.wait_cancel(10, cancel_func)
         end
 
         sound.play_off_hook_tone()
-        agent.wait()
+        task.wait()
     end
 }
 
 -- Immediately answer calls
 module:state(AgentState.CALL_IN, {
     enter = function(self)
-        agent.accept_call()
+        task.accept_call()
     end
 })
 

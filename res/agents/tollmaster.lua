@@ -1,4 +1,4 @@
-local module = create_agent('toll', nil, AgentRole.TOLLMASTER)
+local module = new_agent('toll', nil, AgentRole.TOLLMASTER)
 
 local NAG_TONE_VOLUME = 0.5
 
@@ -16,7 +16,7 @@ module:state(AgentState.IDLE, {
             sound.play("toll/nag_extend_call", Channel.BG01)
             sound.wait_min(Channel.BG01, 10.0)
         end
-        agent.wait(1)
+        task.wait(1)
         
     end
 })

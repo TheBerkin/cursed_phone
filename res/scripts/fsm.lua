@@ -53,7 +53,7 @@ local function gen_transition_coroutine(fsm, prev_state_key, next_state_key)
         -- Don't let the coroutine die until a transition happens
         if next_state_key ~= FSM_EXIT then
             while true do
-                agent.yield()
+                task.yield()
             end
         end
     end)
@@ -102,10 +102,10 @@ end
 function Fsm:tick()
     local success, intent_code, intent_data, continuation = coroutine.resume(self._coroutine, self._last_response_code, self._last_response_data)
     if not success then
-        agent.yield()
+        task.yield()
         return false
     end
-    self._last_response_code, self._last_response_data = agent.intent(intent_code, intent_data, continuation)
+    self._last_response_code, self._last_response_data = task.intent(intent_code, intent_data, continuation)
     return true
 end
 
@@ -131,7 +131,7 @@ function Fsm:transition(to)
         self._on_transition(self, from_state_key, to)
     end
 
-    if called_by_fsm then agent.yield() end
+    if called_by_fsm then task.yield() end
     return true
 end
 

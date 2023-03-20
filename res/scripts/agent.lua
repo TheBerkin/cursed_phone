@@ -9,9 +9,6 @@
     
 ]]
 
---- Exposes functions to interact with and control the current agent.
-agent = {}
-
 local RING_PATTERN_DEFAULT = 'Q2000 L4000'
 
 local ACTIVE_AGENT_MACHINES = {}
@@ -40,40 +37,6 @@ AgentState = {
     CALL_IN = 2,
     --- Agent is in a call.
     CALL = 3
-}
-
---- @enum IntentCode
---- Defines intent types that an agent can send to the engine.
-IntentCode = {
-    --- Agent performed no action.
-    YIELD = 0,
-    --- Agent wants to accept an incoming call.
-    ACCEPT_CALL = 1,
-    --- Agent wants to end an ongoing call.
-    END_CALL = 2,
-    --- Agent wants to call the user.
-    CALL_USER = 3,
-    --- Agent is waiting for an operation to complete.
-    WAIT = 4,
-    --- Agent wants to read a digit from the user.
-    READ_DIGIT = 5,
-    --- Agent wants to forward the call to a specific phone number or agent handle.
-    FORWARD_CALL = 6,
-    --- Agent wants to end its current state and transition to another one.
-    STATE_END = 7,
-}
-
---- @enum IntentResponseCode
---- Defines response codes that an agent can receive after sending an intent.
-IntentResponseCode = {
-    --- Indicates no data was received.
-    NONE = 0,
-    --- Indicates a dialed digit.
-    DIGIT = 1,
-    --- Indicates that the line is currently busy.
-    LINE_BUSY = 2,
-    --- Indicates that a phrase was recognized.
-    SPEECH = 3,
 }
 
 --- @enum AgentRole
@@ -105,7 +68,7 @@ AgentRole = {
 --- @field _sound_bank_states AgentState[]
 --- @field _required_sound_banks table<string, boolean>
 --- @field _custom_ring_pattern RingPattern?
-local _AgentModule_MEMBERS = {
+local AgentModule = {
     tick = function(self, data_code, data)
         local status, state, continuation = tick_agent_state(self, data_code, data)
         return status, state, continuation
@@ -150,7 +113,7 @@ local _AgentModule_MEMBERS = {
         local dest_messages = agent_messages[dest_name]
 
         if not dest_messages then
-            print("WARN: Tried to write to nonexistent message queue: '" .. dest_name .. "'")
+            log.warn_caller(1, "Tried to write to nonexistent message queue: '" .. dest_name .. "'")
             return
         end
 
@@ -174,7 +137,7 @@ local _AgentModule_MEMBERS = {
     accept_all_calls = function(self) 
         self:state(AgentState.CALL_IN, {
             enter = function(self)
-                agent.accept_call()
+                task.accept_call()
             end
         })
     end,
@@ -260,19 +223,17 @@ local _AgentModule_MEMBERS = {
             log.warn(string.format("Failed to parse custom ring pattern: '%s'", expr))
             self._custom_ring_pattern = nil
         end
-    end
-}
-
-local M_AgentModule = {
-    __index = function(self, index)
-        return _AgentModule_MEMBERS[index]
     end,
     --- Gets the ID of the current agent. 
     --- Can't be called during module initialization as agents are only assigned IDs afterwards.
     id = function(self)
         assert_agent_caller()
-        return self._id
+        return rawget(self, "_id")
     end
+}
+
+local M_AgentModule = {
+    __index = AgentModule
 }
 
 --- Returns an empty phone agent module.
@@ -280,7 +241,7 @@ local M_AgentModule = {
 --- @param phone_number string? @ The number associated with the phone agent
 --- @param role AgentRole? @ The role of the agent in the system; defaults to regular role
 --- @return AgentModule
-function create_agent(name, phone_number, role)
+function new_agent(name, phone_number, role)
     assert(type(name) == 'string', "Invalid agent name: expected string, but found " .. type(name))
 
     -- Create message queue for agent
@@ -314,265 +275,6 @@ function create_agent(name, phone_number, role)
     return module
 end
 
---- @async
---- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
---- @param intent IntentCode
---- @param intent_data any?
---- @param should_continue boolean?
---- @return IntentResponseCode, any
-function agent.intent(intent, intent_data, should_continue)
-    assert_agent_caller()
-    local data_code, response_data = coroutine.yield(intent, intent_data, should_continue or false)
-    return (data_code or IntentResponseCode.NONE), response_data
-end
-
---- @async
---- Asynchronously waits the specified number of seconds, or forever if no duration is specified.
---- @param seconds number?
-function agent.wait(seconds)
-    assert_agent_caller()
-    if seconds ~= nil then
-        local start_time = engine_time()
-        while engine_time() - start_time < seconds do
-            agent.intent(IntentCode.WAIT)
-        end
-    else
-        while true do
-            agent.intent(IntentCode.WAIT)
-        end
-    end
-end
-
---- @async
---- Asynchronously waits for a dynamic number of seconds determined by calling the supplied function every tick.
---- Stops as soon as the last returned duration exceeds the current waiting time.
---- @param duration_func fun(): number @ The function that returns the amount of time to wait.
-function agent.wait_dynamic(duration_func)
-    assert_agent_caller()
-    local start_time = engine_time()
-    while true do
-        local current_duration = duration_func()
-        if is_number(current_duration) and engine_time() - start_time >= current_duration then return end
-        agent.intent(IntentCode.WAIT)
-    end
-end
-
---- @async
---- Asynchronously waits the specified number of seconds or until the specified function returns true.
---- @param seconds number
---- @param predicate fun(): boolean
---- @return boolean @ Indicates whether the predicate returned true and canceled the waiting period.
-function agent.wait_cancel(seconds, predicate)
-    if predicate then
-        local start_time = engine_time()
-        while engine_time() - start_time < seconds do
-            if predicate() then return true end
-            agent.intent(IntentCode.WAIT)
-        end
-    else
-        agent.wait(seconds)
-    end
-    return false
-end
-
---- @async
---- Asynchronously waits until the specified function returns true. Function is called once per agent tick.
---- @param predicate function
-function agent.wait_until(predicate)
-    assert_agent_caller()
-    while not predicate() do
-        agent.intent(IntentCode.WAIT)
-    end
-end
-
---- @async
---- @param interval number
---- @param p number
---- @param timeout number?
-function agent.chance_interval(interval, p, timeout)
-    local start_time = engine_time()
-    local last_interval_start_time = start_time
-
-    if interval > 0 and maybe(p) then return end
-
-    while not timeout or engine_time() - start_time < timeout do
-        local time = engine_time()
-        if time - last_interval_start_time > interval then
-            last_interval_start_time = last_interval_start_time + interval
-            if maybe(p) then return end
-        end
-        agent.intent(IntentCode.WAIT)
-    end
-end
-
---- @async
---- @overload fun()
---- @overload fun(n: integer)
---- Yields control from the current agent to the caller, optionally specifying a custom number of ticks to yield for.
----
---- Calling this function with `n > 1` is especially useful for rate-limiting computationally expensive tasks.
---- @param n integer? @ Indicates how many ticks to yield for. If excluded, yields once.
-function agent.yield(n)
-    assert_agent_caller()
-    if n then
-        for i = 1, n do
-            coroutine.yield(IntentCode.YIELD)
-        end
-    else
-        coroutine.yield(IntentCode.YIELD)
-    end
-end
-
---- @async
---- Runs multiple agent tasks in parallel.
---- @param ... function
-function agent.multi_task(...)
-    local coroutines = table.map({...}, function(f) return {
-        co = coroutine.create(f),
-        last_response_code = IntentResponseCode.NONE,
-        last_response_data = nil
-    } end)
-
-    while true do
-        local tasks_running = false
-        local task_count = #coroutines
-
-        for i = 1, task_count do
-            local state = coroutines[i]
-            if coroutine.status(state.co) ~= 'dead' then
-                local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
-                tasks_running = true
-                if success then
-                    local response_code, response_data = agent.intent(intent, intent_data, i < task_count)
-                    state.last_response_code = response_code
-                    state.last_response_data = response_data
-                end
-            end
-        end
-        if not tasks_running then return end
-    end
-end
-
---- @async
---- Runs a task until the specified predicate (run every tick) returns a falsy value or the task ends on its own.
---- @param task async fun()
---- @param predicate fun(): boolean
-function agent.do_task_while(task, predicate)
-    local co = coroutine.create(task)
-    local last_response_code = IntentResponseCode.NONE
-    local last_response_data = nil
-
-    while predicate() do
-        if coroutine.status(co) == 'dead' then return end
-        local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
-        if success then
-            last_response_code, last_response_data = agent.intent(intent, intent_data)
-        end
-    end
-end
-
---- @async
---- Repeats a task until the specified predicate (run before each iteration) returns a falsy value.
---- If no predicate is specified, runs forever.
---- @param task async fun(delta_time: number)
---- @param predicate (fun(): boolean)?
-function agent.loop_task(task, predicate)
-    local time_prev = engine_time()
-    local time_current = engine_time()
-    
-    while not predicate or predicate() do
-        local co = coroutine.create(task)
-        local last_response_code = IntentResponseCode.NONE
-        local last_response_data = nil
-        local delta_time = time_current - time_prev
-        local yielded = false
-
-        coroutine.resume(co, delta_time)
-
-        while true do
-            if coroutine.status(co) == 'dead' then break end
-            local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
-            if success then
-                last_response_code, last_response_data = agent.intent(intent, intent_data)
-                yielded = true
-            end
-        end
-
-        time_prev = time_current
-        time_current = engine_time()
-        if not yielded then agent.yield() end
-    end
-end
-
---- @async
---- Forwards the call to the specified number or agent handle (agent name prefixed with `@`).
---- @param destination string @ The phone number or agent handle to forward to
-function agent.forward_call(destination)
-    agent.intent(IntentCode.FORWARD_CALL, destination)
-end
-
---- @async
---- Starts a call with the user, if the line is open.
---- @return boolean
-function agent.start_call()
-    assert_agent_caller()
-    local data_code = agent.intent(IntentCode.CALL_USER)
-    return data_code ~= IntentResponseCode.LINE_BUSY
-end
-
---- @async
---- Accepts a pending call.
-function agent.accept_call()
-    assert_agent_caller()
-    coroutine.yield(IntentCode.ACCEPT_CALL)
-end
-
---- @async
---- Ends the call.
-function agent.end_call()
-    assert_agent_caller()
-    coroutine.yield(IntentCode.END_CALL)
-end
-
---- @async
---- Asynchronously waits for the user to dial a digit, then returns the digit as a string.
---- If a timeout is specified, and no digit is entered within that time, this function returns `nil`.
---- @param timeout number? @ The maximum amount of time in seconds to poll for.
---- @return string?
-function agent.read_digit(timeout)
-    assert_agent_caller()
-    local timed = is_number(timeout) and timeout > 0
-    if timed then
-        local start_time = engine_time()
-        while engine_time() - start_time < timeout do
-            local data_code, data = agent.intent(IntentCode.READ_DIGIT)
-            if data_code == IntentResponseCode.DIGIT and type(data) == "string" then
-                return data
-            end
-        end
-        return nil
-    else
-        while true do
-            local data_code, data = agent.intent(IntentCode.READ_DIGIT)
-            if data_code == IntentResponseCode.DIGIT and type(data) == "string" then
-                return data
-            end
-        end
-    end
-end
-
---- @async
-function agent.read_digits(digit_count, digit_timeout)
-    assert_agent_caller()
-    local digits = ""
-    while #digits < digit_count do 
-        local next_digit = agent.read_digit(digit_timeout)
-        if not next_digit then return nil end
-        digits = digits .. next_digit
-    end
-    return digits
-end
-
 local function handler_stub() end
 
 --- Generates an agent state machine coroutine.
@@ -602,7 +304,7 @@ local function gen_state_coroutine(a, new_state, old_state)
         on_enter(a)
         while true do
             on_tick(a)
-            agent.intent(IntentCode.YIELD)
+            task.intent(IntentCode.YIELD)
         end
     end)
     ACTIVE_AGENT_MACHINES[state_coroutine] = state_coroutine
