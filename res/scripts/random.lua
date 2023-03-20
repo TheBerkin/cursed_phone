@@ -1,4 +1,4 @@
-local rng_static = newrng()
+local rng_static = Rng()
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum.
 --- @param min integer

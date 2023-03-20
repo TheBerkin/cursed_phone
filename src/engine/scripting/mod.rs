@@ -52,20 +52,16 @@ impl<'lua> CursedEngine<'lua> {
         let globals = &lua.globals();
 
         globals.set("DEVMODE", cfg!(feature = "devmode"));
-
-        globals.set("newrng", lua.create_function(move |_, seed: Option<u64>| {
-            Ok(LuaRandom::with_seed(seed.unwrap_or_else(|| rand::thread_rng().next_u64())))
-        })?)?;
-
+        
         // Override print()
         globals.set("print", lua.create_function(move |lua, values: LuaMultiValue| {
             Self::lua_log_print(lua, values, log::Level::Info, 0);
             Ok(())
         })?)?;
-
+        
         // Global engine functions
         globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
-
+        
         globals.set("engine_time", lua.create_function(move |_, ()| {
             let run_time = self.start_time.elapsed().as_secs_f64();
             Ok(run_time)
@@ -79,7 +75,7 @@ impl<'lua> CursedEngine<'lua> {
                 _ => Ok(0.0)
             }
         })?)?;
-
+        
         // set_agent_sounds_loaded(agent_id, loaded)
         globals.set("set_agent_sounds_loaded", lua.create_function(move |_, (agent_id, load): (AgentId, bool)| {
             let sound_engine = &self.sound_engine;
@@ -92,7 +88,11 @@ impl<'lua> CursedEngine<'lua> {
             }
             Ok(())
         })?)?;
-
+        
+        globals.set("Rng", lua.create_function(move |_, seed: Option<u64>| {
+            Ok(LuaRandom::with_seed(seed.unwrap_or_else(|| rand::thread_rng().next_u64())))
+        })?)?;
+        
         // ====================================================
         // ============= OTHER ENGINE LIBRARIES ===============
         // ====================================================
