@@ -35,30 +35,27 @@ impl LuaCronSchedule {
     }
 }
 
-impl LuaUserData for LuaCronSchedule {}
+impl LuaUserData for LuaCronSchedule {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        methods.add_method("tick", |_, this, ()| {
+            if let Some(triggered) = this.tick() {
+                return Ok((true, Some(triggered)))
+            } else {
+                return Ok((false, None))
+            }
+        })
+    }
+}
 
 impl<'lua> CursedEngine<'lua> {    
     pub(super) fn load_lua_cron_lib(&'static self) -> LuaResult<()> { 
         let lua = &self.lua;
         let globals = &lua.globals();
 
-        let tbl_cron = lua.create_table()?;
-
-        // cron.create(expr)
-        tbl_cron.set("create", lua.create_function(move |_, expr: String| {
-            return Ok(LuaCronSchedule::new(expr.as_str()))
+        globals.set("CronSchedule", lua.create_function(|_, expr: String| {
+            Ok(LuaCronSchedule::new(expr.as_str()))
         })?)?;
 
-        // cron.tick(schedule)
-        tbl_cron.set("tick", lua.create_function(move |_, schedule: LuaCronSchedule| {
-            if let Some(triggered) = schedule.tick() {
-                return Ok((true, Some(triggered)))
-            } else {
-                return Ok((false, None))
-            }
-        })?)?;
-
-        globals.set("cron", tbl_cron)?;
         Ok(())
     }
 }
