@@ -110,6 +110,8 @@ pub struct CursedEngine<'lua> {
     coin_consume_delay: Duration,
     /// Last known state of the host's switchhook.
     switchhook_closed: Cell<bool>,
+    /// Locked status of the switchhook.
+    switchhook_locked: Cell<bool>,
     /// Time of the last staet change of the host's switchhook.
     switchhook_change_time: Cell<Instant>,
     /// Number of host pulses since last dialed digit.
@@ -137,8 +139,10 @@ fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: VfsPath, agents_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
-        let lua_stdlib_flags = LuaStdLib::MATH | LuaStdLib::STRING | LuaStdLib::TABLE | LuaStdLib::BIT | if cfg!(feature = "devmode") { LuaStdLib::DEBUG } else { LuaStdLib::NONE };
+        let lua_stdlib_flags = LuaStdLib::MATH | LuaStdLib::STRING | LuaStdLib::TABLE | LuaStdLib::BIT;
+
         let lua = Lua::new_with(lua_stdlib_flags, Default::default()).expect("failed to create Lua context");
+
         let now = Instant::now();
         
         Self {
@@ -169,6 +173,7 @@ impl<'lua> CursedEngine<'lua> {
             time_credit: Default::default(),
             switchhook_change_time: Cell::new(now),
             switchhook_closed: Cell::new(true),
+            switchhook_locked: Cell::new(false),
             pending_pulse_count: Default::default(),
             rotary_resting: Cell::new(true),
             rotary_dial_lift_time: Cell::new(now),
@@ -721,24 +726,38 @@ impl<'lua> CursedEngine<'lua> {
         }
     }
 
-    #[inline]
-    fn handle_hook_state_change(&'lua self, on_hook: bool) {
+    pub fn is_switchhook_locked(&'lua self) -> bool {
+        self.switchhook_locked.get()
+    }
+
+    pub fn set_switchhook_locked(&'lua self, is_locked: bool) {
+        if self.switchhook_locked.replace(is_locked) != is_locked {
+            info!("Switchhook {}", if is_locked { "LOCKED" } else { "UNLOCKED" });
+            if !is_locked {
+                self.handle_hook_state_change(self.switchhook_closed.get(), true);
+            }
+        }
+    }
+
+    fn handle_hook_state_change(&'lua self, on_hook: bool, force: bool) {
         use PhoneLineState::*;
         let state = self.state();
         let hook_change_time = Instant::now();
+        let is_locked = self.switchhook_locked.get();
+        if !force && self.switchhook_closed.replace(on_hook) == on_hook { return }
         self.switchhook_change_time.replace(hook_change_time);
-        self.switchhook_closed.replace(on_hook);
         
-        self.set_line_muted(on_hook);
+        if !is_locked {
+            self.set_line_muted(on_hook);
+        }
 
         if on_hook {
             info!("Switchhook CLOSED");
             match state {
                 Idle | IdleRinging => {}
                 _ => {
-
                     // Only hang up the call immediately if switchhook dialing is disabled
-                    if !self.switchhook_dialing_enabled {
+                    if !is_locked && !self.switchhook_dialing_enabled {
                         self.set_state(PhoneLineState::Idle);
                     }
                 }
@@ -749,14 +768,18 @@ impl<'lua> CursedEngine<'lua> {
             match state {
                 // Picking up idle phone
                 Idle => {
-                    self.set_state(PhoneLineState::DialTone);
+                    if !is_locked {
+                        self.set_state(PhoneLineState::DialTone);
+                    }
                 },
                 // Answering a call
                 IdleRinging => {
-                    info!("Connecting call.");
-                    // Connect the call
-                    self.add_time_credit(Duration::MAX);
-                    self.set_state(PhoneLineState::Connected);
+                    if !is_locked {
+                        info!("Connecting call.");
+                        // Connect the call
+                        self.add_time_credit(Duration::MAX);
+                        self.set_state(PhoneLineState::Connected);
+                    }
                 },
                 _ => {
                     if self.switchhook_dialing_enabled {
@@ -774,7 +797,7 @@ impl<'lua> CursedEngine<'lua> {
             while let Ok(signal) = phone_input.try_recv() {
                 use PhoneInputSignal::*;
                 match signal {
-                    HookState(on_hook) => self.handle_hook_state_change(on_hook),
+                    HookState(on_hook) => self.handle_hook_state_change(on_hook, false),
                     RotaryDialRest(resting) => self.handle_rotary_rest_state(resting),
                     RotaryDialPulse => self.handle_rotary_pulse(),
                     Digit(digit) => {
@@ -804,9 +827,9 @@ impl<'lua> CursedEngine<'lua> {
         // Handle switchhook dialing and delayed hangups
         if self.switchhook_dialing_enabled {
             let time_since_last_switchhook_change = now.duration_since(self.switchhook_change_time.get());
-            if self.switchhook_closed.get() && !matches!(self.state(), PhoneLineState::Idle | PhoneLineState::IdleRinging) {
+            if  self.switchhook_closed.get() && !matches!(self.state(), PhoneLineState::Idle | PhoneLineState::IdleRinging) {
                 // If the phone is on the hook long enough, hang up the call
-                if time_since_last_switchhook_change.as_secs_f32() > self.config.shd_hangup_delay {
+                if !self.switchhook_locked.get() && time_since_last_switchhook_change.as_secs_f32() > self.config.shd_hangup_delay {
                     self.pending_pulse_count.replace(0);
                     self.set_state(PhoneLineState::Idle);
                     return

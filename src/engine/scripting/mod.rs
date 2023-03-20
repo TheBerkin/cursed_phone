@@ -2,13 +2,14 @@ use crate::engine::scripting::random::LuaRandom;
 
 use super::*;
 use std::{error::Error, fmt::Display};
-use log::info;
+use log;
 use perlin2d::PerlinNoise2D;
 use rand::RngCore;
 
 mod cron;
 mod gpio;
 mod phone;
+mod logging;
 mod random;
 mod sound;
 mod toll;
@@ -57,7 +58,10 @@ impl<'lua> CursedEngine<'lua> {
         })?)?;
 
         // Override print()
-        globals.set("print", lua.create_function(CursedEngine::lua_print)?)?;
+        globals.set("print", lua.create_function(move |lua, values: LuaMultiValue| {
+            Self::lua_log_print(lua, values, log::Level::Info);
+            Ok(())
+        })?)?;
 
         // Global engine functions
         globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
@@ -98,6 +102,7 @@ impl<'lua> CursedEngine<'lua> {
         self.load_lua_phone_lib()?;
         self.load_lua_sound_lib()?;
         self.load_lua_toll_lib()?;
+        self.load_lua_log_lib()?;
 
         // Run API scripts
         self.run_scripts_in_path(self.scripts_root.clone())?;
@@ -105,18 +110,27 @@ impl<'lua> CursedEngine<'lua> {
         Ok(())
     }
 
-    fn lua_print(lua: &Lua, values: LuaMultiValue) -> LuaResult<()> {
+    fn lua_log_print(lua: &Lua, values: LuaMultiValue, level: log::Level) -> LuaResult<()> {
         let mut buffer = String::new();
-        let tostring: LuaFunction = lua.globals().raw_get("tostring").unwrap();
-        for val in values.iter() {
-            if buffer.len() > 0 {
+        
+        if let Some(debug_info) = lua.inspect_stack(1) {
+            let src_name = debug_info.source().source.map(String::from_utf8_lossy).unwrap_or_default();
+            let msg = format!("[{}:{}] ", src_name, debug_info.curr_line());
+            buffer.push_str(msg.as_str());
+        }
+
+        for (i, val) in values.iter().enumerate() {
+            if i > 0 {
                 buffer.push('\t');
             }
             
-            let val_str = tostring.call::<LuaValue, String>(val.clone()).unwrap_or(String::from("???"));
-            buffer.push_str(val_str.as_str());
+            if let Some(val_str) = lua.coerce_string(val.clone())? {
+                if let Ok(s) = val_str.to_str() {
+                    buffer.push_str(s);
+                }
+            }
         }
-        info!("[LUA] {}", buffer);
+        log::log!(level, "{}", buffer);
         Ok(())
     }
 

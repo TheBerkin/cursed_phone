@@ -120,11 +120,6 @@ local _AgentModule_MEMBERS = {
     set_ringback_enabled = function(self, enabled)
         self._ringback_enabled = enabled
     end,
-    --- Prints a message prefixed with the agent name.
-    --- @param msg any
-    log = function(self, msg)
-        print("[" .. self._name .. "] " .. msg)
-    end,
     --- Sets the load handler for the agent.
     --- This handler runs as soon as the agent module has finished loading.
     --- @param handler fun(self: AgentModule)
@@ -262,7 +257,7 @@ local _AgentModule_MEMBERS = {
             --- @cast pattern RingPattern
             self._custom_ring_pattern = pattern
         else
-            self:log(string.format("Failed to parse custom ring pattern: '%s'", expr))
+            log.warn(string.format("Failed to parse custom ring pattern: '%s'", expr))
             self._custom_ring_pattern = nil
         end
     end
@@ -460,6 +455,8 @@ end
 
 --- @async
 --- Runs a task until the specified predicate (run every tick) returns a falsy value or the task ends on its own.
+--- @param task async fun()
+--- @param predicate fun(): boolean
 function agent.do_task_while(task, predicate)
     local co = coroutine.create(task)
     local last_response_code = IntentResponseCode.NONE
@@ -471,6 +468,39 @@ function agent.do_task_while(task, predicate)
         if success then
             last_response_code, last_response_data = agent.intent(intent, intent_data)
         end
+    end
+end
+
+--- @async
+--- Repeats a task until the specified predicate (run before each iteration) returns a falsy value.
+--- If no predicate is specified, runs forever.
+--- @param task async fun(delta_time: number)
+--- @param predicate (fun(): boolean)?
+function agent.loop_task(task, predicate)
+    local time_prev = engine_time()
+    local time_current = engine_time()
+    
+    while not predicate or predicate() do
+        local co = coroutine.create(task)
+        local last_response_code = IntentResponseCode.NONE
+        local last_response_data = nil
+        local delta_time = time_current - time_prev
+        local yielded = false
+
+        coroutine.resume(co, delta_time)
+
+        while true do
+            if coroutine.status(co) == 'dead' then break end
+            local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
+            if success then
+                last_response_code, last_response_data = agent.intent(intent, intent_data)
+                yielded = true
+            end
+        end
+
+        time_prev = time_current
+        time_current = engine_time()
+        if not yielded then agent.yield() end
     end
 end
 

@@ -4,7 +4,7 @@
 phone = {}
 
 --- Returns the internal ID of the last agent who called the phone, or `nil` if nobody called yet.
---- @return integer|nil
+--- @return integer?
 function phone.last_caller_id() end
 
 --- Gets the last number called by the user.
@@ -23,7 +23,7 @@ function phone.dial(digits) end
 function phone.is_rotary() end
 
 --- Returns a boolean value indicating whether the rotary dial (if available) is in the resting position, or `nil` if the phone isn't a rotary phone.
---- @return boolean|nil
+--- @return boolean?
 function phone.is_rotary_dial_resting() end
 
 --- Returns a boolean value indicating whether the phone is currently on-hook.
@@ -40,3 +40,12 @@ function phone.stop_ringing() end
 --- @param expr string
 --- @return boolean, RingPattern?
 function phone.compile_ring_pattern(expr) end
+
+--- Sets the locked status of the switchhook.
+--- When the switchhook is locked, new switchhook inputs will be ignored.
+--- @param is_locked boolean
+function phone.set_switchhook_locked(is_locked) end
+
+--- Returns the locked status of the switchhook.
+--- @return boolean
+function phone.is_switchhook_locked() end

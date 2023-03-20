@@ -6,7 +6,7 @@ module:state(AgentState.CALL, {
         -- TODO: Implement Operator
         while true do
             local digit = agent.read_digit()
-            self:log("Got digit '" .. digit .. "'")
+            log.info("Got digit '" .. digit .. "'")
         end
     end,
     exit = function(self)

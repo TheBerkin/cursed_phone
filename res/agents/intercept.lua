@@ -24,7 +24,7 @@ local vsc_handlers = {
             local volume_raw = tonumber(agent.read_digit())
             if volume_raw then
                 local volume = volume_raw / 9.0
-                self:log("Adjusting volume to " .. (volume * 100) .. "%")
+                log.info("Adjusting volume to " .. (volume * 100) .. "%")
                 sound.set_master_volume(volume)
             end
         end
@@ -33,9 +33,9 @@ local vsc_handlers = {
     ["69"] = function(self) 
         local last_call_return_id = phone.last_caller_id()
         if last_call_return_id then
-            self:log("Returning last call to Agent ID: " .. last_call_return_id)
+            log.info("Returning last call to Agent ID: " .. last_call_return_id)
         else
-            self:log("No previous caller available for callback")
+            log.warn("No previous caller available for callback")
         end
         --- @cast last_call_return_id integer
         agent.forward_call_id(last_call_return_id)
@@ -52,7 +52,7 @@ local reason_handlers = {
         repeat
             vsc, phone_number = split_vsc(phone_number)
             if vsc then
-                self:log("VSC " .. vsc)
+                log.info("VSC " .. vsc)
                 local vsc_handler = vsc_handlers[vsc]
                 if vsc_handler then
                     vsc_handler(self, phone_number)

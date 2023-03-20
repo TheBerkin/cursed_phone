@@ -68,6 +68,15 @@ impl<'lua> CursedEngine<'lua> {
             return Ok(self.called_number.borrow().clone())
         })?)?;
 
+        tbl_phone.set("set_switchhook_locked", lua.create_function(move |_, is_locked: bool| {
+            self.set_switchhook_locked(is_locked);
+            Ok(())
+        })?)?;
+
+        tbl_phone.set("is_switchhook_locked", lua.create_function(move |_, ()| {
+            Ok(self.is_switchhook_locked())
+        })?)?;
+
         globals.set("phone", tbl_phone)?;
 
         Ok(())
