@@ -121,7 +121,6 @@ pub enum RingPatternComponent {
 
 #[derive(Logos, Debug, PartialEq)]
 enum RingPatternToken {
-
     #[token("C")]
     KwCycle,
     #[token("R")]

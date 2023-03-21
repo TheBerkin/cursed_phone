@@ -5,6 +5,7 @@ use std::{error::Error, fmt::Display};
 use log;
 use perlin2d::PerlinNoise2D;
 use rand::RngCore;
+use logos::{Logos, Lexer};
 
 mod cron;
 mod gpio;
@@ -123,13 +124,15 @@ impl<'lua> CursedEngine<'lua> {
             if i > 0 {
                 buffer.push('\t');
             }
-            
+
             if let Some(val_str) = lua.coerce_string(val.clone())? {
                 if let Ok(s) = val_str.to_str() {
-                    buffer.push_str(s);
+                    let expanded = expand_ansi_format_string(s);
+                    buffer.push_str(expanded.as_str());
                 }
             }
         }
+
         log::log!(level, "{}", buffer);
         Ok(())
     }
@@ -139,4 +142,87 @@ impl<'lua> CursedEngine<'lua> {
         let noise = perlin.get_noise(x, y);
         Ok(noise)
     }
+}
+
+#[derive(Logos, Debug, PartialEq)]
+enum AnsiStringToken {
+    #[regex(r"\[:[a-zA-Z0-9]*\]", priority = 10, callback = parse_ansi_format_code)]
+    Format(String),
+    #[token("[::")]
+    EscapeFormat,
+    #[regex(r"[^\[]+", priority = 1)]
+    #[error]
+    Text
+}
+
+fn parse_ansi_format_code(lex: &mut Lexer<AnsiStringToken>) -> String {
+    let slice = lex.slice();
+    let slice_len = slice.len();
+    slice[2..(slice_len - 1)].to_string()
+}
+
+fn expand_ansi_format_string(s: &str) -> String {
+    let mut lex = AnsiStringToken::lexer(s);
+    let mut output = String::new();
+    let mut has_ansi = false;
+    let mut ansi_cleared = false;
+    while let Some(token) = lex.next() {
+        match token {
+            AnsiStringToken::Format(fmt) => {
+                output.push_str("\x1b[");
+                for (i, fmt_alias) in fmt.chars().enumerate() {
+                    ansi_cleared = false;
+
+                    if i > 0 {
+                        output.push(';');
+                    }
+
+                    let fmt_code = match fmt_alias {
+                        'z' => {
+                            ansi_cleared = true;
+                            "0"
+                        },
+                        'h' => "1",
+                        'l' => "2",
+                        'n' => "22",
+                        'i' => "3",
+                        'u' => "4",
+                        'x' => "9",
+                        'k' => "30",
+                        'r' => "31",
+                        'g' => "32",
+                        'y' => "33",
+                        'b' => "34",
+                        'm' => "35",
+                        'c' => "36",
+                        'w' => "37",
+                        'd' => "39",
+                        'K' => "40",
+                        'R' => "41",
+                        'G' => "42",
+                        'Y' => "43",
+                        'B' => "44",
+                        'M' => "45",
+                        'C' => "46",
+                        'W' => "47",
+                        'D' => "49",
+                        _ => continue    
+                    };
+                    
+                    output.push_str(fmt_code);
+                    has_ansi = true;
+                }
+                output.push_str("m");
+            },
+            AnsiStringToken::EscapeFormat => output.push_str("[:"),
+            AnsiStringToken::Text => output.push_str(lex.slice()),
+        }
+    }
+
+    if has_ansi && !ansi_cleared {
+        // Clear formatting at end of string
+        output.push_str("\x1b[m");
+    }
+
+    output
 }
