@@ -12,7 +12,7 @@ They do this using a "ring pattern expression." These are strings with the follo
 | `Q<t>`         | Ring at 20Hz for `t` milliseconds                             |
 | `L<t>`         | Set low and wait `t` milliseconds                             |
 | `H<t>`         | Set high and wait `t` milliseconds                            |
-| `E`            | Stops ringing.                                                |
+| `$`            | Stops ringing.                                                |
 
 ## Examples
 

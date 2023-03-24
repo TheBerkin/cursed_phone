@@ -1,4 +1,4 @@
-use crate::engine::scripting::random::LuaRandom;
+use crate::engine::scripting::{random::LuaRandom};
 
 use super::*;
 use std::{error::Error, fmt::Display};

@@ -49,6 +49,13 @@ function C_Rng:int_bias_high(min, max) end
 --- @return integer
 function C_Rng:int_normal(min, max) end
 
+--- Generates `n` random unique integers between an inclusive minimum and maximum.
+--- @param n integer @ The number of integers to generate.
+--- @param min integer @ The inclusive minimum value.
+--- @param max integer @ The inclusive maximum value.
+--- @return integer[]
+function C_Rng:ints_unique_i(n, min, max) end
+
 --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
 --- @param min number
 --- @param max number

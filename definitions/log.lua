@@ -4,7 +4,7 @@
 --- 
 --- ## ANSI Formatting Shorthand
 ---
---- To insert ANSI formatting codes use the notation `[:xxx]` where `xxx` is some string of formatting characters.
+--- To insert ANSI formatting codes use the notation `[:___]` where `___` is some string of formatting characters.
 --- The following format characters are supported:
 --- * `z` &mdash; Clear all formatting
 --- * `h` &mdash; High intensity (bright / bold)

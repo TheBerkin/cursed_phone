@@ -99,6 +99,9 @@ impl RingPattern {
                         return None
                     }
                 },
+                RingPatternToken::KwEnd => {
+                    components.push(RingPatternComponent::End);
+                },
                 _ => return None
             }
         }
