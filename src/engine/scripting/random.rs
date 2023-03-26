@@ -132,16 +132,7 @@ pub struct LuaPerlinSampler(PerlinNoise2D);
 
 impl LuaPerlinSampler {
     pub fn new(octaves: i32, frequency: f64, persistence: f64, lacunarity: f64, seed: i32) -> Self {
-        Self(PerlinNoise2D {
-            octaves,
-            amplitude: 1.0,
-            frequency,
-            lacunarity,
-            persistence,
-            scale: (1.0, 1.0),
-            bias: 0.0,
-            seed
-        })
+        Self(PerlinNoise2D::new(octaves, 1.0, frequency, persistence, lacunarity, (1.0, 1.0), 0.0, seed))
     }
 
     pub fn sample(&self, x: f64, y: f64) -> f64 {
