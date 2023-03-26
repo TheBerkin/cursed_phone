@@ -1,9 +1,8 @@
-use crate::engine::scripting::{random::LuaRandom};
+use crate::engine::scripting::random::{LuaRandom, LuaPerlinSampler};
 
 use super::*;
 use std::{error::Error, fmt::Display};
 use log;
-use perlin2d::PerlinNoise2D;
 use rand::RngCore;
 use logos::{Logos, Lexer};
 
@@ -61,7 +60,6 @@ impl<'lua> CursedEngine<'lua> {
         })?)?;
         
         // Global engine functions
-        globals.set("perlin_sample", lua.create_function(Self::lua_perlin)?)?;
         
         globals.set("engine_time", lua.create_function(move |_, ()| {
             let run_time = self.start_time.elapsed().as_secs_f64();
@@ -92,6 +90,10 @@ impl<'lua> CursedEngine<'lua> {
         
         globals.set("Rng", lua.create_function(move |_, seed: Option<u64>| {
             Ok(LuaRandom::with_seed(seed.unwrap_or_else(|| rand::thread_rng().next_u64())))
+        })?)?;
+
+        globals.set("PerlinNoise", lua.create_function(move |_, (octaves, frequency, persistence, lacunarity, seed): (i32, f64, f64, f64, Option<i32>)| {
+            Ok(LuaPerlinSampler::new(octaves, frequency, persistence, lacunarity, seed.unwrap_or_else(|| rand::thread_rng().gen())))
         })?)?;
         
         // ====================================================
@@ -135,12 +137,6 @@ impl<'lua> CursedEngine<'lua> {
 
         log::log!(level, "{}", buffer);
         Ok(())
-    }
-
-    fn lua_perlin(_: &Lua, (x, y, octaves, frequency, persistence, lacunarity, seed): (f64, f64, i32, f64, f64, f64, i32)) -> LuaResult<f64> {
-        let perlin = PerlinNoise2D::new(octaves, 1.0, frequency, persistence, lacunarity, (1.0, 1.0), 0.0, seed);
-        let noise = perlin.get_noise(x, y);
-        Ok(noise)
     }
 }
 

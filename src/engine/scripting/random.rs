@@ -1,6 +1,7 @@
 use std::{cmp, collections::HashSet};
 
 use crate::engine::*;
+use perlin2d::PerlinNoise2D;
 use rand::{SeedableRng, distributions::Uniform, prelude::Distribution, RngCore};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -123,6 +124,35 @@ impl LuaUserData for LuaRandom {
             let distr = Uniform::new_inclusive::<u32, u32>(0, 9);
             let digits: String = distr.sample_iter(&mut this.0).take(n).map(|c| char::from_digit(c, 10).unwrap()).collect();
             Ok(digits)
+        });
+    }
+}
+
+pub struct LuaPerlinSampler(PerlinNoise2D);
+
+impl LuaPerlinSampler {
+    pub fn new(octaves: i32, frequency: f64, persistence: f64, lacunarity: f64, seed: i32) -> Self {
+        Self(PerlinNoise2D {
+            octaves,
+            amplitude: 1.0,
+            frequency,
+            lacunarity,
+            persistence,
+            scale: (1.0, 1.0),
+            bias: 0.0,
+            seed
+        })
+    }
+
+    pub fn sample(&self, x: f64, y: f64) -> f64 {
+        self.0.get_noise(x, y)
+    }
+}
+
+impl LuaUserData for LuaPerlinSampler {
+    fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+        methods.add_method("sample", |_, this, (x, y): (f64, f64)| {
+            Ok(this.sample(x, y))
         });
     }
 }
