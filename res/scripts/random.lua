@@ -40,6 +40,12 @@ function randi_h(min, max) return RNG_STATIC:int_bias_high(min, max) end
 --- @return integer
 function randi_g(min, max) return RNG_STATIC:int_normal(min, max) end
 
+--- Generates a random integer between an inclusive minimum and maximum, approximating a Gaussian (normal) distribution.
+--- @param min integer
+--- @param max integer
+--- @return integer
+function irandi_g(min, max) return RNG_STATIC:int_normal_i(min, max) end
+
 --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
 --- @param min number
 --- @param max number

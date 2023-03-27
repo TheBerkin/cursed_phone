@@ -11,11 +11,15 @@ pub struct LuaRandom(Xoshiro256PlusPlus);
 
 impl LuaRandom {
     pub fn new() -> Self {
-        Self::with_seed(rand::thread_rng().next_u64())
+        Self::with_seed_u64(rand::thread_rng().next_u64())
     }
 
-    pub fn with_seed(seed: u64) -> Self {
+    pub fn with_seed_u64(seed: u64) -> Self {
         Self(Xoshiro256PlusPlus::seed_from_u64(seed))
+    }
+
+    pub fn with_seed_i64(seed: i64) -> Self {
+        Self(Xoshiro256PlusPlus::seed_from_u64(u64::from_le_bytes(seed.to_le_bytes())))
     }
 }
 
@@ -61,6 +65,13 @@ impl LuaUserData for LuaRandom {
                 lua_error!("max must be greater than min")
             }
             let (a, b) = (this.0.gen_range(min..max), this.0.gen_range(min..max));
+            Ok((a + b) / 2)
+        });
+        methods.add_method_mut("int_normal_i", |_, this, (min, max): (i64, i64)| {
+            if min > max {
+                lua_error!("max must be greater than or equal to min")
+            }
+            let (a, b) = (this.0.gen_range(min..=max), this.0.gen_range(min..=max));
             Ok((a + b) / 2)
         });
         methods.add_method_mut("int_bias_low", |_, this, (min, max): (i64, i64)| {

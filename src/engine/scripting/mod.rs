@@ -3,7 +3,6 @@ use crate::engine::scripting::random::{LuaRandom, LuaPerlinSampler};
 use super::*;
 use std::{error::Error, fmt::Display};
 use log;
-use rand::RngCore;
 use logos::{Logos, Lexer};
 
 mod cron;
@@ -88,8 +87,8 @@ impl<'lua> CursedEngine<'lua> {
             Ok(())
         })?)?;
         
-        globals.set("Rng", lua.create_function(move |_, seed: Option<u64>| {
-            Ok(LuaRandom::with_seed(seed.unwrap_or_else(|| rand::thread_rng().next_u64())))
+        globals.set("Rng", lua.create_function(move |_, seed: Option<i64>| {
+            Ok(LuaRandom::with_seed_i64(seed.unwrap_or_else(|| rand::thread_rng().gen())))
         })?)?;
 
         globals.set("PerlinNoise", lua.create_function(move |_, (octaves, frequency, persistence, lacunarity, seed): (i32, f64, f64, f64, Option<i32>)| {
@@ -180,6 +179,7 @@ fn expand_ansi_format_string(s: &str) -> String {
                         },
                         'h' => "1",
                         'l' => "2",
+                        'f' => "6",
                         'n' => "22",
                         'i' => "3",
                         'u' => "4",

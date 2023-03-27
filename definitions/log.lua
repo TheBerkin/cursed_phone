@@ -13,6 +13,7 @@
 --- * `i` &mdash; Italic
 --- * `u` &mdash; Underline
 --- * `x` &mdash; Strikethrough
+--- * `f` &mdash; Flashing
 --- * `k` &mdash; Black (foreground)
 --- * `r` &mdash; Red (foreground)
 --- * `g` &mdash; Green (foreground)
