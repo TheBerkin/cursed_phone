@@ -4,8 +4,8 @@ local metatable_class_names = {}
 --- @type table<string, table>
 local class_metatables = {}
 
---- @generic T: table
---- @param name string @ The name to register for the class.
+--- @generic T
+--- @param name `T` @ The name to register for the class.
 --- @param t T? @ The member table for the class.
 --- @return T @ The member table for the class.
 --- @return fun(instance: T?): T @ The instantiation function for the class.

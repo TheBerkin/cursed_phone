@@ -12,6 +12,7 @@
 --- * `n` &mdash; Normal intensity
 --- * `i` &mdash; Italic
 --- * `u` &mdash; Underline
+--- * `o` &mdash; Overline
 --- * `x` &mdash; Strikethrough
 --- * `f` &mdash; Flashing
 --- * `k` &mdash; Black (foreground)

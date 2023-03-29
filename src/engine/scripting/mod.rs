@@ -183,6 +183,7 @@ fn expand_ansi_format_string(s: &str) -> String {
                         'n' => "22",
                         'i' => "3",
                         'u' => "4",
+                        'o' => "53",
                         'x' => "9",
                         'k' => "30",
                         'r' => "31",

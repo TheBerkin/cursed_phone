@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::error::Error;
 
 use super::*;
@@ -13,7 +14,8 @@ pub struct AgentModule<'lua> {
     tbl_module: LuaTable<'lua>,
     func_load: Option<LuaFunction<'lua>>,
     func_unload: Option<LuaFunction<'lua>>,
-    func_tick: LuaFunction<'lua>
+    func_tick: LuaFunction<'lua>,
+    suspended: Cell<bool>,
 }
 
 impl<'lua> AgentModule<'lua> {
@@ -60,6 +62,7 @@ impl<'lua> AgentModule<'lua> {
             func_load,
             func_unload,
             func_tick,
+            suspended: Default::default(),
         })
     }
 
@@ -129,7 +132,11 @@ impl<'lua> AgentModule<'lua> {
     }
 
     pub fn suspended(&self) -> bool {
-        self.tbl_module.get("_is_suspended").unwrap_or(false)
+        self.suspended.get()
+    }
+
+    pub fn set_suspended(&self, suspended: bool) {
+        self.suspended.set(suspended)
     }
 
     pub fn set_call_reason(&self, reason: CallReason) -> LuaResult<()> {
