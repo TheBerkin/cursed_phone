@@ -94,3 +94,8 @@ function C_Rng:bits_64() end
 --- @param p number
 --- @return boolean
 function C_Rng:maybe(p) end
+
+--- Returns the input values in a randomized order.
+--- @param ... any
+--- @return any ...
+function C_Rng:shuffle(...) end

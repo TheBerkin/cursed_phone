@@ -136,6 +136,15 @@ impl LuaUserData for LuaRandom {
             let digits: String = distr.sample_iter(&mut this.0).take(n).map(|c| char::from_digit(c, 10).unwrap()).collect();
             Ok(digits)
         });
+        methods.add_method_mut("shuffle", |_, this, values: LuaMultiValue| {
+            let n = values.len();
+            let mut values = values.into_vec();
+            for i in 0..n {
+                let swap_index = this.0.gen_range(0..n);
+                values.swap(i, swap_index);
+            }
+            Ok(LuaMultiValue::from_vec(values))
+        });
     }
 }
 

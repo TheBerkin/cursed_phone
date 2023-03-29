@@ -1014,11 +1014,11 @@ impl<'lua> CursedEngine<'lua> {
                     }
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
-                        agent.set_suspended(true);
                         match err {
                             LuaError::RuntimeError(msg) => error!("LUA ERROR:\n{}", msg),
                             _ => error!("LUA ERROR: {:?}", err)
                         }
+                        agent.set_suspended(true);
                         break 'agent_next_intent
                     }
                 }
