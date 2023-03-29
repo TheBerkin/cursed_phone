@@ -136,7 +136,12 @@ impl<'lua> AgentModule<'lua> {
     }
 
     pub fn set_suspended(&self, suspended: bool) {
-        self.suspended.set(suspended)
+        self.suspended.set(suspended);
+        if suspended {
+            info!("Agent '{}' suspended.", self.name())
+        } else {
+            info!("Agent '{}' unsuspended.", self.name())
+        }
     }
 
     pub fn set_call_reason(&self, reason: CallReason) -> LuaResult<()> {

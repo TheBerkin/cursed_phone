@@ -907,6 +907,7 @@ impl<'lua> CursedEngine<'lua> {
         let agent_modules = self.agents.borrow();
         let agent_iter = agent_modules.iter();
         for (_, agent) in agent_iter {
+            if agent.suspended() { continue }
             let mut tick_result = agent.tick(AgentIntentResponse::None);
             let mut call_attempted = false;
             'agent_next_intent: loop {
@@ -1013,11 +1014,12 @@ impl<'lua> CursedEngine<'lua> {
                     }
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
+                        agent.set_suspended(true);
                         match err {
                             LuaError::RuntimeError(msg) => error!("LUA ERROR:\n{}", msg),
                             _ => error!("LUA ERROR: {:?}", err)
                         }
-                        agent.set_suspended(true)
+                        break 'agent_next_intent
                     }
                 }
             }
