@@ -28,6 +28,7 @@ const VFS_SOUNDS_PATH: &str = "./sounds";
 const VFS_SOUNDBANKS_PATH: &str = "./soundbanks";
 
 const ENV_CONFIG_PATH: &str = "CURSED_CONFIG_PATH";
+const ENV_RESOURCES_PATH: &str = "CURSED_RESOURCES_PATH";
 
 #[allow(unreachable_code)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_config_path = env::var(ENV_CONFIG_PATH);
     let config_path = env_config_path.as_deref().unwrap_or(CONFIG_PATH);
     info!("Loading config: {}", config_path);
-    let config = Rc::new(config::load_config(config_path));
+    let config = Rc::new(load_config(config_path));
     info!("Config loaded: {:#?}", config);
     let vfs_root = create_virtual_filesystem(&config);
     let sound_engine = create_sound_engine(&config, &vfs_root);
@@ -79,6 +80,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         spin_sleep::sleep(remaining_tick_time);
     }
     Ok(())
+}
+
+fn load_config(path: &str) -> CursedConfig {
+    let mut config = config::load_config(path);
+    if let Ok(env_resources) = env::var(ENV_RESOURCES_PATH) {
+        config.include_resources.extend(env_resources.split(';').map(|p| p.trim().to_owned()));
+    }
+    return config
 }
 
 fn create_virtual_filesystem(config: &CursedConfig) -> VfsPath {
