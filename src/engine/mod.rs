@@ -312,7 +312,7 @@ impl<'lua> CursedEngine<'lua> {
         info!("Running script: {}", path.as_str());
         self.reset_execution_limit();
         match path.read_to_string() {
-            Ok(lua_src) => self.lua.load(&lua_src).set_name(path.filename()).unwrap().exec()?,
+            Ok(lua_src) => self.lua.load(&lua_src).set_name(path.as_str()).unwrap().exec()?,
             Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
         };
 
