@@ -12,6 +12,9 @@ pub struct CursedConfig {
     /// Higher is better, but will also consume more CPU cycles.
     pub tick_rate: f64,
 
+    /// Max number of instructions to allow per script execution
+    pub script_execution_limit: Option<u32>,
+
     /// Direcories to load resources from
     pub include_resources: Vec<String>,
 

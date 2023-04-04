@@ -104,5 +104,5 @@ end
 function M_Deque.__newindex(deque) end
 
 function M_Deque.__len(deque)
-    return rawget(deque, '_tail') - rawget(deque, '_head') + 1
+    return deque._tail - deque._head + 1
 end

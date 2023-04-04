@@ -12,7 +12,7 @@ use std::sync::mpsc;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 use rand::Rng;
-use mlua::prelude::*;
+use mlua::{prelude::*, Debug as LuaDebug};
 use indexmap::IndexMap;
 use log::{info, warn, trace, error};
 use vfs::VfsPath;
@@ -136,6 +136,10 @@ fn update_cell<T: Copy, F>(cell: &Cell<T>, update_fn: F) where F: FnOnce(T) -> T
     cell.replace(new);
 }
 
+fn lua_hook_check_exec_limit(_lua: &Lua, _debug: LuaDebug) -> LuaResult<()> {
+    Err(LuaError::external("execution limit reached")) 
+}
+
 #[allow(unused_must_use)]
 impl<'lua> CursedEngine<'lua> {
     pub fn new(scripts_root: VfsPath, agents_root: VfsPath, config: &Rc<CursedConfig>, sound_engine: &Rc<RefCell<SoundEngine>>) -> Self {
@@ -181,6 +185,12 @@ impl<'lua> CursedEngine<'lua> {
             default_ring_pattern: RingPattern::try_parse(config.default_ring_pattern.as_str()).map(Arc::new),
             #[cfg(feature = "rpi")]
             gpio: RefCell::new(GpioInterface::new().expect("Unable to initialize Lua GPIO interface")),
+        }
+    }
+
+    fn reset_execution_limit(&self) {
+        if let Some(limit) = self.config.script_execution_limit {
+            self.lua.set_hook(LuaHookTriggers::every_nth_instruction(limit), lua_hook_check_exec_limit);
         }
     }
 
@@ -300,6 +310,7 @@ impl<'lua> CursedEngine<'lua> {
 
     fn run_script(&self, path: VfsPath) -> LuaResult<()> {
         info!("Running script: {}", path.as_str());
+        self.reset_execution_limit();
         match path.read_to_string() {
             Ok(lua_src) => self.lua.load(&lua_src).set_name(path.filename()).unwrap().exec()?,
             Err(err) => return Err(LuaError::ExternalError(Arc::new(err)))
@@ -335,6 +346,8 @@ impl<'lua> CursedEngine<'lua> {
                     },
                     None => continue,
                 }
+
+                self.reset_execution_limit();
 
                 let agent = match AgentModule::from_file(&self.lua, &path) {
                     Ok(agent) => agent,
@@ -908,6 +921,7 @@ impl<'lua> CursedEngine<'lua> {
         let agent_iter = agent_modules.iter();
         for (_, agent) in agent_iter {
             if agent.suspended() { continue }
+            self.reset_execution_limit();
             let mut tick_result = agent.tick(AgentIntentResponse::None);
             let mut call_attempted = false;
             'agent_next_intent: loop {
@@ -1014,10 +1028,7 @@ impl<'lua> CursedEngine<'lua> {
                     }
                     Err(err) => {
                         self.sound_engine.borrow().play_panic_tone();
-                        match err {
-                            LuaError::RuntimeError(msg) => error!("LUA ERROR:\n{}", msg),
-                            _ => error!("LUA ERROR: {:?}", err)
-                        }
+                        error!("LUA ERROR: {}", err);
                         agent.set_suspended(true);
                         break 'agent_next_intent
                     }

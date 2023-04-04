@@ -99,3 +99,8 @@ function C_Rng:maybe(p) end
 --- @param ... any
 --- @return any ...
 function C_Rng:shuffle(...) end
+
+--- Returns a random argument.
+--- @param ... any
+--- @return any
+function C_Rng:pick(...) end

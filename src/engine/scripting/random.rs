@@ -145,6 +145,13 @@ impl LuaUserData for LuaRandom {
             }
             Ok(LuaMultiValue::from_vec(values))
         });
+        methods.add_method_mut("pick", |_, this, values: LuaMultiValue| {
+            let values = values;
+            if values.is_empty() {
+                return Ok(None)
+            }
+            Ok(values.get(this.0.gen_range(0..values.len())).cloned())
+        })
     }
 }
 
