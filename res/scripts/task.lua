@@ -146,7 +146,7 @@ end
 function task.parallel(...)
     local coroutines = table.map({...}, function(f) return {
         co = coroutine.create(f),
-        last_response_code = IntentResponseCode.NONE,
+        last_response_code = nil,
         last_response_data = nil
     } end)
 
@@ -217,7 +217,7 @@ end
 function task.parallel_limit(predicate, ...)
     local coroutines = table.map({...}, function(f) return {
         co = coroutine.create(f),
-        last_response_code = IntentResponseCode.NONE,
+        last_response_code = nil,
         last_response_data = nil
     } end)
 
@@ -250,14 +250,15 @@ end
 --- @param predicate fun(): boolean
 function task.limit(f, predicate)
     local co = coroutine.create(f)
-    local last_response_code = IntentResponseCode.NONE
-    local last_response_data = nil
+    local last_response_code, last_response_data
 
     while predicate() do
         if coroutine.status(co) == 'dead' then return end
         local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
         if success then
             last_response_code, last_response_data = task.intent(intent, intent_data)
+        else
+            error(intent, 1)
         end
     end
 end
@@ -277,15 +278,22 @@ function task.loop(f, predicate)
         local last_response_data = nil
         local delta_time = time_current - time_prev
         local yielded = false
-
-        coroutine.resume(co, delta_time)
+        local started = false
 
         while true do
             if coroutine.status(co) == 'dead' then break end
-            local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
+            local success, intent, intent_data
+            if not started then
+                success, intent, intent_data = coroutine.resume(co, delta_time)
+                started = true
+            else
+                success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
+            end
             if success then
                 last_response_code, last_response_data = task.intent(intent, intent_data)
                 yielded = true
+            else
+                error(intent, 1)
             end
         end
 
