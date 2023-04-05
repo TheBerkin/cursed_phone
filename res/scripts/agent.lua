@@ -413,8 +413,7 @@ function tick_agent_state(agent, data_code, data)
 
     -- If the coroutine is somehow dead/broken, transition the state
     if not success then
-        -- TODO: Handle this in a way that doesn't cause UB
-        error(intent)
+        error(intent, 1)
         return IntentCode.STATE_END, agent._state, false
     end
 

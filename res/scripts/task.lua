@@ -151,8 +151,7 @@ function task.parallel(...)
     } end)
 
     while true do
-        local tasks_running = false
-        local task_count = #coroutines
+        local tasks_running, task_count = false, #coroutines
 
         for i = 1, task_count do
             local state = coroutines[i]
@@ -163,6 +162,8 @@ function task.parallel(...)
                     local response_code, response_data = task.intent(intent, intent_data, i < task_count)
                     state.last_response_code = response_code
                     state.last_response_data = response_data
+                else
+                    error(intent, 1)
                 end
             end
         end
@@ -177,30 +178,31 @@ end
 function task.parallel_param(obj, ...)
     local coroutines = table.map({...}, function(f) return {
         co = coroutine.create(f),
-        last_response_code = IntentResponseCode.NONE,
+        started = false,
+        last_response_code = nil,
         last_response_data = nil
     } end)
     
     while true do
-        local tasks_running = false
-        local task_count = #coroutines
+        local tasks_running, task_count = false, #coroutines
 
         for i = 1, task_count do
             local state = coroutines[i]
-            local co = state.co
-            local co_status = coroutine.status(co)
-            if co_status ~= 'dead' then
+            if coroutine.status(state.co) ~= 'dead' then
                 local success, intent, intent_data
-                if co_status == 'suspended' then
-                    success, intent, intent_data = coroutine.resume(co, obj)
+                if not state.started then
+                    success, intent, intent_data = coroutine.resume(state.co, obj)
+                    state.started = true
                 else
-                    success, intent, intent_data = coroutine.resume(co, state.last_response_code, state.last_response_data)
+                    success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
                 end
                 tasks_running = true
                 if success then
                     local response_code, response_data = task.intent(intent, intent_data, i < task_count)
                     state.last_response_code = response_code
                     state.last_response_data = response_data
+                else
+                    error(intent, 1)
                 end
             end
         end
@@ -233,6 +235,8 @@ function task.parallel_limit(predicate, ...)
                     local response_code, response_data = task.intent(intent, intent_data, i < task_count)
                     state.last_response_code = response_code
                     state.last_response_data = response_data
+                else
+                    error(intent, 1)
                 end
             end
         end
