@@ -36,7 +36,7 @@ IntentResponseCode = {
 }
 
 --- @async
---- Suspends execution of the current agent state until the next tick and passes an intent from the agent to the engine.
+--- Sets the current task's intent and transfers control back to the engine until the next tick.
 --- @param intent IntentCode
 --- @param intent_data any?
 --- @param should_continue boolean?
@@ -106,10 +106,10 @@ end
 --- @async
 --- @overload fun()
 --- @overload fun(n: integer)
---- Yields control from the current agent to the caller, optionally specifying a custom number of ticks to yield for.
+--- Transfers control from the current task to the engine for `n` ticks. Equivalent to calling `task.intent(IntentCode.YIELD)`.
 ---
---- Calling this function with `n > 1` is especially useful for rate-limiting computationally expensive tasks.
---- @param n integer? @ Indicates how many ticks to yield for. If excluded, yields once.
+--- Calling this function with `n > 1` is useful for rate-limiting computationally expensive tasks.
+--- @param n integer? @ Indicates how many ticks to yield for. If omitted, yields once.
 function task.yield(n)
     if n then
         for i = 1, n do
@@ -142,7 +142,7 @@ end
 
 --- @async
 --- Runs multiple agent tasks in parallel.
---- @param ... function
+--- @param ... async fun()
 function task.parallel(...)
     local coroutines = table.map({...}, function(f) return {
         co = coroutine.create(f),
@@ -158,13 +158,10 @@ function task.parallel(...)
             if coroutine.status(state.co) ~= 'dead' then
                 local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
                 tasks_running = true
-                if success then
-                    local response_code, response_data = task.intent(intent, intent_data, i < task_count)
-                    state.last_response_code = response_code
-                    state.last_response_data = response_data
-                else
-                    error(intent, 1)
-                end
+                if not success then error(intent, 1) end
+                local response_code, response_data = task.intent(intent, intent_data, i < task_count)
+                state.last_response_code = response_code
+                state.last_response_data = response_data
             end
         end
         if not tasks_running then return end
@@ -197,13 +194,10 @@ function task.parallel_param(obj, ...)
                     success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
                 end
                 tasks_running = true
-                if success then
-                    local response_code, response_data = task.intent(intent, intent_data, i < task_count)
-                    state.last_response_code = response_code
-                    state.last_response_data = response_data
-                else
-                    error(intent, 1)
-                end
+                if not success then error(intent, 1) end
+                local response_code, response_data = task.intent(intent, intent_data, i < task_count)
+                state.last_response_code = response_code
+                state.last_response_data = response_data
             end
         end
         if not tasks_running then return end
@@ -231,13 +225,10 @@ function task.parallel_limit(predicate, ...)
             if coroutine.status(state.co) ~= 'dead' then
                 local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
                 tasks_running = true
-                if success then
-                    local response_code, response_data = task.intent(intent, intent_data, i < task_count)
-                    state.last_response_code = response_code
-                    state.last_response_data = response_data
-                else
-                    error(intent, 1)
-                end
+                if not success then error(intent, 1) end
+                local response_code, response_data = task.intent(intent, intent_data, i < task_count)
+                state.last_response_code = response_code
+                state.last_response_data = response_data
             end
         end
         if not tasks_running then return end
@@ -255,11 +246,8 @@ function task.limit(f, predicate)
     while predicate() do
         if coroutine.status(co) == 'dead' then return end
         local success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
-        if success then
-            last_response_code, last_response_data = task.intent(intent, intent_data)
-        else
-            error(intent, 1)
-        end
+        if not success then error(intent, 1) end
+        last_response_code, last_response_data = task.intent(intent, intent_data)
     end
 end
 
@@ -289,12 +277,48 @@ function task.loop(f, predicate)
             else
                 success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
             end
-            if success then
-                last_response_code, last_response_data = task.intent(intent, intent_data)
-                yielded = true
+            if not success then error(intent, 1) end
+            last_response_code, last_response_data = task.intent(intent, intent_data)
+            yielded = true
+        end
+
+        time_prev = time_current
+        time_current = engine_time()
+        if not yielded then coroutine.yield(IntentCode.YIELD) end
+    end
+end
+
+--- @generic T
+--- @async
+--- Repeats a task until the specified predicate (run before each iteration) returns a falsy value.
+--- If no predicate is specified, runs forever.
+--- @param obj T @ The argument to pass to the task function.
+--- @param f async fun(obj: T, delta_time: number) @ The task function to run.
+--- @param predicate (fun(): boolean)? @ The predicate to check on each loop.
+function task.loop_param(obj, f, predicate)
+    local time_prev = engine_time()
+    local time_current = engine_time()
+    
+    while not predicate or predicate() do
+        local co = coroutine.create(f)
+        local last_response_code = IntentResponseCode.NONE
+        local last_response_data = nil
+        local delta_time = time_current - time_prev
+        local yielded = false
+        local started = false
+
+        while true do
+            if coroutine.status(co) == 'dead' then break end
+            local success, intent, intent_data
+            if not started then
+                success, intent, intent_data = coroutine.resume(co, obj, delta_time)
+                started = true
             else
-                error(intent, 1)
+                success, intent, intent_data = coroutine.resume(co, last_response_code, last_response_data)
             end
+            if not success then error(intent, 1) end
+            last_response_code, last_response_data = task.intent(intent, intent_data)
+            yielded = true
         end
 
         time_prev = time_current

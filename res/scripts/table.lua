@@ -40,7 +40,7 @@ end
 --- @param t table
 --- @param rng Rng?
 function table.random_choice(t, rng)
-    rng = rng or RNG_STATIC
+    rng = rng or GLOBAL_RNG
     return t[rng:int_i(1, #t + 1)]
 end
 
@@ -50,7 +50,7 @@ end
 --- @param rng Rng?
 function table.shuffle(t, rng)
     local n = #t
-    rng = rng or RNG_STATIC
+    rng = rng or GLOBAL_RNG
     for i = 1, n do
         local i2 = rng:int_i(1, n)
         local v = t[i]
