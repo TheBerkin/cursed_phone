@@ -14,7 +14,7 @@ function randi(min, max) return GLOBAL_RNG:int(min, max) end
 --- @param min integer
 --- @param max integer
 --- @return integer
-function irandi(min, max) return GLOBAL_RNG:int_i(min, max) end
+function randi_incl(min, max) return GLOBAL_RNG:int_incl(min, max) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum,
 --- but avoids the `skip` value within the range.
@@ -46,19 +46,19 @@ function randi_h(min, max) return GLOBAL_RNG:int_bias_high(min, max) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum, approximating a Gaussian (normal) distribution.
 ---
---- Shortcut for `GLOBAL_RNG:int_normal(min, max)`.
+--- Shortcut for `GLOBAL_RNG:int_gaussian(min, max)`.
 --- @param min integer
 --- @param max integer
 --- @return integer
-function randi_g(min, max) return GLOBAL_RNG:int_normal(min, max) end
+function randi_g(min, max) return GLOBAL_RNG:int_gaussian(min, max) end
 
 --- Generates a random integer between an inclusive minimum and maximum, approximating a Gaussian (normal) distribution.
 ---
---- Shortcut for `GLOBAL_RNG:int_normal_i(min, max)`.
+--- Shortcut for `GLOBAL_RNG:int_gaussian_incl(min, max)`.
 --- @param min integer
 --- @param max integer
 --- @return integer
-function irandi_g(min, max) return GLOBAL_RNG:int_normal_i(min, max) end
+function randi_g_incl(min, max) return GLOBAL_RNG:int_gaussian_incl(min, max) end
 
 --- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
 ---
@@ -70,11 +70,11 @@ function randf(min, max) return GLOBAL_RNG:float(min, max) end
 
 --- Generates a random floating-point number between an inclusive minimum and exclusive maximum, approximating a Gaussian (normal) distribution.
 ---
---- Shortcut for `GLOBAL_RNG:normal(min, max)`.
+--- Shortcut for `GLOBAL_RNG:gaussian(min, max)`.
 --- @param min number
 --- @param max number
 --- @return number
-function randf_g(min, max) return GLOBAL_RNG:normal(min, max) end
+function randf_g(min, max) return GLOBAL_RNG:gaussian(min, max) end
 
 --- Generates a string of `n` random decimal digits. If `n` is not specified, defaults to 1.
 ---

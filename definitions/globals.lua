@@ -20,6 +20,7 @@
 --- @field __tostring? fun(t: any): string          @ Controls what is returned by `tostring(t)`.
 --- @field __unm? fun(a): any                       @ Negation operator (`-a`)
 
+--- Returns the metatable associated with the table `object`, or the metatable's `__metatable` value if present.
 --- @param object table
 --- @return metatable?
 function getmetatable(object) end
@@ -43,6 +44,11 @@ function call_time() end
 --- @param agent_id integer
 --- @param loaded boolean
 function set_agent_sounds_loaded(agent_id, loaded) end
+
+--- Rotates the additional arguments by `d` places to the right (or left if negative) and returns them.
+--- @param d integer @ The number of places to rotate the values by.
+--- @param ... any @ The values to rotate.
+function rotmv(d, ...) end
 
 --- @class PerlinNoise
 C_PerlinNoise = {}

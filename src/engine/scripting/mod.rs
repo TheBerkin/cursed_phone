@@ -86,6 +86,22 @@ impl<'lua> CursedEngine<'lua> {
             }
             Ok(())
         })?)?;
+
+        // rotmv(n, ...)
+        globals.set("rotmv", lua.create_function(move |lua, (n, values): (isize, LuaMultiValue)| {
+            if values.is_empty() { return Ok(values) }
+            let m = n.unsigned_abs() % values.len();
+            if m == 0 { return Ok(values) }
+            
+            let mut values = values.into_vec();
+            
+            if n > 0 {
+                values.rotate_right(m)
+            } else {
+                values.rotate_left(m)
+            }
+            values.to_lua_multi(lua)
+        })?)?;
         
         globals.set("Rng", lua.create_function(move |_, seed: Option<i64>| {
             Ok(LuaRandom::with_seed_i64(seed.unwrap_or_else(|| rand::thread_rng().gen())))

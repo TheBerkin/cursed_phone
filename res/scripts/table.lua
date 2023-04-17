@@ -41,7 +41,7 @@ end
 --- @param rng Rng?
 function table.random_choice(t, rng)
     rng = rng or GLOBAL_RNG
-    return t[rng:int_i(1, #t + 1)]
+    return t[rng:int_incl(1, #t + 1)]
 end
 
 --- Shuffles the ordered elements of `t`.
@@ -52,7 +52,7 @@ function table.shuffle(t, rng)
     local n = #t
     rng = rng or GLOBAL_RNG
     for i = 1, n do
-        local i2 = rng:int_i(1, n)
+        local i2 = rng:int_incl(1, n)
         local v = t[i]
         local v2 = t[i2]
         t[i2] = v

@@ -19,15 +19,23 @@ function C_Rng:int(min, max) end
 --- @param min integer
 --- @param max integer
 --- @return integer
-function C_Rng:int_i(min, max) end
+function C_Rng:int_incl(min, max) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum,
 --- but avoids the `skip` value within the range.
 --- @param min integer
---- @param skip integer
 --- @param max integer
+--- @param skip? integer
 --- @return integer
-function C_Rng:int_skip(min, skip, max) end
+function C_Rng:int_skip(min, max, skip) end
+
+--- Generates a random integer between an inclusive minimum and maximum,
+--- but avoids the `skip` value within the range.
+--- @param min integer
+--- @param max integer
+--- @param skip? integer
+--- @return integer
+function C_Rng:int_skip_incl(min, max, skip) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum
 --- with an asymptotal distribution biased to lower values.
@@ -47,14 +55,14 @@ function C_Rng:int_bias_high(min, max) end
 --- @param min integer
 --- @param max integer
 --- @return integer
-function C_Rng:int_normal(min, max) end
+function C_Rng:int_gaussian(min, max) end
 
 
 --- Generates a random integer between an inclusive minimum and maximum, approximating a normal distribution.
 --- @param min integer
 --- @param max integer
 --- @return integer
-function C_Rng:int_normal_i(min, max) end
+function C_Rng:int_gaussian_incl(min, max) end
 
 --- Generates `n` random unique integers between an inclusive minimum and maximum.
 --- @param n integer @ The number of integers to generate.
@@ -73,7 +81,7 @@ function C_Rng:float(min, max) end
 --- @param min number
 --- @param max number
 --- @return number
-function C_Rng:normal(min, max) end
+function C_Rng:gaussian(min, max) end
 
 --- Generates a string of `n` random decimal digits. If `n` is not specified, defaults to 1.
 --- @param n integer?
