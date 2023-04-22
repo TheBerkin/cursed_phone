@@ -49,11 +49,11 @@ impl LuaUserData for LuaRandom {
             }
             Ok(match skip {
                 Some(skip) if min <= skip && max > skip => {
-                    let range_size: u64 = max.abs_diff(min);
-                    if range_size > 1 {
-                        let range_select = this.0.gen_range(1..range_size) % range_size;
+                    let bounds_diff: u64 = max.abs_diff(min);
+                    if bounds_diff > 1 {
+                        let range_select = this.0.gen_range(1..bounds_diff) % bounds_diff;
                         let skip_offset = skip.abs_diff(min);
-                        min.wrapping_add_unsigned(skip_offset.wrapping_add(range_select).wrapping_rem(range_size))
+                        min.wrapping_add_unsigned(skip_offset.wrapping_add(range_select).wrapping_rem(bounds_diff))
                     } else {
                         this.0.gen_range(min..max)
                     }
@@ -62,22 +62,21 @@ impl LuaUserData for LuaRandom {
             })
         });
         methods.add_method_mut("int_skip_incl", |_, this, (min, max, skip): (i64, i64, Option<i64>)| -> LuaResult<i64> {
-            if min >= max {
+            if min > max {
                 lua_error!("max must be greater than or equal to min")
             }            
             Ok(match skip {
                 Some(skip) if min <= skip && max >= skip => {
-                    let range_size: u64 = max.abs_diff(min);
+                    let bounds_diff: u64 = max.abs_diff(min);
                     let skip_offset = skip.abs_diff(min);
-                    if range_size == u64::MAX {
-                        let range_select = this.0.gen_range(1 ..= u64::MAX);
-                        skip.wrapping_add_unsigned(range_select)
-                    } else if range_size > 1 {        
-                        let range_size = range_size + 1;                
-                        let range_select = this.0.gen_range(1 ..= range_size);
-                        min.wrapping_add_unsigned(skip_offset.wrapping_add(range_select).wrapping_rem(range_size))
+                    if bounds_diff == u64::MAX {
+                        let sample = this.0.gen_range(1 ..= u64::MAX);
+                        skip.wrapping_add_unsigned(sample)
+                    } else if bounds_diff >= 1 {
+                        let sample = this.0.gen_range(1 ..= bounds_diff);                        
+                        min.wrapping_add_unsigned(sample.wrapping_add(skip_offset).wrapping_rem(bounds_diff + 1))
                     } else {
-                        this.0.gen_range(min..=max)
+                        min
                     }
                 },
                 _ => this.0.gen_range(min..=max)
@@ -111,7 +110,7 @@ impl LuaUserData for LuaRandom {
             let (a, b) = (this.0.gen_range(min..max), this.0.gen_range(min..max));
             Ok(cmp::max(a, b))
         });
-        methods.add_method_mut("ints_unique_i", |lua, this, (n, min, max): (usize, i64, i64)| {
+        methods.add_method_mut("ints_unique_incl", |lua, this, (n, min, max): (usize, i64, i64)| {
             if min > max {
                 lua_error!("min code length cannot be greater than max")
             }
@@ -145,13 +144,14 @@ impl LuaUserData for LuaRandom {
             if min >= max {
                 lua_error!("max must be greater than min")
             }
-            Ok(this.0.gen_range(min..max))
+            Ok(this.0.gen_range(min..=max))
         });
         methods.add_method_mut("gaussian", |_, this, (min, max): (f64, f64)| {
             if min >= max {
                 lua_error!("max must be greater than min")
             }
-            Ok((this.0.gen_range(min..max) + this.0.gen_range(min..max)) * 0.5)
+            let x: f64 = this.0.gen_range(0.0..=1.0);
+            Ok((2.0 * x - 1.0).powi(3) * 0.5 + 0.5)
         });
         methods.add_method_mut("digits", |_, this, n: Option<usize>| {
             let n = n.unwrap_or(1);

@@ -1,5 +1,6 @@
 --- @meta
 
+--- Represents a seedable pseudorandom number generator.
 --- @class Rng
 local C_Rng = {}
 
@@ -58,26 +59,28 @@ function C_Rng:int_bias_high(min, max) end
 function C_Rng:int_gaussian(min, max) end
 
 
---- Generates a random integer between an inclusive minimum and maximum, approximating a normal distribution.
+--- Generates a random integer between an inclusive minimum and maximum, approximating a Gaussian (normal) distribution.
 --- @param min integer
 --- @param max integer
 --- @return integer
 function C_Rng:int_gaussian_incl(min, max) end
 
---- Generates `n` random unique integers between an inclusive minimum and maximum.
+--- Generates `n` unique random integers between an inclusive minimum and maximum.
 --- @param n integer @ The number of integers to generate.
 --- @param min integer @ The inclusive minimum value.
 --- @param max integer @ The inclusive maximum value.
 --- @return integer[]
-function C_Rng:ints_unique_i(n, min, max) end
+function C_Rng:ints_unique_incl(n, min, max) end
 
---- Generates a random floating-point number between an inclusive minimum and exclusive maximum.
+--- Generates a random floating-point number between an inclusive minimum and maximum.
 --- @param min number
 --- @param max number
 --- @return number
 function C_Rng:float(min, max) end
 
---- Generates a random floating-point number between an inclusive minimum and exclusive maximum, approximating a normal distribution.
+--- Generates a random floating-point number between an inclusive minimum and maximum, approximating a Gaussian (normal) distribution.
+--- 
+--- The distribution is approximated from some uniform random number *x* by the polynomial 0.5(2*x* - 1)<sup>3</sup> + 0.5.
 --- @param min number
 --- @param max number
 --- @return number

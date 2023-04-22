@@ -116,7 +116,7 @@ function C_WeightedBag:add(value, weight)
     self.count = self.count + 1
 end
 
---- Performs a weighted random selection from the bag's elements and returns the selected element. 
+--- Performs a weighted random selection from the bag's elements and returns the selected element.
 --- @param rng? Rng
 --- @return any?
 --- @overload fun(): any?
