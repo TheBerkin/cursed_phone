@@ -70,7 +70,7 @@ impl LuaUserData for LuaRandom {
                     let bounds_diff: u64 = max.abs_diff(min);
                     let skip_offset = skip.abs_diff(min);
                     if bounds_diff == u64::MAX {
-                        let sample = this.0.gen_range(1 ..= u64::MAX);
+                        let sample = this.0.gen_range(1 .. u64::MAX);
                         skip.wrapping_add_unsigned(sample)
                     } else if bounds_diff >= 1 {
                         let sample = this.0.gen_range(1 ..= bounds_diff);                        

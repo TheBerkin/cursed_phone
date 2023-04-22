@@ -1,6 +1,6 @@
 GLOBAL_RNG = Rng()
 
---- Generates a random integer between an inclusive minimum and exclusive maximum.
+--- Generates a uniformly random integer between an inclusive minimum and exclusive maximum.
 ---
 --- Shortcut for `GLOBAL_RNG:int(min, max)`.
 --- @param min integer
@@ -8,7 +8,7 @@ GLOBAL_RNG = Rng()
 --- @return integer
 function randi(min, max) return GLOBAL_RNG:int(min, max) end
 
---- Generates a random integer between an inclusive minimum and maximum.
+--- Generates a uniformly random integer between an inclusive minimum and maximum.
 ---
 --- Shortcut for `GLOBAL_RNG:int_i(min, max)`.
 --- @param min integer
@@ -16,7 +16,7 @@ function randi(min, max) return GLOBAL_RNG:int(min, max) end
 --- @return integer
 function randi_incl(min, max) return GLOBAL_RNG:int_incl(min, max) end
 
---- Generates a random integer between an inclusive minimum and exclusive maximum,
+--- Generates a uniformly random integer between an inclusive minimum and exclusive maximum,
 --- but avoids the `skip` value within the range.
 ---
 --- Shortcut for `GLOBAL_RNG:int_skip(min, max, skip)`.
@@ -26,7 +26,7 @@ function randi_incl(min, max) return GLOBAL_RNG:int_incl(min, max) end
 --- @return integer
 function randi_s(min, max, skip) return GLOBAL_RNG:int_skip(min, max, skip) end
 
---- Generates a random integer between an inclusive minimum and maximum,
+--- Generates a uniformly random integer between an inclusive minimum and maximum,
 --- but avoids the `skip` value within the range.
 ---
 --- Shortcut for `GLOBAL_RNG:int_skip_incl(min, max, skip)`.
@@ -37,7 +37,7 @@ function randi_s(min, max, skip) return GLOBAL_RNG:int_skip(min, max, skip) end
 function randi_s_incl(min, max, skip) return GLOBAL_RNG:int_skip_incl(min, max, skip) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum
---- with an asymptotal distribution biased to lower values.
+--- with a distribution biased to lower values.
 ---
 --- Shortcut for `GLOBAL_RNG:int_bias_low(min, max)`.
 --- @param min integer
@@ -46,7 +46,7 @@ function randi_s_incl(min, max, skip) return GLOBAL_RNG:int_skip_incl(min, max, 
 function randi_l(min, max) return GLOBAL_RNG:int_bias_low(min, max) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum
---- with an asymptotal distribution biased to higher values.
+--- with a distribution biased to higher values.
 ---
 --- Shortcut for `GLOBAL_RNG:int_bias_high(min, max)`.
 --- @param min integer

@@ -10,19 +10,19 @@ local C_Rng = {}
 --- @return Rng
 function Rng(seed) end
 
---- Generates a random integer between an inclusive minimum and exclusive maximum.
+--- Generates a uniformly random integer between an inclusive minimum and exclusive maximum.
 --- @param min integer
 --- @param max integer
 --- @return integer
 function C_Rng:int(min, max) end
 
---- Generates a random integer between an inclusive minimum and maximum.
+--- Generates a uniformly random integer between an inclusive minimum and maximum.
 --- @param min integer
 --- @param max integer
 --- @return integer
 function C_Rng:int_incl(min, max) end
 
---- Generates a random integer between an inclusive minimum and exclusive maximum,
+--- Generates a uniformly random integer between an inclusive minimum and exclusive maximum,
 --- but avoids the `skip` value within the range.
 --- @param min integer
 --- @param max integer
@@ -30,7 +30,7 @@ function C_Rng:int_incl(min, max) end
 --- @return integer
 function C_Rng:int_skip(min, max, skip) end
 
---- Generates a random integer between an inclusive minimum and maximum,
+--- Generates a uniformly random integer between an inclusive minimum and maximum,
 --- but avoids the `skip` value within the range.
 --- @param min integer
 --- @param max integer
@@ -39,20 +39,21 @@ function C_Rng:int_skip(min, max, skip) end
 function C_Rng:int_skip_incl(min, max, skip) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum
---- with an asymptotal distribution biased to lower values.
+--- with a distribution biased to lower values.
 --- @param min integer
 --- @param max integer
 --- @return integer
 function C_Rng:int_bias_low(min, max) end
 
 --- Generates a random integer between an inclusive minimum and exclusive maximum
---- with an asymptotal distribution biased to higher values.
+--- with a distribution biased to higher values.
 --- @param min integer
 --- @param max integer
 --- @return integer
 function C_Rng:int_bias_high(min, max) end
 
---- Generates a random integer between an inclusive minimum and exclusive maximum, approximating a normal distribution.
+--- Generates a random integer between an inclusive minimum and exclusive maximum
+--- with an approximated Gaussian (normal) distribution.
 --- @param min integer
 --- @param max integer
 --- @return integer
@@ -72,7 +73,7 @@ function C_Rng:int_gaussian_incl(min, max) end
 --- @return integer[]
 function C_Rng:ints_unique_incl(n, min, max) end
 
---- Generates a random floating-point number between an inclusive minimum and maximum.
+--- Generates a uniformly random floating-point number between an inclusive minimum and maximum.
 --- @param min number
 --- @param max number
 --- @return number
