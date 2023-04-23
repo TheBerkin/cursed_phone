@@ -5,6 +5,8 @@ mod props;
 mod scripting;
 mod agent;
 
+use std::fmt::Display;
+use std::ops::{Add, Sub};
 use std::rc::Rc;
 use std::cell::{RefCell, Cell};
 use std::sync::Arc;
@@ -55,6 +57,133 @@ pub enum PhoneLineState {
     Busy
 }
 
+/// Represents a conditionally finite value.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Unlimited<T> {
+    Finite(T),
+    Infinite
+}
+
+use self::Unlimited::*;
+
+impl<T> Unlimited<T> {
+    fn map<F, U>(self, f: F) -> Unlimited<U>
+    where 
+        F: FnOnce(T) -> U 
+    {        
+        match self {
+            Finite(a) => Finite(f(a)),
+            Infinite => Infinite
+        }
+    }
+    
+    fn map_or<F, U>(self, default: U, f: F) -> U
+    where
+        F: FnOnce(T) -> U
+    {
+        match self {
+            Finite(a) => f(a),
+            Infinite => default,
+        }
+    }
+
+    fn unwrap_or(self, default: T) -> T {
+        match self {
+            Finite(a) => a,
+            Infinite => default
+        }
+    }
+}
+
+impl<T: Display> Display for Unlimited<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Unlimited::Finite(a) => write!(f, "{}", a),
+            Unlimited::Infinite => write!(f, "infinite"),
+        }
+    }
+}
+
+impl<T: Default> Default for Unlimited<T> {
+    fn default() -> Self {
+        Self::Finite(T::default())
+    }
+}
+
+impl<T: Add<Output = T>> Add<Self> for Unlimited<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Finite(a), Finite(b)) => Finite(a + b),
+            _ => Infinite,
+        }
+    }
+}
+
+impl<T: Add<Output = T>> Add<T> for Unlimited<T> {
+    type Output = Self;
+
+    fn add(self, rhs: T) -> Self::Output {
+        match (self, rhs) {
+            (Finite(a), b) => Finite(a + b),
+            _ => Infinite,
+        }
+    }
+}
+
+impl<T: Sub<Output = T>> Sub<Self> for Unlimited<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Finite(a), Finite(b)) => Finite(a - b),
+            _ => Infinite,
+        }
+    }
+}
+
+impl<T: Sub<Output = T>> Sub<T> for Unlimited<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: T) -> Self::Output {
+        match (self, rhs) {
+            (Finite(a), b) => Finite(a - b),
+            _ => Infinite,
+        }
+    }
+}
+
+impl<T: PartialEq> PartialEq<T> for Unlimited<T> {
+    fn eq(&self, other: &T) -> bool {
+        match (self, other) {
+            (Finite(a), b) => a.eq(b),
+            (Infinite, _) => true,
+            _ => false
+        }
+    }
+}
+
+impl<T: PartialOrd> PartialOrd<Self> for Unlimited<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Finite(a), Finite(b)) => a.partial_cmp(b),
+            (Finite(_), Infinite) => Some(std::cmp::Ordering::Less),
+            (Infinite, Finite(_)) => Some(std::cmp::Ordering::Greater),
+            (Infinite, Infinite) => None,
+        }
+    }
+}
+
+impl<T: PartialOrd> PartialOrd<T> for Unlimited<T> {
+    fn partial_cmp(&self, other: &T) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Finite(a), b) => a.partial_cmp(b),
+            (Infinite, _) => Some(std::cmp::Ordering::Greater)
+        }
+    }
+}
+
 /// A Lua-powered telephone exchange that loads,
 /// manages, and runs scripted agents.
 pub struct CursedEngine<'lua> {
@@ -98,16 +227,16 @@ pub struct CursedEngine<'lua> {
     last_dialed_number: RefCell<Option<String>>,
     /// Enable switchhook dialing?
     switchhook_dialing_enabled: bool,
-    /// Amount of money (given in lowest denomination, e.g. cents) that is credited for the next call.
-    coin_deposit: RefCell<u32>,
+    /// Amount of coins deposited for the next call.
+    deposit: RefCell<u32>,
     /// Indicates whether the initial coin deposit for the call has been consumed.
-    initial_deposit_consumed: RefCell<bool>,
-    /// Indicates whether the PBX is waiting for the initial deposit to start the call.
-    awaiting_initial_deposit: RefCell<bool>,
-    /// Amount of time credited for the current (or next) call.
-    time_credit: RefCell<Duration>,
+    deposit_consumed: RefCell<bool>,
+    /// Indicates whether the engine is waiting for a coin deposit to start the call.
+    deposit_needed: RefCell<bool>,
     /// Delay before coins get eaten after call is accepted
-    coin_consume_delay: Duration,
+    deposit_consume_delay: Duration,
+    /// Max call length credited for the current (or next) call.
+    total_time_credit: RefCell<Unlimited<Duration>>,
     /// Last known state of the host's switchhook.
     switchhook_closed: Cell<bool>,
     /// Locked status of the switchhook.
@@ -170,11 +299,11 @@ impl<'lua> CursedEngine<'lua> {
             called_number: Default::default(),
             last_dialed_number: Default::default(),
             switchhook_dialing_enabled: config.shd_enabled.unwrap_or(false),
-            coin_deposit: RefCell::new(0),
-            coin_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
-            initial_deposit_consumed: RefCell::new(false),
-            awaiting_initial_deposit: RefCell::new(false),
-            time_credit: Default::default(),
+            deposit: RefCell::new(0),
+            deposit_consume_delay: Duration::from_millis(config.payphone.coin_consume_delay_ms),
+            deposit_consumed: RefCell::new(false),
+            deposit_needed: RefCell::new(false),
+            total_time_credit: Default::default(),
             switchhook_change_time: Cell::new(now),
             switchhook_closed: Cell::new(true),
             switchhook_locked: Cell::new(false),
@@ -448,7 +577,7 @@ impl<'lua> CursedEngine<'lua> {
         let state_time = state_start.saturating_duration_since(last_state_start);
 
         // Make sure that canceled unpaid call doesn't keep pinging Tollmaster
-        self.awaiting_initial_deposit.replace(false);
+        self.deposit_needed.replace(false);
 
         // Run behavior for state we're leaving
         match prev_state {
@@ -459,7 +588,7 @@ impl<'lua> CursedEngine<'lua> {
                 self.clear_called_number();
                 if self.config.payphone.enabled {
                     // When leaving the connected state, clear existing time credit
-                    self.initial_deposit_consumed.replace(false);
+                    self.deposit_consumed.replace(false);
                     self.clear_time_credit();
                 }
             }
@@ -600,21 +729,21 @@ impl<'lua> CursedEngine<'lua> {
         }
     }
 
-    pub fn remaining_time_credit(&self) -> Duration {
+    pub fn remaining_time_credit(&self) -> Unlimited<Duration> {
         match self.state() {
-            PhoneLineState::Connected => self.time_credit.borrow().checked_sub(self.current_state_time()).unwrap_or_default(),
-            _ => *self.time_credit.borrow()
+            PhoneLineState::Connected => self.total_time_credit.borrow().map(|d| d.checked_sub(self.current_state_time()).unwrap_or_default()),
+            _ => *self.total_time_credit.borrow()
         }
     }
 
     fn clear_time_credit(&self) {
-        self.time_credit.replace(Duration::default());
+        self.total_time_credit.replace(Default::default());
         info!("Time credit cleared.");
     }
 
     #[inline]
     fn has_time_credit(&self) -> bool {
-        self.config.payphone.time_credit_seconds == 0 || self.remaining_time_credit().as_nanos() > 0
+        self.config.payphone.time_credit_seconds == 0 || self.remaining_time_credit().map(|d| d.as_nanos()) > 0
     }
 
     pub fn is_current_call_free(&self) -> bool {
@@ -649,32 +778,32 @@ impl<'lua> CursedEngine<'lua> {
         && self.config.payphone.time_credit_seconds > 0
         && self.initial_deposit_consumed()
         && !self.is_current_call_free()
-        && self.remaining_time_credit().as_secs() <= self.config.payphone.time_credit_warn_seconds
+        && self.remaining_time_credit().map(|d| d.as_secs()) <= self.config.payphone.time_credit_warn_seconds
     }
 
     pub fn awaiting_initial_deposit(&self) -> bool {
-        *self.awaiting_initial_deposit.borrow()
+        *self.deposit_needed.borrow()
     }
 
-    fn add_coin_deposit(&self, cents: u32) {
+    fn add_deposit(&self, credits: u32) {
         let mut total = 0;
-        self.coin_deposit.replace_with(|prev_cents| { total = *prev_cents + cents; total });
-        info!("Deposited {}¢ (total: {}¢)", cents, total);
-        self.convert_deposit_to_credit();
+        self.deposit.replace_with(|credits_old| { total = *credits_old + credits; total });
+        info!("Credits deposited: {} (total = {})", credits, total);
+        self.consume_deposit();
     }
 
     /// Converts deposit into time credit for the current call.
     /// Any leftover deposit will remain and count towards future credit.
-    fn convert_deposit_to_credit(&self) -> bool {
+    fn consume_deposit(&self) -> bool {
         if self.state() == PhoneLineState::Connected {
             // Check if time credit can be added to the call
-            let mut deposit = self.coin_deposit.borrow_mut();
+            let mut deposit = self.deposit.borrow_mut();
             let rate = self.current_call_rate();
             if rate > 0 && *deposit >= rate {
                 let rate_multiplier = *deposit / rate;
                 *deposit %= rate;
                 let time_credit = Duration::from_secs(self.config.payphone.time_credit_seconds.saturating_mul(rate_multiplier as u64));
-                self.add_time_credit(time_credit);
+                self.add_time_credit(Finite(time_credit));
                 return true
             }
         }
@@ -682,28 +811,31 @@ impl<'lua> CursedEngine<'lua> {
     }
 
     /// Adds the specified amount of time to the call (payphone only).
-    fn add_time_credit(&self, credit: Duration) {
-        self.time_credit.replace_with(|cur| cur.checked_add(credit).unwrap_or_default());
-        info!("Added time credit: {:?}", credit);
+    fn add_time_credit(&self, credit: Unlimited<Duration>) {
+        self.total_time_credit.replace_with(|cur| *cur + credit);
+        match credit {
+            Finite(d) => info!("Call time credited: {:?}", d),
+            Infinite => info!("Infinite call time credited.")
+        }
     }
 
     /// Converts deposit into time credit and sets `initial_deposit_consumed` flag.
     fn consume_initial_deposit(&self) {
-        self.convert_deposit_to_credit();
-        self.awaiting_initial_deposit.replace(false);
-        self.initial_deposit_consumed.replace(true);
-        info!("Initial deposit consumed.");
+        self.consume_deposit();
+        self.deposit_needed.replace(false);
+        self.deposit_consumed.replace(true);
+        info!("Deposited credits consumed.");
     }
 
     /// Indicates whether the initial deposit for the current call was consumed.
     fn initial_deposit_consumed(&self) -> bool {
-        *self.initial_deposit_consumed.borrow()
+        *self.deposit_consumed.borrow()
     }
 
     /// Called when the user deposits a coin.
     #[inline]
     fn handle_coin_deposit(&self, cents: u32) {
-        self.add_coin_deposit(cents);
+        self.add_deposit(cents);
     }
 
     /// Called when the resting state of the host's rotary dial changes.
@@ -790,7 +922,10 @@ impl<'lua> CursedEngine<'lua> {
                     if !is_locked {
                         info!("Connecting call.");
                         // Connect the call
-                        self.add_time_credit(Duration::MAX);
+                        // TODO: Only add time credit when in payphone mode
+                        if self.config.payphone.enabled {
+                            self.add_time_credit(Finite(Duration::MAX));
+                        }
                         self.set_state(PhoneLineState::Connected);
                     }
                 },
@@ -881,11 +1016,11 @@ impl<'lua> CursedEngine<'lua> {
                         };
 
                         // If the user has deposited enough money, call the number. Otherwise, do nothing.
-                        if *self.coin_deposit.borrow() >= price {
+                        if *self.deposit.borrow() >= price {
                             self.call_number(number_to_dial.as_str());
-                            self.awaiting_initial_deposit.replace(false);
+                            self.deposit_needed.replace(false);
                         } else {
-                            self.awaiting_initial_deposit.replace(true);
+                            self.deposit_needed.replace(true);
                         }
                     } else {
                         let number_to_dial = self.get_dialed_digits();
@@ -897,7 +1032,7 @@ impl<'lua> CursedEngine<'lua> {
                 if !self.is_current_call_free() {
                     // Wait for user-configured delay and eat coin deposit
                     if !self.initial_deposit_consumed() {
-                        if self.current_state_time() >= self.coin_consume_delay {
+                        if self.current_state_time() >= self.deposit_consume_delay {
                             self.consume_initial_deposit();
                         }
                     } else if !self.has_time_credit() {

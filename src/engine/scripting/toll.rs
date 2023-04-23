@@ -14,7 +14,7 @@ impl<'lua> CursedEngine<'lua> {
 
         // toll.time_left()
         tbl_toll.set("time_left", lua.create_function(move |_, ()| {
-            Ok(self.remaining_time_credit().as_secs_f64())
+            Ok(self.remaining_time_credit().map_or( f64::INFINITY, |d| d.as_secs_f64()))
         })?)?;
 
         // toll.current_call_rate()
