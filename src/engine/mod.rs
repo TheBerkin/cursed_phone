@@ -57,6 +57,13 @@ pub enum PhoneLineState {
     Busy
 }
 
+impl PhoneLineState {
+    fn can_place_call(&self) -> bool {
+        use PhoneLineState::*;
+        matches!(self, DialTone | Busy | PDD | Connected)
+    }
+}
+
 /// Represents a conditionally finite value.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Unlimited<T> {
@@ -371,19 +378,15 @@ impl<'lua> CursedEngine<'lua> {
 
     /// Calls the specified agent.
     fn call_agent(&'lua self, agent: Rc<AgentModule>) {
-        use PhoneLineState::*;
-        match self.state() {
-            DialTone | Busy | PDD | Connected => {
-                info!("Calling agent '{}' ({:?})", agent.name(), agent.phone_number());
-                // Inform the agent state machine that the user initiated the call
-                agent.set_call_reason(CallReason::UserInit);
-                // Set other_party to requested agent
-                let agent = self.lookup_agent_id(agent.id().unwrap()).unwrap();
-                self.load_other_party(Rc::clone(&agent));
-                // Set PBX to call-out state
-                self.set_state(CallingOut);
-            },
-            _ => {}
+        if self.state().can_place_call() {
+            info!("Calling agent '{}' ({:?})", agent.name(), agent.phone_number());
+            // Inform the agent state machine that the user initiated the call
+            agent.set_call_reason(CallReason::UserInit);
+            // Set other_party to requested agent
+            let agent = self.lookup_agent_id(agent.id().unwrap()).unwrap();
+            self.load_other_party(Rc::clone(&agent));
+            // Set PBX to call-out state
+            self.set_state(CallingOut);
         }
     }
 
@@ -800,9 +803,10 @@ impl<'lua> CursedEngine<'lua> {
             let mut deposit = self.deposit.borrow_mut();
             let rate = self.current_call_rate();
             if rate > 0 && *deposit >= rate {
-                let rate_multiplier = *deposit / rate;
+                let time_credit_multiplier = *deposit / rate;
                 *deposit %= rate;
-                let time_credit = Duration::from_secs(self.config.payphone.time_credit_seconds.saturating_mul(rate_multiplier as u64));
+                info!("Consuming {} credit(s).", deposit);
+                let time_credit = Duration::from_secs(self.config.payphone.time_credit_seconds.saturating_mul(time_credit_multiplier as u64));
                 self.add_time_credit(Finite(time_credit));
                 return true
             }
@@ -813,18 +817,7 @@ impl<'lua> CursedEngine<'lua> {
     /// Adds the specified amount of time to the call (payphone only).
     fn add_time_credit(&self, credit: Unlimited<Duration>) {
         self.total_time_credit.replace_with(|cur| *cur + credit);
-        match credit {
-            Finite(d) => info!("Call time credited: {:?}", d),
-            Infinite => info!("Infinite call time credited.")
-        }
-    }
-
-    /// Converts deposit into time credit and sets `initial_deposit_consumed` flag.
-    fn consume_initial_deposit(&self) {
-        self.consume_deposit();
-        self.deposit_needed.replace(false);
-        self.deposit_consumed.replace(true);
-        info!("Deposited credits consumed.");
+        info!("Added call time: {:?}", credit);
     }
 
     /// Indicates whether the initial deposit for the current call was consumed.
@@ -1032,15 +1025,16 @@ impl<'lua> CursedEngine<'lua> {
                 if !self.is_current_call_free() {
                     // Wait for user-configured delay and eat coin deposit
                     if !self.initial_deposit_consumed() {
-                        if self.current_state_time() >= self.deposit_consume_delay {
-                            self.consume_initial_deposit();
+                        if self.current_state_time() >= self.deposit_consume_delay && self.consume_deposit() {
+                            self.deposit_needed.replace(false);
+                            self.deposit_consumed.replace(true);
                         }
                     } else if !self.has_time_credit() {
                         // Cut off call if time credit runs out
                         info!("Out of time credit; ending call.");
                         self.set_state(PhoneLineState::Busy);
                     }
-                }               
+                }
             }
             _ => {}
         }
