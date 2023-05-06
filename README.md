@@ -66,3 +66,19 @@ If you'll be running this as a service, move the built executable (found in `/ta
 ## Running
 
 By default the Engine will use the configuration file `cursed_phone.conf` in the current working directory, but the file location can be overridden with the `CURSED_CONFIG_PATH` environment variable.
+
+## Directory structure
+
+```
+cursed_phone/
+┣ addons/           - Default directory for resource overlays ("addons")
+┣ definitions/      - Definitions for injected Lua globals
+┣ docs/             - Miscellaneous documentation for the engine
+┣ res/              - Main engine resources
+┃ ┣ agents/         - Agent scripts
+┃ ┣ scripts/        - Scripts that run at startup
+┃ ┣ soundbanks/     - Contains soundbank directories
+┃ ┗ sounds/         - Static sound resources
+┣ setup/            - Files for deploying the engine in production
+┣ src/              - Engine source code
+```
