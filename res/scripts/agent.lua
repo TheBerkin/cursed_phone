@@ -12,7 +12,9 @@
 local RING_PATTERN_DEFAULT = 'Q2000 L4000'
 
 local ACTIVE_AGENT_MACHINES = {}
-local M_ACTIVE_AGENT_MACHINES = { __weak = 'kv' }
+
+--- @type metatable
+local M_ACTIVE_AGENT_MACHINES = { __mode = 'kv' }
 setmetatable(ACTIVE_AGENT_MACHINES, M_ACTIVE_AGENT_MACHINES)
 
 function assert_agent_caller()
