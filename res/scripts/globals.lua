@@ -9,6 +9,9 @@
     
 ]]
 
+--- Alias for `coroutine.yield`
+yield = coroutine.yield
+
 function is_number(val)
     return type(val) == 'number'
 end

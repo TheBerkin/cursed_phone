@@ -315,7 +315,7 @@ function C_AgentModule:gen_state_coroutine(new_state, old_state)
     
         -- Emit state-end intent
         if old_state then
-            coroutine.yield(IntentCode.STATE_END, old_state)
+            yield(IntentCode.STATE_END, old_state)
         end
     
         -- Load/unload sound banks as needed

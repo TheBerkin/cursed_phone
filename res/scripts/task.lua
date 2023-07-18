@@ -42,22 +42,22 @@ IntentResponseCode = {
 --- @param should_continue boolean?
 --- @return IntentResponseCode, any
 function task.intent(intent, intent_data, should_continue)
-    local data_code, response_data = coroutine.yield(intent, intent_data, should_continue or false)
+    local data_code, response_data = yield(intent, intent_data, should_continue or false)
     return (data_code or IntentResponseCode.NONE), response_data
 end
 
 --- @async
---- Asynchronously waits the specified number of seconds, or forever if no duration is specified.
---- @param seconds number?
+--- Asynchronously waits the specified number of seconds, or indefinitely if no duration is specified.
+--- @param seconds number? @ The number of seconds to wait, or `nil` to wait indefinitely.
 function task.wait(seconds)
     if seconds ~= nil then
         local start_time = engine_time()
         while engine_time() - start_time < seconds do
-            coroutine.yield(IntentCode.WAIT)
+            yield(IntentCode.WAIT)
         end
     else
         while true do
-            coroutine.yield(IntentCode.WAIT)
+            yield(IntentCode.WAIT)
         end
     end
 end
@@ -67,7 +67,7 @@ end
 --- @param predicate fun(): boolean
 function task.wait_until(predicate)
     while not predicate() do
-        coroutine.yield(IntentCode.WAIT)
+        yield(IntentCode.WAIT)
     end
 end
 
@@ -81,7 +81,7 @@ function task.wait_cancel(seconds, predicate)
         local start_time = engine_time()
         while engine_time() - start_time < seconds do
             if predicate() then return true end
-            coroutine.yield(IntentCode.WAIT)
+            yield(IntentCode.WAIT)
         end
     else
         task.wait(seconds)
@@ -99,7 +99,7 @@ function task.wait_dynamic(duration_func)
     while true do
         local current_duration = duration_func()
         if is_number(current_duration) and engine_time() - start_time >= current_duration then return end
-        coroutine.yield(IntentCode.WAIT)
+        yield(IntentCode.WAIT)
     end
 end
 
@@ -113,10 +113,10 @@ end
 function task.yield(n)
     if n then
         for i = 1, n do
-            coroutine.yield(IntentCode.YIELD)
+            yield(IntentCode.YIELD)
         end
     else
-        coroutine.yield(IntentCode.YIELD)
+        yield(IntentCode.YIELD)
     end
 end
 
@@ -136,7 +136,7 @@ function task.chance_interval(interval, p, timeout)
             last_interval_start_time = last_interval_start_time + interval
             if maybe(p) then return end
         end
-        coroutine.yield(IntentCode.WAIT)
+        yield(IntentCode.WAIT)
     end
 end
 
@@ -284,7 +284,7 @@ function task.loop(f, predicate)
 
         time_prev = time_current
         time_current = engine_time()
-        if not yielded then coroutine.yield(IntentCode.YIELD) end
+        if not yielded then yield(IntentCode.YIELD) end
     end
 end
 
@@ -323,7 +323,7 @@ function task.loop_param(obj, f, predicate)
 
         time_prev = time_current
         time_current = engine_time()
-        if not yielded then coroutine.yield(IntentCode.YIELD) end
+        if not yielded then yield(IntentCode.YIELD) end
     end
 end
 
@@ -345,13 +345,13 @@ end
 --- @async
 --- Accepts a pending call.
 function task.accept_call()
-    coroutine.yield(IntentCode.ACCEPT_CALL)
+    yield(IntentCode.ACCEPT_CALL)
 end
 
 --- @async
 --- Ends the call.
 function task.end_call()
-    coroutine.yield(IntentCode.END_CALL)
+    yield(IntentCode.END_CALL)
 end
 
 --- @async
