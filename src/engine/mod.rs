@@ -386,7 +386,7 @@ impl<'lua> CursedEngine<'lua> {
             let agent = self.lookup_agent_id(agent.id().unwrap()).unwrap();
             self.load_other_party(Rc::clone(&agent));
             // Set PBX to call-out state
-            self.set_state(CallingOut);
+            self.set_state(PhoneLineState::CallingOut);
         }
     }
 
