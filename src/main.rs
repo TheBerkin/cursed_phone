@@ -33,7 +33,7 @@ const ENV_RESOURCES_PATH: &str = "CURSED_RESOURCES_PATH";
 #[allow(unreachable_code)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up logger
-    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
+    TermLogger::init(LevelFilter::Info, Default::default(), TerminalMode::Stderr, ColorChoice::Auto).unwrap();
 
     // Set thread priority
     if let Err(err) = set_current_thread_priority(ThreadPriority::Max) {
