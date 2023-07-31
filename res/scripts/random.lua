@@ -113,3 +113,5 @@ function rand64() return GLOBAL_RNG:bits_64() end
 --- @param p number
 --- @return boolean
 function maybe(p) return GLOBAL_RNG:maybe(p) end
+
+function randpick(...) return GLOBAL_RNG:pick(...) end

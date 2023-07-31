@@ -9,11 +9,11 @@ local function is_fsm_context()
     return ACTIVE_FSM_COROUTINES[context] ~= nil and not is_main
 end
 
---- @alias FsmStateTable table<any, FsmState|async fun(self: Fsm, from_state_key: any?)>
+--- @alias FsmStateTable table<any, FsmState|async fun(self: Fsm, from_state_key: any, ...)>
 
 --- A function table for a specific state in a finite state machine.
 --- @class FsmState
---- @field enter async fun(self: Fsm, from_state_key: any?)?
+--- @field enter async fun(self: Fsm, from_state_key: any?, ...)?
 --- @field exit async fun(self: Fsm)?
 
 --- A Finite State Machine (FSM) runnable by agent tasks.
@@ -21,17 +21,20 @@ end
 --- @field package _last_response_code IntentResponseCode
 --- @field package _last_response_data any?
 --- @field package _coroutine thread
+--- @field package _context any
 --- @field package _state_key any
 --- @field package _state_table FsmStateTable
---- @field package _on_transition fun(fsm: Fsm, from: any?, to: any?)?
+--- @field package _on_transition fun(fsm: Fsm, from: any?, to: any?, ...)?
 local C_Fsm = {}
 
 local M_Fsm = {
     __index = C_Fsm
 }
 
+--- Generates the coroutines used by the FSM executor.
 --- @return thread
-local function gen_transition_coroutine(fsm, prev_state_key, next_state_key)
+local function gen_transition_coroutine(fsm, prev_state_key, next_state_key, ...)
+    local params = table.pack(...)
     local co = coroutine.create(function()
         local prev_state = fsm._state_table[prev_state_key]
         local next_state = fsm._state_table[next_state_key]
@@ -52,7 +55,7 @@ local function gen_transition_coroutine(fsm, prev_state_key, next_state_key)
         end
 
         if fn_next_enter then
-            fn_next_enter(fsm, prev_state_key)
+            fn_next_enter(fsm, prev_state_key, table.unpack(params))
         end
 
         -- Don't let the coroutine die until a transition happens
@@ -67,18 +70,20 @@ local function gen_transition_coroutine(fsm, prev_state_key, next_state_key)
 end
 
 --- Creates a new finite state machine.
---- @param state_table FsmStateTable
---- @param init_state any?
+--- @param state_table FsmStateTable @ The table of states to use.
+--- @param init_state any? @ The initial state to set.
+--- @param context any? @ A context object to associate with the FSM.
 --- @return Fsm
-function Fsm(state_table, init_state)
-    --- @type Fsm
+function Fsm(state_table, init_state, context)
     local fsm = {
         _state_table = state_table,
         _state_key = init_state
     }
+    --- @cast fsm Fsm
     setmetatable(fsm, M_Fsm)
     fsm._state_key = init_state
     fsm._coroutine = gen_transition_coroutine(fsm, nil, init_state)
+    fsm._context = context
     return fsm
 end
 
@@ -87,6 +92,17 @@ end
 function C_Fsm:on_transition(handler)
     assert(type(handler) == 'function', 'handler must be a function')
     self._on_transition = handler
+end
+
+--- Gets the context object associated with the FSM.
+--- @return any
+function C_Fsm:context()
+    return self._context
+end
+
+--- Sets the context object associated with the FSM.
+function C_Fsm:set_context(context)
+    self._context = context
 end
 
 --- @async
@@ -109,7 +125,7 @@ function C_Fsm:tick()
     return true
 end
 
---- Returns a function that wraps a call to the `run` method of this FSM.
+--- Returns a function that calls the `run` method for this FSM.
 --- @return async fun()
 function C_Fsm:wrap()
     return function() self:run() end
@@ -117,18 +133,19 @@ end
 
 --- @async
 --- Transitions the FSM to the specified state key. Yields if called inside a state.
---- @param to any @ The key of the state to transition to.
+--- @param to_state_key any @ The key of the state to transition to.
+--- @param ... any @ Optional additional arguments to pass to the state.
 --- @return boolean
-function C_Fsm:transition(to)
+function C_Fsm:transition(to_state_key, ...)
     local called_by_fsm = is_fsm_context()
 
-    if to == nil then return false end
+    if to_state_key == nil then return false end
     local from_state_key = self._state_key
-    self._state_key = to
-    self._coroutine = gen_transition_coroutine(self, from_state_key, to)
+    self._state_key = to_state_key
+    self._coroutine = gen_transition_coroutine(self, from_state_key, to_state_key, ...)
 
     if self._on_transition then
-        self._on_transition(self, from_state_key, to)
+        self._on_transition(self, from_state_key, to_state_key, ...)
     end
 
     if called_by_fsm then task.yield() end

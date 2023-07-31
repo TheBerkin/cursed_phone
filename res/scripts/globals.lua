@@ -24,6 +24,10 @@ function is_nan(val)
     return val ~= val and type(val) == 'number'
 end
 
+function is_some(val)
+    return val ~= nil
+end
+
 --- @param val any
 --- @return boolean
 function coerce_boolean(val)

@@ -39,8 +39,8 @@ end
 --- @return any[]
 function C_Deque:to_table()
     local t = {}
-    for i = 0, #self - 1 do
-        table.insert(t, self[self._head + i])
+    for i = self._head, self._tail, 1 do
+        table.insert(t, self[i])
     end
     return t
 end

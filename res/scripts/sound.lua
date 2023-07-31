@@ -124,28 +124,61 @@ end
 --- *(Agent use only)*
 ---
 --- Fades out the sound on the specified channel over `duration` seconds, then stops the sound. 
---- @param channels Channel | Channel[] @ The channel to fade out
+--- @param channels Channel @ The channel to fade out
 --- @param duration number @ The duration of the fade in seconds
 function sound.fade_out(channels, duration)
     local channel_type = type(channels)
     local start_time = engine_time()
     local end_time = engine_time() + duration
 
+    if not sound.is_busy(channels) then return end
+    sound.set_channel_fade_volume(channels, 1)
+    while true do
+        local time = engine_time()
+        local progress = math.invlerp(time, start_time, end_time, true)
+
+        if not sound.is_busy(channels) then return end
+
+        if progress >= 1 then
+            sound.stop(channels)
+            sound.set_channel_fade_volume(channels, 1)
+            return
+        else
+            sound.set_channel_fade_volume(channels, 1.0 - progress)
+        end
+        task.intent(IntentCode.WAIT)
+    end
+end
+
+--- @async
+--- *(Agent use only)*
+---
+--- Fades the sound on the specified channel(s) over `duration` seconds. 
+--- @param channels Channel | Channel[] @ The channel to fade out
+--- @param duration number @ The duration of the fade in seconds
+--- @param to_volume number @ The volume to fade to
+--- @param ease_func? fun(x: number): number @ Provides an easing function to use for fading.
+function sound.fade_to(channels, duration, to_volume, ease_func)
+    local channel_type = type(channels)
+    local start_time = engine_time()
+    local end_time = engine_time() + duration
+    ease_func = ease_func or ease.linear
+
     if channel_type == 'number' or channel_type == 'integer' then
         if not sound.is_busy(channels) then return end
+        local from_volume = sound.get_channel_fade_volume(channels)
         while true do
             local time = engine_time()
             local progress = math.invlerp(time, start_time, end_time, true)
-    
+            local volume_next = math.lerp(from_volume, to_volume, ease_func(progress), true)
+
             if not sound.is_busy(channels) then return end
     
             if progress >= 1 then
-                sound.stop(channels)
-                sound.set_channel_fade_volume(channels, 1)
+                sound.set_channel_fade_volume(channels, to_volume)
                 return
             else
-                local fade_volume = math.lerp(1, 0, progress, true)
-                sound.set_channel_fade_volume(channels, fade_volume)
+                sound.set_channel_fade_volume(channels, volume_next)
             end
             task.intent(IntentCode.WAIT)
         end    
@@ -153,21 +186,24 @@ function sound.fade_out(channels, duration)
         while true do
             local time = engine_time()
             local progress = math.invlerp(time, start_time, end_time, true)
-    
+            local from_volumes = table.map(channels, function (ch)
+                return sound.get_channel_fade_volume(ch)
+            end)
+
             if progress >= 1 then
                 for i = 1, #channels do
                     local channel = channels[i]
-                    sound.stop(channel)
+                    sound.set_channel_fade_volume(channel, to_volume)
                 end
                 return
             else
-                local fade_volume = math.lerp(1, 0, progress, true)
                 local is_any_channel_busy = false
                 for i = 1, #channels do
                     local channel = channels[i]
+                    local volume_next = math.lerp(from_volumes[i], to_volume, ease_func(progress), true)
                     if sound.is_busy(channel) then 
                         is_any_channel_busy = true
-                        sound.set_channel_fade_volume(channel, fade_volume)
+                        sound.set_channel_fade_volume(channel, volume_next)
                     end
                 end
     

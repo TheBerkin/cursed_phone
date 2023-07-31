@@ -56,10 +56,10 @@ AgentRole = {
 --- @alias AgentMessageHandlerFunction async fun(self: AgentModule, sender: string, msg_type: string, msg_data: any)
 
 --- @class StateFunctionTable
---- @field enter async fun(self: AgentModule) @ Called when the state is entered.
---- @field tick async fun(self: AgentModule) @ Called each tick after `enter`.
---- @field exit async fun(self: AgentModule) @ Called when the state is exiting.
---- @field message AgentMessageHandlerFunction | table<AgentMessageKey, AgentMessageHandlerFunction>  @ Called when the agent receives a message. 
+--- @field enter async fun(self: AgentModule)? @ Called when the state is entered.
+--- @field tick async fun(self: AgentModule)? @ Called each tick after `enter`.
+--- @field exit async fun(self: AgentModule)? @ Called when the state is exiting.
+--- @field message AgentMessageHandlerFunction? | table<AgentMessageKey, AgentMessageHandlerFunction>?  @ Called when the agent receives a message. 
 
 --- @class AgentModule
 --- @field package _name string

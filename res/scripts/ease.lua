@@ -12,7 +12,7 @@ end
 
 --- @param x number
 function ease.sine(x)
-    return -(math.cos(math.pi * x)) * 0.5
+    return -(math.cos(math.pi * x)) * 0.5 + 0.5
 end
 
 --- @param x number
@@ -22,4 +22,9 @@ function ease.cubic(x)
     else
         return 1.0 - ((-2.0 * x + 2.0) ^ 3) * 0.5
     end
+end
+
+--- @param x number
+function ease.linear(x)
+    return x
 end

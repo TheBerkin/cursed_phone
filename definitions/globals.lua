@@ -1,5 +1,6 @@
 --- @meta
 
+--- @diagnostic disable duplicate-doc-field
 --- @class metatable: table
 --- @field __add? fun(a, b): any                    @ Addition operator (`a + b`)
 --- @field __call? fun(t: any, ...)                 @ Controls what happens when `t` is called like a function (e.g. `t()`). Arguments are accessible via `...`.
@@ -19,6 +20,10 @@
 --- @field __sub? fun(a, b): any                    @ Subtraction operator (`a - b`)
 --- @field __tostring? fun(t: any): string          @ Controls what is returned by `tostring(t)`.
 --- @field __unm? fun(a): any                       @ Negation operator (`-a`)
+
+-- @alias luatype "nil" | "number" | "string" | "boolean" | "table" | "function" | "thread" | "userdata" | "lightuserdata" | "integer" @ Lua's primitive type names.
+
+--- @diagnostic enable duplicate-doc-field
 
 --- Returns the metatable associated with the table `object`, or the metatable's `__metatable` value if present.
 --- @param object table
