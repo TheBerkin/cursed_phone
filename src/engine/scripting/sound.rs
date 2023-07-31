@@ -45,7 +45,14 @@ impl<'lua> CursedEngine<'lua> {
             );
 
             Ok(match info {
-                Some(info) => (true, info.duration.map(|d| d.as_secs_f64())),
+                Some(info) => (true, info.duration.map(|d| {
+                    if let Some(take) = take {
+                        if take < d {
+                            return take.as_secs_f64()
+                        }
+                    }
+                    d.as_secs_f64()
+                })),
                 None => (false, None)
             })
         })?)?;
