@@ -28,3 +28,8 @@ end
 function ease.linear(x)
     return x
 end
+
+--- @param x number
+function ease.quadratic(x)
+    return math.pow(x, 2)
+end

@@ -33,3 +33,8 @@ end
 function coerce_boolean(val)
     return not not val
 end
+
+--- Converts decibels (dB) to an amplitude scale factor.
+function scale_db(db)
+    return math.pow(10.0, db / 20.0)
+end

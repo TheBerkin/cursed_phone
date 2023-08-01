@@ -21,7 +21,7 @@
 --- @field __tostring? fun(t: any): string          @ Controls what is returned by `tostring(t)`.
 --- @field __unm? fun(a): any                       @ Negation operator (`-a`)
 
--- @alias luatype "nil" | "number" | "string" | "boolean" | "table" | "function" | "thread" | "userdata" | "lightuserdata" | "integer" @ Lua's primitive type names.
+--- @alias luatype "nil" | "number" | "string" | "boolean" | "table" | "function" | "thread" | "userdata" | "lightuserdata" | "integer" @ Lua's primitive type names.
 
 --- @diagnostic enable duplicate-doc-field
 
