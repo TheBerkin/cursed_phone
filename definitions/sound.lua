@@ -77,6 +77,14 @@ function sound.set_master_volume(volume) end
 --- @param volume number
 function sound.set_channel_volume(channel, volume) end
 
+--- @param channel Channel
+--- @return number
+function sound.get_channel_speed(channel) end
+
+--- @param channel Channel
+--- @param speed number
+function sound.set_channel_speed(channel, speed) end
+
 --- Plays a busy tone on `CHAN_SIGIN`.
 function sound.play_busy_tone() end
 

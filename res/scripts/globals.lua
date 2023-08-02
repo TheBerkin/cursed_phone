@@ -38,3 +38,13 @@ end
 function scale_db(db)
     return math.pow(10.0, db / 20.0)
 end
+
+--- Returns a parameterless function that calls `task_func` with the specified arguments.
+--- @param fn function
+--- @return fun()
+function curry(fn, ...)
+    local args = table.pack(...)
+    return function()
+        fn(table.unpack(args))
+    end
+end

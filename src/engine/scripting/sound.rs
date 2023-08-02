@@ -77,13 +77,13 @@ impl<'lua> CursedEngine<'lua> {
     
         // sound.get_channel_volume(channel)
         tbl_sound.set("get_channel_volume", lua.create_function(move |_, channel: usize| {
-            let vol = self.sound_engine.borrow().volume(Channel::from(channel));
+            let vol = self.sound_engine.borrow().channel_volume(Channel::from(channel));
             Ok(vol)
         })?)?;
     
         // sound.set_channel_volume(channel, volume)
         tbl_sound.set("set_channel_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
-            self.sound_engine.borrow_mut().set_volume(Channel::from(channel), volume);
+            self.sound_engine.borrow_mut().set_channel_volume(Channel::from(channel), volume);
             Ok(())
         })?)?;
 
@@ -100,13 +100,25 @@ impl<'lua> CursedEngine<'lua> {
 
         // sound.get_channel_fade_volume(channel)
         tbl_sound.set("get_channel_fade_volume", lua.create_function(move |_, channel: usize| {
-            let vol = self.sound_engine.borrow().fade_volume(Channel::from(channel));
+            let vol = self.sound_engine.borrow().channel_fade_volume(Channel::from(channel));
             Ok(vol)
         })?)?;
     
         // sound.set_channel_fade_volume(channel, volume)
         tbl_sound.set("set_channel_fade_volume", lua.create_function(move |_, (channel, volume): (usize, f32)| {
-            self.sound_engine.borrow_mut().set_fade_volume(Channel::from(channel), volume);
+            self.sound_engine.borrow_mut().set_channel_fade_volume(Channel::from(channel), volume);
+            Ok(())
+        })?)?;
+        
+        // sound.get_channel_speed(channel)
+        tbl_sound.set("get_channel_speed", lua.create_function(move |_, channel: usize| {
+            let vol = self.sound_engine.borrow().channel_speed(Channel::from(channel));
+            Ok(vol)
+        })?)?;
+    
+        // sound.set_channel_speed(channel, speed)
+        tbl_sound.set("set_channel_speed", lua.create_function(move |_, (channel, speed): (usize, f32)| {
+            self.sound_engine.borrow_mut().set_channel_speed(Channel::from(channel), speed);
             Ok(())
         })?)?;
 

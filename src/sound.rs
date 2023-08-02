@@ -558,23 +558,31 @@ impl SoundEngine {
         self.channels.borrow()[channel.as_index()].muted()
     }
 
+    pub fn channel_speed(&self, channel: Channel) -> f32 {
+        self.channels.borrow()[channel.as_index()].speed()
+    }
+
+    pub fn set_channel_speed(&mut self, channel: Channel, speed: f32) {
+        self.channels.borrow_mut()[channel.as_index()].set_speed(speed);
+    }
+
     pub fn set_muted(&mut self, channel: Channel, muted: bool) {
         self.channels.borrow_mut()[channel.as_index()].set_muted(muted);
     }
 
-    pub fn set_volume(&mut self, channel: Channel, volume: f32) {
+    pub fn set_channel_volume(&mut self, channel: Channel, volume: f32) {
         self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::Channel, volume);
     }
 
-    pub fn volume(&self, channel: Channel) -> f32 {
+    pub fn channel_volume(&self, channel: Channel) -> f32 {
         self.channels.borrow()[channel.as_index()].volume(VolumeLayer::Channel)
     }
 
-    pub fn set_fade_volume(&mut self, channel: Channel, volume: f32) {
+    pub fn set_channel_fade_volume(&mut self, channel: Channel, volume: f32) {
         self.channels.borrow_mut()[channel.as_index()].set_volume(VolumeLayer::Fade, volume);
     }
 
-    pub fn fade_volume(&self, channel: Channel) -> f32 {
+    pub fn channel_fade_volume(&self, channel: Channel) -> f32 {
         self.channels.borrow()[channel.as_index()].volume(VolumeLayer::Fade)
     }
 
@@ -700,6 +708,14 @@ impl SoundChannel {
         *dst_volume = volume;
         self.update_sink_volume();
         self
+    }
+
+    fn speed(&self) -> f32 {
+        self.sink.speed()
+    }
+
+    fn set_speed(&self, speed: f32) {
+        self.sink.set_speed(speed);
     }
 
     fn muted(&self) -> bool {

@@ -141,6 +141,60 @@ function task.chance_interval(interval, p, timeout)
 end
 
 --- @async
+--- Runs multiple agent tasks in parallel and stops all of them as soon as any one task finishes.
+--- @param ... async fun()
+function task.race(...)
+    local coroutines = table.map({...}, function(f) return {
+        co = coroutine.create(f),
+        last_response_code = nil,
+        last_response_data = nil
+    } end)
+
+    while true do
+        local tasks_running, task_count = false, #coroutines
+
+        for i = 1, task_count do
+            local state = coroutines[i]
+            if coroutine.status(state.co) ~= 'dead' then
+                local success, intent, intent_data = coroutine.resume(state.co, state.last_response_code, state.last_response_data)
+                tasks_running = true
+                if not success then error(intent, 1) end
+                local response_code, response_data = task.intent(intent, intent_data, i < task_count)
+                state.last_response_code = response_code
+                state.last_response_data = response_data
+                if coroutine.status(state.co) == 'dead' then return end
+            end
+        end
+        if not tasks_running then return end
+    end
+end
+
+--- @param duration number
+--- @param callback fun(dt: number, elapsed: number, progress: number)
+function task.tween(duration, callback)
+    local time_started = engine_time()
+    local time_prev = time_started
+    local time_current = time_started
+    
+    if duration <= 0 then
+        callback(0, 0, 1)
+        return
+    end
+
+    local elapsed
+
+    repeat
+        time_current = engine_time()
+        elapsed = time_current - time_started
+        callback(time_current - time_prev, elapsed, elapsed / duration)
+        time_prev = time_current
+        task.yield()
+    until elapsed >= duration
+
+    callback(time_current - time_prev, duration, 1.0)
+end
+
+--- @async
 --- Runs multiple agent tasks in parallel.
 --- @param ... async fun()
 function task.parallel(...)

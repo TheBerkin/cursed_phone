@@ -589,6 +589,13 @@ impl<'lua> CursedEngine<'lua> {
             },
             PhoneLineState::Connected => {
                 self.clear_called_number();
+                let mut sound_engine = self.sound_engine.borrow_mut();
+                for ch in NON_SOUL_CHANNELS.iter() {
+                    let ch = *ch;
+                    sound_engine.set_channel_speed(ch, 1.0);
+                    sound_engine.set_channel_volume(ch, 1.0);
+                    sound_engine.set_channel_fade_volume(ch, 1.0);
+                }
                 if self.config.payphone.enabled {
                     // When leaving the connected state, clear existing time credit
                     self.deposit_consumed.replace(false);
