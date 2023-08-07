@@ -32,7 +32,7 @@ function C_PriorityQueue:push_back(obj, priority)
     local bucket = self._buckets_sparse[priority]
     if not bucket then
         bucket = { p = bucket_index, values = Deque() }
-        self._buckets_sparse[bucket] = bucket
+        self._buckets_sparse[bucket_index] = bucket
         table.insert(self._buckets_sorted, bucket)
         table.sort(self._buckets_sorted, cmp_buckets)
     end
@@ -53,6 +53,21 @@ function C_PriorityQueue:pop_front()
     end
     self._length = self._length - 1
     return success, obj, bucket.p
+end
+
+--- @generic T
+--- @param f fun(x: T, ...): (boolean?)
+--- @param ... any
+--- @return boolean @ Indicates whether iteration was interrupted by the callback returning `true`.
+function C_PriorityQueue:foreach(f, ...)
+    for i = 1, #self._buckets_sparse do
+        local bucket_values = self._buckets_sparse[i].values
+        for j = 1, #bucket_values do
+            local value = bucket_values[j]
+            if f(value, ...) then return true end
+        end
+    end
+    return false
 end
 
 function C_PriorityQueue:clear()

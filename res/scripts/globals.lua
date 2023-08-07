@@ -48,3 +48,27 @@ function curry(fn, ...)
         fn(table.unpack(args))
     end
 end
+
+--- @generic K, V
+--- @param t table<K, V>
+--- @param f fun(k: K, v: V, ...): (boolean?)
+--- @return boolean @ Indicates whether iteration was interrupted by the callback returning `true`.
+function foreach(t, f, ...)
+    for k, v in pairs(t) do
+        if f(k, v, ...) then return true end
+    end
+    return false
+end
+
+local _publish
+
+if not publish_engine_event or publish_engine_event ~= _publish then
+    local publish_prev = publish_engine_event
+    _publish = function(event_name, ...)
+        if publish_prev ~= _publish then
+            publish_prev(event_name, ...)
+        end
+        hook.publish(event_name, ...)
+    end
+    publish_engine_event = _publish
+end
